@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 import asyncio
 import inspect
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import feedparser
 import requests
@@ -21,6 +21,7 @@ from flying_podcast.core.config import ensure_dirs, settings
 from flying_podcast.core.io_utils import append_lines, dump_json, load_json, load_yaml, read_lines
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.models import NewsItem
+from flying_podcast.stages.web_parser_registry import parse_web_source_entries
 
 logger = get_logger("ingest")
 
@@ -344,21 +345,26 @@ def _collect_web_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
         logger.warning("Fetch web source failed %s: %s", source.get("id"), exc)
         return rows
 
-    parser = _AnchorParser()
-    parser.feed(html)
     link_patterns = [re.compile(p) for p in source.get("link_patterns", [])]
     exclude_patterns = [re.compile(p) for p in source.get("exclude_patterns", [])]
     include_keywords = [x.lower() for x in source.get("article_include_keywords", [])]
     max_items = int(source.get("max_items", 40))
     strict_published_at = settings.strict_web_published_at
+    parsed_entries = parse_web_source_entries(
+        str(source.get("id") or ""),
+        list_url,
+        html,
+        max_items=max_items * 3,
+    )
 
     seen_links: set[str] = set()
-    for href, text in parser.links:
+    for parsed in parsed_entries:
         if len(rows) >= max_items:
             break
-        if not href or not text or len(text) < 8:
+        text = parsed.title.strip()
+        abs_url = parsed.url.strip()
+        if not abs_url or not text or len(text) < 8:
             continue
-        abs_url = urljoin(list_url, href).strip()
         if not abs_url.startswith(("http://", "https://")):
             continue
         if abs_url in seen_links:
@@ -370,7 +376,7 @@ def _collect_web_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         if include_keywords and not any(k in text.lower() for k in include_keywords):
             continue
-        published_at = _extract_published_at_for_web(source, abs_url, text)
+        published_at = _normalize_time_strict(parsed.published_hint) or _extract_published_at_for_web(source, abs_url, text)
         if not published_at and strict_published_at:
             continue
         seen_links.add(abs_url)
@@ -379,7 +385,7 @@ def _collect_web_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
                 "title": text,
                 "url": abs_url,
                 "canonical_url": abs_url,
-                "raw_text": text,
+                "raw_text": parsed.raw_text or text,
                 "published_at": published_at or _normalize_time(None),
                 "lang": (source.get("lang") or "unknown").lower(),
                 "publisher_domain": _extract_domain(abs_url),
