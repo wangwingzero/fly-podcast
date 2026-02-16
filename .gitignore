@@ -3,3 +3,23 @@ __pycache__/
 .venv/
 .env
 .playwright-mcp/
+.vscode/
+*.pyc
+
+# runtime data
+data/raw/*
+data/processed/*
+data/output/*
+data/history/*
+data/history/seen_ids.txt
+!data/history/
+!data/raw/
+!data/processed/
+!data/output/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/output/.gitkeep
+!data/history/.gitkeep
+
+# local preview artifacts
+wechat-preview.png
