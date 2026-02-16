@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "news_item",
+  "type": "object",
+  "required": ["id", "title", "source_url", "source_tier", "published_at", "lang", "raw_text"],
+  "properties": {
+    "id": {"type": "string"},
+    "title": {"type": "string"},
+    "source_url": {"type": "string"},
+    "url": {"type": "string"},
+    "canonical_url": {"type": "string"},
+    "publisher_domain": {"type": "string"},
+    "is_google_redirect": {"type": "boolean"},
+    "event_fingerprint": {"type": "string"},
+    "source_tier": {"type": "string", "enum": ["A", "B", "C"]},
+    "published_at": {"type": "string"},
+    "lang": {"type": "string"},
+    "raw_text": {"type": "string"}
+  }
+}

@@ -1,0 +1,113 @@
+sections:
+  运行与安全:
+    - safety
+    - incident
+    - delay
+    - weather
+    - turbulence
+    - atc
+    - operation
+    - notam
+    - compliance
+    - 安全
+    - 事故
+    - 延误
+    - 天气
+    - 颠簸
+    - 空管
+    - 运行
+    - 适航
+    - 备降
+    - 返航
+    - 故障
+    - 应急
+    - 着陆
+  航司经营与网络:
+    - route
+    - network
+    - schedule
+    - revenue
+    - profit
+    - demand
+    - market
+    - expansion
+    - traffic
+    - 航线
+    - 航班
+    - 营收
+    - 利润
+    - 市场
+    - 旅客
+    - 客运
+    - 货运
+    - 开通
+    - 复航
+    - 票价
+    - 载客
+    - 周转量
+    - 运力
+  机队与制造商:
+    - fleet
+    - delivery
+    - boeing
+    - airbus
+    - engine
+    - mro
+    - aircraft
+    - retrofit
+    - order
+    - 机队
+    - 交付
+    - 波音
+    - 空客
+    - 发动机
+    - 维修
+    - 飞机
+    - 订单
+    - 宽体
+    - 窄体
+    - 国产
+    - C919
+    - ARJ21
+    - 商飞
+  监管与行业政策:
+    - regulator
+    - policy
+    - caac
+    - faa
+    - easa
+    - iata
+    - rule
+    - standard
+    - certification
+    - 民航局
+    - 政策
+    - 规章
+    - 标准
+    - 适航证
+    - 通知
+    - 监管
+    - 审批
+    - 法规
+
+sensitive_keywords:
+  - crash
+  - fatal
+  - dead
+  - black box
+  - 坠机
+  - 空难
+  - 死亡
+  - 伤亡
+
+sensational_words:
+  - 突发
+  - 震惊
+  - 炸裂
+  - 重磅
+  - 必看
+  - 惊呆
+  - 曝光
+
+blocked_domains:
+  - freeportjournalstandard.com

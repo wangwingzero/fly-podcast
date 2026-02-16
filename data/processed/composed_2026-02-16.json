@@ -1,0 +1,303 @@
+{
+  "date": "2026-02-16",
+  "domestic_count": 6,
+  "international_count": 4,
+  "entries": [
+    {
+      "id": "2142208f05163191fb55cedb75689097ff0ac348f6df11f9a5e85ed56fafba7d",
+      "section": "运行与安全",
+      "title": "民航江苏监管局召开辖区通航安全警示工作会",
+      "conclusion": "江苏监管局通过召开通航安全警示会，加强了对辖区通航安全的统筹管理。",
+      "facts": [
+        "江苏民航监管局组织了针对通航安全的警示工作会议。",
+        "会议围绕辖区内通航运行风险进行研判与警示。"
+      ],
+      "impact": "有望降低通航事故风险，提升区域航空安全保障水平。",
+      "citations": [
+        "http://www.caacnews.com.cn/1/2/202602/t20260214_1393398.html"
+      ],
+      "source_tier": "A",
+      "region": "domestic",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 15.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 75.25
+      },
+      "source_name": "中国民航网-新闻列表页",
+      "url": "http://www.caacnews.com.cn/1/2/202602/t20260214_1393398.html",
+      "canonical_url": "http://www.caacnews.com.cn/1/2/202602/t20260214_1393398.html",
+      "publisher_domain": "www.caacnews.com.cn",
+      "event_fingerprint": "83b7f3edbdc9f5d0d72daef3c4c049b112e11945aaf7ee38d810215535264571"
+    },
+    {
+      "id": "2972ff351088f68855b1a3ac816056bbf2f5afae67eb13e3828e14e872a6797f",
+      "section": "运行与安全",
+      "title": "2026春运|精准研判风险 上海监管局部署春运安全保障工作",
+      "conclusion": "上海监管局针对2026春运制定精准风险研判方案，部署多项安全保障措施。",
+      "facts": [
+        "上海民航监管局对春运期间的航空运行风险进行精准研判。",
+        "部署了针对高风险环节的专项安全保障措施。"
+      ],
+      "impact": "将提升春运期间航班准点率和旅客安全感，减少因天气等因素导致的延误。",
+      "citations": [
+        "http://www.caacnews.com.cn/1/2/202602/t20260209_1393196.html"
+      ],
+      "source_tier": "A",
+      "region": "domestic",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 15.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 75.25
+      },
+      "source_name": "中国民航网-新闻列表页",
+      "url": "http://www.caacnews.com.cn/1/2/202602/t20260209_1393196.html",
+      "canonical_url": "http://www.caacnews.com.cn/1/2/202602/t20260209_1393196.html",
+      "publisher_domain": "www.caacnews.com.cn",
+      "event_fingerprint": "794e89489fe9e226c0162ff3a3c9a97b86ebcc22ad2d64aa0c4f7b51bffe2903"
+    },
+    {
+      "id": "9839cbbf2020130155a2df5fe9126fa5f931cf2bd95d7a75f8ef265cdbc4ec01",
+      "section": "运行与安全",
+      "title": "2026春运｜民航吉林监管局织密运行保障网，多措并举迎战春运大考",
+      "conclusion": "吉林监管局通过构建多层次运行保障网络，多措并举确保春运航班安全顺畅。",
+      "facts": [
+        "吉林民航监管局加强了春运期间的运行保障网络。",
+        "采取多项措施应对春运期间的航空运营挑战。"
+      ],
+      "impact": "有望提升春运期间航线运力利用率，保障旅客出行需求。",
+      "citations": [
+        "http://www.caacnews.com.cn/1/2/202602/t20260206_1393186.html"
+      ],
+      "source_tier": "A",
+      "region": "domestic",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 15.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 75.25
+      },
+      "source_name": "中国民航网-新闻列表页",
+      "url": "http://www.caacnews.com.cn/1/2/202602/t20260206_1393186.html",
+      "canonical_url": "http://www.caacnews.com.cn/1/2/202602/t20260206_1393186.html",
+      "publisher_domain": "www.caacnews.com.cn",
+      "event_fingerprint": "56b51b37f0d19702dc725f065ffe05759217c83bbcd38bb950014a97916f40c7"
+    },
+    {
+      "id": "7bfe3b72e54a8429b19dbfcd0d2dbb374bbf68a3ee9f70229707f03f2a337451",
+      "section": "运行与安全",
+      "title": "民航华东局顺利完成中信海直青岛公司经营许可和运行许可联合审定",
+      "conclusion": "华东局完成中信海直青岛公司的经营与运行许可联合审定，标志着其正式进入运营阶段。",
+      "facts": [
+        "华东民航局对中信海直青岛公司进行经营许可审定。",
+        "同步完成了运行许可的联合审定程序。"
+      ],
+      "impact": "将为华东地区提供新的航空运输资源，提升区域航线网络覆盖。",
+      "citations": [
+        "http://www.caacnews.com.cn/1/2/202602/t20260205_1393151.html"
+      ],
+      "source_tier": "A",
+      "region": "domestic",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 15.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 75.25
+      },
+      "source_name": "中国民航网-新闻列表页",
+      "url": "http://www.caacnews.com.cn/1/2/202602/t20260205_1393151.html",
+      "canonical_url": "http://www.caacnews.com.cn/1/2/202602/t20260205_1393151.html",
+      "publisher_domain": "www.caacnews.com.cn",
+      "event_fingerprint": "fac4324d5cd3e954db8a9c1d58317ac9b3d674710ac8d4a00b229894ed289b96"
+    },
+    {
+      "id": "5115b34b868e6a380b982ca64fcec81cdd08131d543ea3b61fe6cc6a59a7e9dd",
+      "section": "航司经营与网络",
+      "title": "民航福建监管局对连城机场开展复航前检查暨使用许可符合性评价现场审查",
+      "conclusion": "福建监管局完成连城机场复航前检查，确认其使用许可符合性。",
+      "facts": [
+        "福建民航监管局对连城机场进行复航前的现场检查。",
+        "对使用许可的符合性进行了专项评价。"
+      ],
+      "impact": "连城机场恢复航班后，将提升当地航空客货运能力，带动区域经济发展。",
+      "citations": [
+        "http://www.caacnews.com.cn/1/2/202602/t20260205_1393150.html"
+      ],
+      "source_tier": "A",
+      "region": "domestic",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 15.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 75.25
+      },
+      "source_name": "中国民航网-新闻列表页",
+      "url": "http://www.caacnews.com.cn/1/2/202602/t20260205_1393150.html",
+      "canonical_url": "http://www.caacnews.com.cn/1/2/202602/t20260205_1393150.html",
+      "publisher_domain": "www.caacnews.com.cn",
+      "event_fingerprint": "30e6ccb717eaf2d805478151239115b6ff9650a0dbe7f421fe04fd33f0a066fb"
+    },
+    {
+      "id": "07a4d8d73bfc7c4caed6268127f75368e010c5d7c9414ab231133d158071c700",
+      "section": "机队与制造商",
+      "title": "Philippine Airlines extends FHS support agreements across its Airbus fleet Commercial Aircraft Philippine Airlines extends FHS support agreements across its Airbus fleet 05 February 2026 2 min read",
+      "conclusion": "Philippine Airlines extends FHS support agreements across its Airbus fleet Comme",
+      "facts": [
+        "Philippine Airlines extends FHS support agreements across its Airbus fleet Commercial Aircraft Philippine Airlines extends FHS support agreements across its Airbus fleet 05 February 2026 2 min read"
+      ],
+      "impact": "影响机队计划、维修排程与机型训练资源配置。",
+      "citations": [
+        "https://www.airbus.com/en/newsroom/press-releases/2026-02-philippine-airlines-extends-fhs-support-agreements-across-its-airbus-fleet"
+      ],
+      "source_tier": "A",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 55.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 80.0,
+        "total": 83.25
+      },
+      "source_name": "Airbus Newsroom Web",
+      "url": "https://www.airbus.com/en/newsroom/press-releases/2026-02-philippine-airlines-extends-fhs-support-agreements-across-its-airbus-fleet",
+      "canonical_url": "https://www.airbus.com/en/newsroom/press-releases/2026-02-philippine-airlines-extends-fhs-support-agreements-across-its-airbus-fleet",
+      "publisher_domain": "www.airbus.com",
+      "event_fingerprint": "4af4bdc4f414caf61984e73e747b5dbdf3a61d1717c014bb5db9ad41e5e19aa5"
+    },
+    {
+      "id": "dc7f6a403cbef2259274ee0ddbe3d2e2a356fbfcaa859e26b633c4294ebec5e7",
+      "section": "机队与制造商",
+      "title": "Delta Air Lines grows Airbus fleet with order for 31 additional widebody aircraftPress ReleaseCommercial Aircraft28 January 20263 min read",
+      "conclusion": "达美航空通过追加31架宽体机，进一步扩大其空客机队规模。",
+      "facts": [
+        "达美航空下单采购31架额外的空客宽体客机。",
+        "此次订单旨在提升其长途航线运力。"
+      ],
+      "impact": "将增强达美在跨洲航线的竞争力，并对空客宽体机市场需求形成提振。",
+      "citations": [
+        "https://www.airbus.com/en/newsroom/press-releases/2026-01-delta-air-lines-grows-airbus-fleet-with-order-for-31-additional-widebody-aircraft"
+      ],
+      "source_tier": "A",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 70.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 89.0
+      },
+      "source_name": "Airbus Newsroom Web",
+      "url": "https://www.airbus.com/en/newsroom/press-releases/2026-01-delta-air-lines-grows-airbus-fleet-with-order-for-31-additional-widebody-aircraft",
+      "canonical_url": "https://www.airbus.com/en/newsroom/press-releases/2026-01-delta-air-lines-grows-airbus-fleet-with-order-for-31-additional-widebody-aircraft",
+      "publisher_domain": "www.airbus.com",
+      "event_fingerprint": "04c3926d9818f47ca6b596176ad5a4fb450752d26c5584bd873c369f8dcda641"
+    },
+    {
+      "id": "1bc90280bb1e68d60c5b894e32d979c78d97a33ff6431f2e19ae846404c7366f",
+      "section": "机队与制造商",
+      "title": "Air Canada discloses order for eight Airbus A350-1000sPress ReleaseCommercial Aircraft12 February 20263 min read",
+      "conclusion": "加拿大航空公布订购八架空客A350-1000，提升其远程机队实力。",
+      "facts": [
+        "加拿大航空确认订购八架空客A350-1000型宽体客机。",
+        "新机将主要用于长途国际航线。"
+      ],
+      "impact": "提升加拿大航空的远程运力和客舱舒适度，增强其国际航线竞争力。",
+      "citations": [
+        "https://www.airbus.com/en/newsroom/press-releases/2026-02-air-canada-discloses-order-for-eight-airbus-a350-1000s"
+      ],
+      "source_tier": "A",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 55.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 85.25
+      },
+      "source_name": "Airbus Newsroom Web",
+      "url": "https://www.airbus.com/en/newsroom/press-releases/2026-02-air-canada-discloses-order-for-eight-airbus-a350-1000s",
+      "canonical_url": "https://www.airbus.com/en/newsroom/press-releases/2026-02-air-canada-discloses-order-for-eight-airbus-a350-1000s",
+      "publisher_domain": "www.airbus.com",
+      "event_fingerprint": "09c7b1751afbe36238a51a4ff05a0ee8d082144d2fa68964647958c02d41014a"
+    },
+    {
+      "id": "79bc49469d37e330c41e9a22f2818ad2cc45ae7b3f496fb8556f43252ffd3116",
+      "section": "机队与制造商",
+      "title": "EGYPTAIR takes delivery of its first of 16 Airbus A350-900 aircraft Commercial Aircraft Read more about EGYPTAIR for its first of 16 Airbus aircraft 09 February 2026 2 min read",
+      "conclusion": "埃及航空接收首架A350-900，标志其16架机队计划正式启动。",
+      "facts": [
+        "埃及航空接收了第一架空客A350-900客机。",
+        "该机是其计划采购的16架A350系列飞机中的首架。"
+      ],
+      "impact": "新机的投入运营将提升埃及航空的远程航线服务水平，增强国际竞争力。",
+      "citations": [
+        "https://www.airbus.com/en/newsroom/press-releases/2026-02-egyptair-takes-delivery-of-its-first-of-16-airbus-a350-900-aircraft"
+      ],
+      "source_tier": "A",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 55.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 100.0,
+        "total": 85.25
+      },
+      "source_name": "Airbus Newsroom Web",
+      "url": "https://www.airbus.com/en/newsroom/press-releases/2026-02-egyptair-takes-delivery-of-its-first-of-16-airbus-a350-900-aircraft",
+      "canonical_url": "https://www.airbus.com/en/newsroom/press-releases/2026-02-egyptair-takes-delivery-of-its-first-of-16-airbus-a350-900-aircraft",
+      "publisher_domain": "www.airbus.com",
+      "event_fingerprint": "e3e0275fbf5bab7d999a8557cf70ab4a51d828d89eb07fedb9726c8408c1a610"
+    },
+    {
+      "id": "63b91dc47ca4332b8e4b06ac10dd05374d04b9357dd40fca5bad1498d1edb332",
+      "section": "监管与行业政策",
+      "title": "民航吉林监管局持续推进辖区航文旅融合发展走深走实",
+      "conclusion": "民航吉林监管局持续推进辖区航文旅融合发展走深走实",
+      "facts": [
+        "民航吉林监管局持续推进辖区航文旅融合发展走深走实"
+      ],
+      "impact": "可能触发合规流程调整，需关注程序与手册更新节奏。",
+      "citations": [
+        "http://www.caacnews.com.cn/1/2/202601/t20260123_1392849.html"
+      ],
+      "source_tier": "A",
+      "region": "domestic",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 15.0,
+        "authority": 100.0,
+        "timeliness": 100.0,
+        "readability": 80.0,
+        "total": 73.25
+      },
+      "source_name": "中国民航网-新闻列表页",
+      "url": "http://www.caacnews.com.cn/1/2/202601/t20260123_1392849.html",
+      "canonical_url": "http://www.caacnews.com.cn/1/2/202601/t20260123_1392849.html",
+      "publisher_domain": "www.caacnews.com.cn",
+      "event_fingerprint": "249aa1a431d431888daaa69eaa4f88836b81b75c9b39c1e9a4d41d2bf61a458e"
+    }
+  ],
+  "total_score": 79.22,
+  "decision": "hold",
+  "generated_at": "2026-02-16T13:21:41.198660",
+  "meta": {
+    "compose_mode": "llm",
+    "compose_reason": "ok",
+    "model": "openai/gpt-oss-120b"
+  }
+}

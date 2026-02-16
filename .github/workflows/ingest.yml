@@ -1,0 +1,30 @@
+name: ingest
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+env:
+  DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
+
+concurrency:
+  group: flying-podcast-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Run ingest
+        run: python run.py ingest --date "$(date -u +%F)"
+      - name: Upload raw artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: raw-${{ github.run_id }}
+          path: data/raw/*.json

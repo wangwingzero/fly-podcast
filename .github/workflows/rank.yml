@@ -1,0 +1,36 @@
+name: rank
+
+on:
+  schedule:
+    - cron: "0 22 * * *" # Beijing 06:00
+  workflow_dispatch:
+
+env:
+  DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
+  TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
+  DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.6' }}
+  QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '90' }}
+  ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
+
+concurrency:
+  group: flying-podcast-rank
+  cancel-in-progress: false
+
+jobs:
+  rank:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Ensure ingest data exists
+        run: python run.py ingest --date "$(date -u +%F)"
+      - name: Run rank
+        run: python run.py rank --date "$(date -u +%F)"
+      - name: Upload ranked artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ranked-${{ github.run_id }}
+          path: data/processed/ranked_*.json

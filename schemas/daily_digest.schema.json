@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "daily_digest",
+  "type": "object",
+  "required": ["date", "domestic_count", "international_count", "entries", "total_score", "decision"],
+  "properties": {
+    "date": {"type": "string"},
+    "domestic_count": {"type": "integer"},
+    "international_count": {"type": "integer"},
+    "entries": {"type": "array", "minItems": 0, "maxItems": 10},
+    "total_score": {"type": "number"},
+    "decision": {"type": "string", "enum": ["auto_publish", "hold"]}
+  }
+}

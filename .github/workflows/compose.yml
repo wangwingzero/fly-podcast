@@ -1,0 +1,41 @@
+name: compose
+
+on:
+  schedule:
+    - cron: "30 22 * * *" # Beijing 06:30
+  workflow_dispatch:
+
+env:
+  DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
+  TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
+  DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.6' }}
+  QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '90' }}
+  ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
+  LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+  LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
+  LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
+
+concurrency:
+  group: flying-podcast-compose
+  cancel-in-progress: false
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Ensure ranked data exists
+        run: |
+          python run.py ingest --date "$(date -u +%F)"
+          python run.py rank --date "$(date -u +%F)"
+      - name: Run compose
+        run: python run.py compose --date "$(date -u +%F)"
+      - name: Upload composed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: composed-${{ github.run_id }}
+          path: data/processed/composed_*.json

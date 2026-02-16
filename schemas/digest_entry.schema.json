@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "digest_entry",
+  "type": "object",
+  "required": ["section", "conclusion", "facts", "impact", "citations", "score_breakdown"],
+  "properties": {
+    "source_id": {"type": "string"},
+    "section": {"type": "string"},
+    "title": {"type": "string"},
+    "conclusion": {"type": "string"},
+    "facts": {"type": "array", "items": {"type": "string"}},
+    "impact": {"type": "string"},
+    "citations": {"type": "array", "items": {"type": "string"}},
+    "url": {"type": "string"},
+    "canonical_url": {"type": "string"},
+    "publisher_domain": {"type": "string"},
+    "event_fingerprint": {"type": "string"},
+    "score_breakdown": {"type": "object"}
+  }
+}

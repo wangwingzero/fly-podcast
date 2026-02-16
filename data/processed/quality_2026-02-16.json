@@ -1,0 +1,12 @@
+{
+  "date": "2026-02-16",
+  "total_score": 79.22,
+  "factual_score": 90.0,
+  "relevance_score": 32.5,
+  "citation_score": 100.0,
+  "timeliness_score": 100.0,
+  "readability_score": 96.0,
+  "decision": "auto_publish",
+  "reasons": [],
+  "blocked_entry_ids": []
+}
