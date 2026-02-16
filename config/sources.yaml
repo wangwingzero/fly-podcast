@@ -220,6 +220,9 @@ sources:
     xvfb: true
     link_patterns:
       - "news\\.carnoc\\.com/list/\\d+/\\d+\\.html"
+    published_at_patterns:
+      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
+      - "(20\\d{2})/(0[1-9]|1[0-2])/(0[1-9]|[12]\\d|3[01])"
     exclude_patterns:
       - "/search"
       - "/tag/"
@@ -271,6 +274,9 @@ sources:
     xvfb: true
     link_patterns:
       - "caac\\.gov\\.cn/.+\\.s?html?"
+    published_at_patterns:
+      - "t(20\\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])_"
+      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
     exclude_patterns:
       - "javascript:"
       - "#"

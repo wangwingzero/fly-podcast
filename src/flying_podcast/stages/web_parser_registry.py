@@ -242,10 +242,30 @@ def _parse_flightglobal(list_url: str, html_text: str) -> list[ParsedWebEntry]:
     )
 
 
+def _parse_caac_gov_mhyw(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    return _parse_generic(
+        list_url=list_url,
+        html_text=html_text,
+        allowed_domains={"caac.gov.cn"},
+        path_hints={"/xwzx/mhyw/", ".shtml", ".html", "t20"},
+    )
+
+
+def _parse_carnoc(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    return _parse_generic(
+        list_url=list_url,
+        html_text=html_text,
+        allowed_domains={"news.carnoc.com", "carnoc.com"},
+        path_hints={"news.carnoc.com/list/", ".html"},
+    )
+
+
 Parser = Callable[[str, str], list[ParsedWebEntry]]
 
 _WEB_PARSER_REGISTRY: dict[str, Parser] = {
+    "carnoc_web_list": _parse_carnoc,
     "caacnews_web_list": _parse_caacnews,
+    "caac_gov_web_mhyw": _parse_caac_gov_mhyw,
     "iata_press_web": _parse_iata,
     "faa_newsroom_web": _parse_faa,
     "airbus_newsroom_web": _parse_airbus,
