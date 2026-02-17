@@ -50,9 +50,9 @@ def weighted_quality(
     readability: float,
 ) -> float:
     return round(
-        factual * 0.35
-        + relevance * 0.25
-        + authority * 0.20
+        factual * 0.30
+        + relevance * 0.35
+        + authority * 0.15
         + timeliness * 0.10
         + readability * 0.10,
         2,

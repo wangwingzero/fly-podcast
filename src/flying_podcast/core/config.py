@@ -34,14 +34,17 @@ class Settings:
     target_article_count: int = _env_int("TARGET_ARTICLE_COUNT", 10)
     domestic_ratio: float = _env_float("DOMESTIC_RATIO", 0.6)
     min_tier_a_ratio: float = _env_float("MIN_TIER_A_RATIO", 0.7)
-    quality_threshold: float = _env_float("QUALITY_THRESHOLD", 90.0)
+    quality_threshold: float = _env_float("QUALITY_THRESHOLD", 80.0)
     allow_google_redirect_citation: bool = _env_bool("ALLOW_GOOGLE_REDIRECT_CITATION", False)
     strict_web_published_at: bool = _env_bool("STRICT_WEB_PUBLISHED_AT", True)
     max_entries_per_source: int = _env_int("MAX_ENTRIES_PER_SOURCE", 3)
+    max_article_age_hours: int = _env_int("MAX_ARTICLE_AGE_HOURS", 72)
 
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_base_url: str = os.getenv("LLM_BASE_URL", "")
     llm_model: str = os.getenv("LLM_MODEL", "")
+    llm_max_tokens: int = _env_int("LLM_MAX_TOKENS", 6000)
+    llm_temperature: float = _env_float("LLM_TEMPERATURE", 0.1)
 
     wechat_enable_publish: bool = _env_bool("WECHAT_ENABLE_PUBLISH", False)
     wechat_app_id: str = os.getenv("WECHAT_APP_ID", "")

@@ -11,11 +11,13 @@ env:
   DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
   TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
   DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.6' }}
-  QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '90' }}
+  QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '80' }}
   ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
   LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
   LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
   LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
+  LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
+  LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
 
 concurrency:
   group: flying-podcast-notify

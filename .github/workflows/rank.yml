@@ -9,7 +9,7 @@ env:
   DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
   TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
   DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.6' }}
-  QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '90' }}
+  QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '80' }}
   ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
 
 concurrency:

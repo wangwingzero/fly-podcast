@@ -90,7 +90,7 @@ sources:
     type: rss
     source_tier: B
     region: domestic
-    enabled: true
+    enabled: false
 
   # ============================================================
   # 三、国际航空 — Google News 聚合（A 级）
@@ -283,7 +283,7 @@ sources:
       - "/XXGK/"
     article_include_keywords: []
     max_items: 60
-    enabled: false
+    enabled: true
 
   - id: iata_press_web
     name: IATA Pressroom Web

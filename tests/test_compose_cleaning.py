@@ -11,3 +11,9 @@ def test_clean_title_removes_press_release_noise():
 def test_ensure_min_facts_fills_to_two():
     facts = _ensure_min_facts([], "仅有一条短内容", "测试标题")
     assert len(facts) >= 2
+
+
+def test_ensure_min_facts_avoids_title_duplication():
+    facts = _ensure_min_facts([], "2026春运精准研判风险 上海监管局部署春运安全保障工作", "2026春运精准研判风险 上海监管局部署春运安全保障工作")
+    assert len(facts) >= 2
+    assert not any("2026春运精准研判风险 上海监管局部署春运安全保障工作" == x for x in facts)

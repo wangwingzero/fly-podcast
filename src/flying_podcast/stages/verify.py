@@ -11,7 +11,6 @@ from flying_podcast.core.models import QualityReport
 from flying_podcast.core.scoring import has_source_conflict
 
 logger = get_logger("verify")
-_SECTIONS = {"运行与安全", "航司经营与网络", "机队与制造商", "监管与行业政策"}
 
 
 def run(target_date: str | None = None) -> Path:
@@ -40,9 +39,6 @@ def run(target_date: str | None = None) -> Path:
     tier_a_ratio = sum(1 for x in entries if x.get("source_tier") == "A") / max(len(entries), 1)
     if tier_a_ratio < settings.min_tier_a_ratio:
         reasons.append("tier_a_ratio_too_low")
-    min_required_sections = min(len(_SECTIONS), len(entries))
-    if len({x.get("section", "") for x in entries if x.get("section") in _SECTIONS}) < min_required_sections:
-        reasons.append("section_coverage_insufficient")
 
     factual_scores = []
     relevance_scores = []
@@ -117,7 +113,7 @@ def run(target_date: str | None = None) -> Path:
     readability = round(sum(readability_scores) / max(len(readability_scores), 1), 2)
 
     total = round(
-        factual * 0.35 + relevance * 0.25 + citation * 0.20 + timeliness * 0.10 + readability * 0.10,
+        factual * 0.30 + relevance * 0.35 + citation * 0.15 + timeliness * 0.10 + readability * 0.10,
         2,
     )
 

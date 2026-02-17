@@ -75,6 +75,50 @@ def _entry_text(entry: dict[str, Any]) -> str:
     return (summary or content or "").strip()
 
 
+def _extract_image_url(entry: dict[str, Any]) -> str:
+    """Extract the best image URL from an RSS entry.
+
+    Priority: enclosures (image/*) > media_content > media_thumbnail > <img> in HTML.
+    """
+    # 1. enclosures with image type
+    for enc in entry.get("enclosures", []):
+        etype = str(enc.get("type", "")).lower()
+        href = str(enc.get("href", "")).strip()
+        if href and ("image" in etype or href.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+            return href
+
+    # 2. media_content
+    for mc in entry.get("media_content", []):
+        url = str(mc.get("url", "")).strip()
+        medium = str(mc.get("medium", "")).lower()
+        mtype = str(mc.get("type", "")).lower()
+        if url and ("image" in medium or "image" in mtype or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+            return url
+
+    # 3. media_thumbnail
+    for mt in entry.get("media_thumbnail", []):
+        url = str(mt.get("url", "")).strip()
+        if url:
+            return url
+
+    # 4. First <img src="..."> in summary or content HTML
+    summary = entry.get("summary", "")
+    content_val = ""
+    if entry.get("content"):
+        first = entry["content"][0]
+        content_val = first.get("value", "") if isinstance(first, dict) else str(first)
+    for html_text in [summary, content_val]:
+        if not html_text:
+            continue
+        m = re.search(r'<img[^>]+src=["\']([^"\'>{]+)', html_text, re.IGNORECASE)
+        if m:
+            src = m.group(1).strip()
+            if src.startswith(("http://", "https://")):
+                return src
+
+    return ""
+
+
 def _extract_domain(url: str) -> str:
     try:
         return (urlparse(url).netloc or "").lower()
@@ -329,6 +373,7 @@ def _collect_rss_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
                 "lang": (entry.get("language") or source.get("lang") or "unknown").lower(),
                 "publisher_domain": publisher_domain or _extract_domain(link),
                 "is_google_redirect": _is_google_redirect(link),
+                "image_url": _extract_image_url(entry),
             }
         )
     return rows
@@ -390,6 +435,7 @@ def _collect_web_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
                 "lang": (source.get("lang") or "unknown").lower(),
                 "publisher_domain": _extract_domain(abs_url),
                 "is_google_redirect": _is_google_redirect(abs_url),
+                "image_url": "",
             }
         )
     return rows
@@ -453,6 +499,7 @@ def run(target_date: str | None = None) -> Path:
                 publisher_domain=publisher_domain,
                 is_google_redirect=is_google_redirect,
                 event_fingerprint=event_fingerprint,
+                image_url=entry.get("image_url", ""),
             )
             items.append(item)
             new_ids.append(item_id)

@@ -6,7 +6,7 @@ def _candidate(i: int, region: str = "domestic"):
         "id": f"id-{i}",
         "title": f"title-{i}",
         "raw_text": "sample raw text about aviation operations.",
-        "section": "运行与安全" if i % 2 == 0 else "航司经营与网络",
+        "section": "",
         "source_tier": "A",
         "region": region,
         "url": f"https://example.com/{i}",
@@ -25,7 +25,7 @@ def test_validate_llm_entries_ok():
         "entries": [
             {
                 "ref_id": f"id-{i}",
-                "section": selected[i]["section"],
+                "section": selected[i].get("section", ""),
                 "title": f"T{i}",
                 "conclusion": f"C{i}",
                 "facts": [f"F{i}-1", f"F{i}-2"],
@@ -45,7 +45,7 @@ def test_validate_llm_entries_reject_unknown_ref_id():
         "entries": [
             {
                 "ref_id": "id-not-exist",
-                "section": "运行与安全",
+                "section": "",
                 "title": "bad",
                 "conclusion": "bad",
                 "facts": ["f1", "f2"],

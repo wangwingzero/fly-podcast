@@ -67,7 +67,29 @@ class OpenAICompatibleClient:
             raise LLMError("llm_empty_choices")
         msg = choices[0].get("message") or {}
         content = msg.get("content")
-        if not content or not str(content).strip():
+
+        # Providers in OpenAI-compatible mode may return:
+        # 1) string content
+        # 2) list content blocks: [{"type":"text","text":"..."}]
+        # 3) dict payload with text field
+        if isinstance(content, list):
+            text_parts: list[str] = []
+            for block in content:
+                if isinstance(block, str):
+                    text_parts.append(block)
+                elif isinstance(block, dict):
+                    if isinstance(block.get("text"), str):
+                        text_parts.append(block["text"])
+                    elif block.get("type") == "text" and isinstance(block.get("content"), str):
+                        text_parts.append(block["content"])
+            content = "\n".join([x for x in text_parts if x.strip()])
+        elif isinstance(content, dict):
+            content = content.get("text") or content.get("content") or ""
+        elif content is None:
+            # Some providers put plain text at choice.text (legacy style).
+            content = choices[0].get("text") or ""
+
+        if not str(content).strip():
             raise LLMError("llm_empty_content")
         return self._extract_json_object(str(content)), str(content)
 

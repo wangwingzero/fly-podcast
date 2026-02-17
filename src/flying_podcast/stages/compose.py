@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import requests
+
 from flying_podcast.core.config import settings
 from flying_podcast.core.llm_client import LLMError, OpenAICompatibleClient
 from flying_podcast.core.io_utils import dump_json, load_json
@@ -14,7 +16,197 @@ from flying_podcast.core.models import DailyDigest, DigestEntry
 from flying_podcast.core.scoring import readability_score, weighted_quality
 
 logger = get_logger("compose")
-_SECTIONS = ["运行与安全", "航司经营与网络", "机队与制造商", "监管与行业政策"]
+
+_GLOSSARY_PATH = Path(__file__).resolve().parents[3] / "AirbusTermbase.js"
+
+_OG_IMAGE_RE = re.compile(
+    r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
+_OG_IMAGE_RE2 = re.compile(
+    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+    re.IGNORECASE,
+)
+
+
+def _fetch_og_image(url: str, timeout: int = 8) -> str:
+    """Fetch og:image from a URL. Returns empty string on failure."""
+    if not url or not url.startswith(("http://", "https://")):
+        return ""
+    try:
+        resp = requests.get(
+            url,
+            timeout=timeout,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+            },
+            allow_redirects=True,
+        )
+        if not resp.ok:
+            logger.debug("og:image fetch failed %s: HTTP %s", url[:60], resp.status_code)
+            return ""
+        # Only read first 50KB to find og:image quickly
+        html = resp.text[:50000]
+        m = _OG_IMAGE_RE.search(html) or _OG_IMAGE_RE2.search(html)
+        if m:
+            img = m.group(1).strip()
+            if img.startswith(("http://", "https://")):
+                return img
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("og:image fetch error %s: %s", url[:60], exc)
+    return ""
+
+
+def _resolve_google_url_single(page: Any, gurl: str, max_attempts: int = 3) -> str:
+    """Try to resolve a Google News redirect URL with retries and increasing wait times.
+
+    Returns the resolved real URL, or empty string if all attempts fail.
+    """
+    wait_times = [3000, 5000, 8000]
+    for attempt in range(max_attempts):
+        try:
+            page.goto(gurl, wait_until="domcontentloaded", timeout=15000)
+            wait_ms = wait_times[min(attempt, len(wait_times) - 1)]
+            page.wait_for_timeout(wait_ms)
+            final_url = page.url
+            if "news.google.com" not in final_url:
+                return final_url
+            # Try clicking through consent/redirect pages
+            try:
+                page.wait_for_url(lambda u: "news.google.com" not in u, timeout=5000)
+                final_url = page.url
+                if "news.google.com" not in final_url:
+                    return final_url
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception:  # noqa: BLE001
+            pass
+    return ""
+
+
+def _resolve_google_urls_and_fetch_images(entries: list, pool: list[dict]) -> None:
+    """Resolve Google News redirect URLs via Playwright, then fetch og:image."""
+    google_entries = []
+    for entry in entries:
+        existing_img = entry.image_url if hasattr(entry, "image_url") else entry.get("image_url", "")
+        if existing_img:
+            continue
+        page_url = entry.canonical_url if hasattr(entry, "canonical_url") else entry.get("canonical_url", "")
+        if not page_url:
+            page_url = entry.url if hasattr(entry, "url") else entry.get("url", "")
+        if "news.google.com" not in page_url:
+            # Direct URL — use simple requests
+            img = _fetch_og_image(page_url)
+            if img:
+                if hasattr(entry, "image_url"):
+                    entry.image_url = img
+                else:
+                    entry["image_url"] = img
+                logger.info("og:image found for %s: %s", (entry.id if hasattr(entry, "id") else entry.get("id", ""))[:12], img[:80])
+            continue
+        google_entries.append((entry, page_url))
+
+    if not google_entries:
+        return
+
+    # Use Playwright to resolve Google News redirects in batch
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        logger.warning("Playwright not available, skipping Google redirect resolution")
+        return
+
+    resolved_count = 0
+    failed_count = 0
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                for entry, gurl in google_entries:
+                    eid = entry.id if hasattr(entry, "id") else entry.get("id", "")
+                    final_url = _resolve_google_url_single(page, gurl)
+                    if not final_url:
+                        failed_count += 1
+                        logger.info("Google redirect failed after retries: %s", eid[:12])
+                        continue
+                    resolved_count += 1
+                    # Update canonical_url to the real URL
+                    if hasattr(entry, "canonical_url"):
+                        entry.canonical_url = final_url
+                    # Update citations to use real URL instead of Google redirect
+                    if hasattr(entry, "citations") and entry.citations:
+                        entry.citations = [final_url]
+                    # Try og:image from the page JS context first
+                    try:
+                        og = page.evaluate(
+                            '() => { const m = document.querySelector(\'meta[property="og:image"]\'); return m ? m.content : ""; }'
+                        )
+                    except Exception:  # noqa: BLE001
+                        og = ""
+                    if og and og.startswith(("http://", "https://")) and not og.lower().endswith(".svg"):
+                        if hasattr(entry, "image_url"):
+                            entry.image_url = og
+                        else:
+                            entry["image_url"] = og
+                        logger.info("og:image found (playwright) for %s: %s", eid[:12], og[:80])
+                    else:
+                        # Fallback: fetch og:image via requests from resolved URL
+                        img = _fetch_og_image(final_url)
+                        if img:
+                            if hasattr(entry, "image_url"):
+                                entry.image_url = img
+                            else:
+                                entry["image_url"] = img
+                            logger.info("og:image found (resolved) for %s: %s", eid[:12], img[:80])
+                        else:
+                            logger.info("og:image not found for %s from %s", eid[:12], final_url[:60])
+            finally:
+                browser.close()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Playwright launch failed: %s", exc)
+    logger.info("Google redirect resolution: resolved=%d failed=%d", resolved_count, failed_count)
+
+
+def _load_aviation_glossary() -> dict[str, str]:
+    """Load aviation terminology from AirbusTermbase.js → {english: chinese}."""
+    if not _GLOSSARY_PATH.exists():
+        return {}
+    raw = _GLOSSARY_PATH.read_text(encoding="utf-8")
+    # Strip JS module wrapper: module.exports = [...]
+    start = raw.find("[")
+    end = raw.rfind("]")
+    if start < 0 or end < 0:
+        return {}
+    arr = json.loads(raw[start : end + 1])
+    glossary: dict[str, str] = {}
+    for item in arr:
+        en = str(item.get("english_full", "")).strip()
+        zh = str(item.get("chinese_translation", "")).strip()
+        # Skip trivial entries (math comparisons, single chars)
+        if en and zh and len(en) > 3 and " is " not in en.lower():
+            glossary[en] = zh
+    return glossary
+
+
+def _match_glossary_for_candidates(candidates: list[dict], glossary: dict[str, str]) -> str:
+    """Find glossary terms that appear in candidate texts and return as prompt string."""
+    if not glossary:
+        return ""
+    corpus = " ".join(
+        f"{c.get('title', '')} {c.get('raw_text', '')}" for c in candidates
+    ).lower()
+    matched: list[str] = []
+    for en, zh in glossary.items():
+        if en.lower() in corpus:
+            matched.append(f"{en} → {zh}")
+    if not matched:
+        return ""
+    return "\n".join(matched[:80])
 _TITLE_NOISE_PATTERNS = [
     r"\bPress Release\b",
     r"\bCommercial Aircraft\b",
@@ -81,6 +273,8 @@ def _split_facts(raw_text: str, title: str = "") -> list[str]:
     plain = _strip_html(raw_text)
     # Decode HTML entities leftover from RSS
     plain = plain.replace("\xa0", " ").replace("&nbsp;", " ").strip()
+    plain = re.sub(r"The post .*? appeared first on .*", " ", plain, flags=re.IGNORECASE)
+    plain = re.sub(r"本文.*?仅供参考", " ", plain, flags=re.IGNORECASE)
     if not plain or len(plain) < 15:
         return []
     # Google News raw_text often echoes the title — skip if too similar.
@@ -92,22 +286,43 @@ def _split_facts(raw_text: str, title: str = "") -> list[str]:
     return facts[:3]
 
 
+def _is_title_like(text: str, title: str) -> bool:
+    t = re.sub(r"\s+", "", text.lower())
+    k = re.sub(r"\s+", "", title.lower())
+    if not t or not k:
+        return False
+    return t == k or t in k or k in t
+
+
 def _ensure_min_facts(facts: list[str], raw_text: str, title: str, min_count: int = 2) -> list[str]:
-    out = [x.strip() for x in facts if len(x.strip()) > 10]
+    out: list[str] = []
+    seen_keys: set[str] = set()
+    for x in facts:
+        x = x.strip()
+        key = re.sub(r"\s+", " ", x.lower())
+        if len(x) <= 10 or key in seen_keys or _is_title_like(x, title):
+            continue
+        out.append(x)
+        seen_keys.add(key)
+
     plain = _strip_html(raw_text).replace("\xa0", " ").replace("&nbsp;", " ").strip()
+    plain = re.sub(r"The post .*? appeared first on .*", " ", plain, flags=re.IGNORECASE)
     if len(out) < min_count and plain:
         for seg in re.split(r"[。.!?;；,，]\s*", plain):
             seg = seg.strip()
-            if len(seg) > 10 and seg not in out:
-                out.append(seg)
+            key = re.sub(r"\s+", " ", seg.lower())
+            if len(seg) <= 10 or key in seen_keys or _is_title_like(seg, title):
+                continue
+            out.append(seg)
+            seen_keys.add(key)
             if len(out) >= 3:
                 break
     if len(out) < min_count:
-        t = title.strip()
-        if t and t not in out:
-            out.append(t)
-    if len(out) < min_count and out:
-        out.append(out[0])
+        # Avoid title repetition when source only has headline-level snippet.
+        if len(out) == 0:
+            out.append("该条目为新闻摘要，建议点击原文查看完整运行细节。")
+        if len(out) < min_count:
+            out.append("已附原文链接，供机组和签派进一步核对关键信息。")
     return out[:3]
 
 
@@ -116,14 +331,8 @@ def _build_conclusion(title: str) -> str:
     return clean[:80]
 
 
-def _build_impact(section: str) -> str:
-    mapping = {
-        "运行与安全": "建议运行、签派和机组关注执行风险变化，并同步值班提示。",
-        "航司经营与网络": "对航线投放、收益管理和地面保障排班存在直接影响。",
-        "机队与制造商": "影响机队计划、维修排程与机型训练资源配置。",
-        "监管与行业政策": "可能触发合规流程调整，需关注程序与手册更新节奏。",
-    }
-    return mapping.get(section, "建议相关岗位评估对运行、成本和合规的实际影响。")
+def _build_impact() -> str:
+    return "详见原文。"
 
 
 def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
@@ -134,17 +343,6 @@ def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: floa
     intl = [x for x in candidates if x["region"] != "domestic"]
 
     picked = domestic[:domestic_quota] + intl[:intl_quota]
-
-    # Section diversity fill.
-    existing_sections = {x["section"] for x in picked}
-    for item in candidates:
-        if len(picked) >= total:
-            break
-        if item in picked:
-            continue
-        if item["section"] not in existing_sections:
-            picked.append(item)
-            existing_sections.add(item["section"])
 
     if len(picked) < total:
         for item in candidates:
@@ -168,7 +366,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
         title=clean_title,
         min_count=2,
     )
-    impact = impact.strip() or _build_impact(item.get("section", ""))
+    impact = impact.strip() or _build_impact()
     citation = item.get("canonical_url") or item.get("url") or item.get("source_url") or ""
     read_score = readability_score(conclusion, normalized_facts, impact)
     score = item.get("score_breakdown", {})
@@ -190,7 +388,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
     return DigestEntry(
         id=item["id"],
         source_id=item.get("source_id", ""),
-        section=item.get("section", "航司经营与网络"),
+        section=item.get("section", ""),
         title=clean_title,
         conclusion=conclusion,
         facts=normalized_facts,
@@ -204,48 +402,83 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
         canonical_url=item.get("canonical_url", citation),
         publisher_domain=item.get("publisher_domain", ""),
         event_fingerprint=item.get("event_fingerprint", ""),
+        published_at=item.get("published_at", ""),
+        image_url=item.get("image_url", ""),
     )
 
 
-def _build_llm_prompts(selected: list[dict], total: int, domestic_quota: int, intl_quota: int) -> tuple[str, str]:
+def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: int, intl_quota: int) -> tuple[str, str]:
     payload = []
-    for row in selected:
+    for row in candidates_pool:
         payload.append(
             {
                 "ref_id": row["id"],
-                "section": row.get("section", "航司经营与网络"),
                 "title": row.get("title", ""),
                 "raw_text": _strip_html(row.get("raw_text", ""))[:500],
                 "region": row.get("region", "international"),
                 "source_tier": row.get("source_tier", "C"),
+                "source_name": row.get("source_name", ""),
+                "publisher_domain": row.get("publisher_domain", ""),
             }
         )
+
+    glossary = _load_aviation_glossary()
+    glossary_block = _match_glossary_for_candidates(candidates_pool, glossary)
+    glossary_instruction = ""
+    if glossary_block:
+        glossary_instruction = (
+            "\n\n以下是航空专业术语对照表，翻译时必须使用这些标准译法：\n"
+            + glossary_block
+        )
+
     system_prompt = (
-        "你是民航行业新闻编辑。"
+        "你是服务于飞行员、签派和运行控制人员的民航新闻编辑。"
+        "你的首要任务是筛掉与飞行运行无关的泛社会、娱乐、旅游、财经新闻。"
         "必须只基于输入内容改写，不得引入外部事实，不得编造链接或ID。"
+        "【重要】所有输出内容（title、conclusion、facts、impact）必须是中文。"
+        "英文新闻必须翻译成专业、准确的中文，航空专业术语使用标准译法。"
+        "impact 字段是「速评」：用一句话提炼这条资讯的核心要点，"
+        "说清楚发生了什么、对运输航空业意味着什么，不要写空话套话。"
         "输出必须是 JSON object，且仅包含 entries 字段。"
+        + glossary_instruction
     )
     user_prompt = json.dumps(
         {
-            "task": "从候选新闻中生成日报条目",
+            "task": "从候选新闻中生成日报条目（全部中文输出）",
+            "audience": "飞行员、签派、运行控制",
             "rules": {
                 "total": total,
                 "domestic_quota": domestic_quota,
                 "international_quota": intl_quota,
-                "allowed_sections": _SECTIONS,
                 "must_keep_ref_id": True,
                 "must_not_generate_links": True,
                 "facts_count": "2-3",
+                "pilot_relevance_first": True,
+                "language": "zh-CN（全部中文，包括标题、事实、速评）",
+                "impact_style": "速评：一句话提炼核心，不要套话",
+                "hard_reject_topics": [
+                    "股价/财报/融资",
+                    "明星娱乐",
+                    "旅游生活方式",
+                    "泛科技八卦",
+                    "与飞行运行无关的社会新闻",
+                ],
+                "prefer_topics": [
+                    "运行安全",
+                    "适航与监管",
+                    "空域与航班运行",
+                    "机队与机务维护",
+                    "航司运行网络变化",
+                ],
             },
             "output_schema": {
                 "entries": [
                     {
-                        "ref_id": "string",
-                        "section": "string",
-                        "title": "string",
-                        "conclusion": "string",
-                        "facts": ["string"],
-                        "impact": "string",
+                        "ref_id": "string（保持原始ID不变）",
+                        "title": "string（中文标题）",
+                        "conclusion": "string（中文结论，一句话概括）",
+                        "facts": ["string（中文事实要点，2-3条）"],
+                        "impact": "string（速评：一句话提炼核心信息和行业意义）",
                     }
                 ]
             },
@@ -265,12 +498,17 @@ def _build_entries_with_rules(selected: list[dict]) -> list[DigestEntry]:
         item["source_name"] = item.get("source_name") or source_name
         facts = _split_facts(item.get("raw_text", ""), title=clean_title)
         conclusion = clean_title[:80]
-        impact = _build_impact(item.get("section", ""))
+        impact = _build_impact()
         entry = _to_digest_entry(item, clean_title, conclusion, facts, impact)
         if not entry.citations:
             continue
         entries.append(entry)
     return entries
+
+
+def _has_chinese(text: str) -> bool:
+    """Check if text contains at least one CJK character."""
+    return bool(re.search(r"[\u4e00-\u9fff]", text))
 
 
 def _enforce_constraints(
@@ -279,8 +517,12 @@ def _enforce_constraints(
     total: int,
     domestic_ratio: float,
 ) -> list[DigestEntry]:
-    required_sections = ["运行与安全", "航司经营与网络", "机队与制造商", "监管与行业政策"]
+    required_sections: list[str] = []
     max_per_source = settings.max_entries_per_source
+
+    # Only allow pool entries with Chinese titles (avoid replacing LLM-translated entries
+    # with untranslated English entries from the rules-based pool).
+    pool = [p for p in pool if _has_chinese(p.title)]
 
     uniq: list[DigestEntry] = []
     used_ids: set[str] = set()
@@ -441,8 +683,6 @@ def _validate_llm_entries(llm_payload: dict[str, Any], selected: list[dict], tot
         if not ref_id or ref_id in dedup_ids or ref_id not in by_id:
             continue
         section = str(item.get("section", "")).strip()
-        if section not in _SECTIONS:
-            section = by_id[ref_id].get("section", "航司经营与网络")
         source = dict(by_id[ref_id])
         source["section"] = section
         entry = _to_digest_entry(
@@ -456,7 +696,7 @@ def _validate_llm_entries(llm_payload: dict[str, Any], selected: list[dict], tot
             continue
         out.append(entry)
         dedup_ids.add(ref_id)
-        if len(out) >= total:
+        if len(out) >= total + 4:
             break
     if not out:
         raise ValueError("llm_entries_empty")
@@ -469,28 +709,51 @@ def run(target_date: str | None = None) -> Path:
     ranked_payload = load_json(ranked_path)
     candidates = ranked_payload.get("articles", [])
 
+    ai_pool_size = max(settings.target_article_count * 4, 40)
+    ai_candidates_pool = candidates[:ai_pool_size] if candidates else []
+    if len(ai_candidates_pool) < settings.target_article_count:
+        ai_candidates_pool = list(candidates)
+
     selected = _pick_final_entries(
-        candidates,
+        ai_candidates_pool,
         total=settings.target_article_count,
         domestic_ratio=settings.domestic_ratio,
     )
-    pool_entries = _build_entries_with_rules(candidates)
+    pool_entries = _build_entries_with_rules(ai_candidates_pool or candidates)
 
     entries: list[DigestEntry] = []
     compose_mode = "rules"
     compose_reason = "llm_not_configured"
     if OpenAICompatibleClient.is_configured():
+        # Request extra entries from LLM as buffer for enforce_constraints
+        llm_total = settings.target_article_count + 4
         domestic_quota = round(settings.target_article_count * settings.domestic_ratio)
         intl_quota = settings.target_article_count - domestic_quota
-        system_prompt, user_prompt = _build_llm_prompts(selected, settings.target_article_count, domestic_quota, intl_quota)
+        system_prompt, user_prompt = _build_llm_prompts(
+            ai_candidates_pool or selected,
+            llm_total,
+            domestic_quota + 2,
+            intl_quota + 2,
+        )
         client = OpenAICompatibleClient(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             model=settings.llm_model,
         )
         try:
-            response = client.complete_json(system_prompt=system_prompt, user_prompt=user_prompt, retries=3)
-            entries = _validate_llm_entries(response.payload, selected, settings.target_article_count)
+            response = client.complete_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=settings.llm_max_tokens,
+                temperature=settings.llm_temperature,
+                retries=3,
+                timeout=120,
+            )
+            entries = _validate_llm_entries(
+                response.payload,
+                ai_candidates_pool or selected,
+                llm_total,
+            )
             compose_mode = "llm"
             compose_reason = "ok"
         except (LLMError, ValueError, KeyError) as exc:
@@ -502,6 +765,9 @@ def run(target_date: str | None = None) -> Path:
         entries = _build_entries_with_rules(selected)
 
     entries = _enforce_constraints(entries, pool_entries, settings.target_article_count, settings.domestic_ratio)
+
+    # Enrich missing images: resolve Google redirects + fetch og:image
+    _resolve_google_urls_and_fetch_images(entries, ai_candidates_pool or candidates)
 
     domestic_count = sum(1 for x in entries if x.region == "domestic")
     intl_count = len(entries) - domestic_count

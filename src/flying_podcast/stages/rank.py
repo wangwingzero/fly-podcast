@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
-from datetime import datetime
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 from dateutil import parser as dt_parser
@@ -13,6 +13,102 @@ from flying_podcast.core.scoring import recency_score, relevance_score, tier_sco
 
 logger = get_logger("rank")
 
+_DEFAULT_PILOT_SIGNAL_KEYWORDS = [
+    "aviation",
+    "airline",
+    "aircraft",
+    "flight",
+    "airport",
+    "airspace",
+    "runway",
+    "notam",
+    "atc",
+    "faa",
+    "easa",
+    "iata",
+    "icao",
+    "ntsb",
+    "airworthiness",
+    "service bulletin",
+    "ad ",
+    "safety",
+    "incident",
+    "turbulence",
+    "diversion",
+    "go-around",
+    "民航",
+    "航空",
+    "航司",
+    "航线",
+    "航班",
+    "飞机",
+    "机场",
+    "空管",
+    "适航",
+    "通告",
+    "飞行",
+    "机组",
+    "跑道",
+    "复飞",
+    "备降",
+    "返航",
+]
+
+_DEFAULT_PILOT_ENTITY_KEYWORDS = [
+    "faa",
+    "easa",
+    "icao",
+    "iata",
+    "ntsb",
+    "boeing",
+    "airbus",
+    "delta",
+    "united",
+    "american airlines",
+    "lufthansa",
+    "emirates",
+    "民航局",
+    "中国民航网",
+    "caac",
+    "c919",
+    "arj21",
+    "商飞",
+]
+
+_DEFAULT_HARD_REJECT_KEYWORDS = [
+    "stock",
+    "shares",
+    "dividend",
+    "market cap",
+    "ipo",
+    "earnings",
+    "luxury",
+    "lounge opening",
+    "loyalty program",
+    "frequent flyer",
+    "meal service",
+    "celebrity",
+    "旅游",
+    "游客",
+    "酒店",
+    "餐饮",
+    "娱乐",
+    "明星",
+    "春晚",
+    "网红",
+    "股价",
+    "市值",
+    "融资",
+    "财报",
+    "分红",
+    "营销",
+    "赞助",
+    "开业",
+    "积分",
+    "里程计划",
+    "会员福利",
+]
+
 
 def _load_raw(day: str) -> list[dict]:
     path = settings.raw_dir / f"{day}.json"
@@ -21,14 +117,9 @@ def _load_raw(day: str) -> list[dict]:
     return load_json(path)
 
 
-def _classify_section(text: str, sections: dict[str, list[str]]) -> tuple[str, int]:
+def _keyword_hits(text: str, keywords: list[str]) -> int:
     text_l = text.lower()
-    best = ("航司经营与网络", 0)
-    for section, words in sections.items():
-        hits = sum(1 for word in words if word.lower() in text_l)
-        if hits > best[1]:
-            best = (section, hits)
-    return best
+    return sum(1 for word in keywords if word.lower() in text_l)
 
 
 def _domain(url: str) -> str:
@@ -44,12 +135,64 @@ def _looks_like_google_redirect(url: str) -> bool:
     return dm.endswith("news.google.com") and path.startswith("/rss/articles/")
 
 
-def _is_relevant(item: dict, section_hits: int, all_keywords: list[str]) -> bool:
-    text = f"{item.get('title', '')} {item.get('raw_text', '')}".lower()
-    if section_hits > 0:
+def _is_relevant(item: dict, keyword_hits: int, all_keywords: list[str]) -> bool:
+    if keyword_hits > 0:
         return True
+    text = f"{item.get('title', '')} {item.get('raw_text', '')}".lower()
     hit = sum(1 for k in all_keywords if k.lower() in text)
     return hit >= 2
+
+
+def _keyword_list(values: list[str] | None, defaults: list[str]) -> list[str]:
+    if not values:
+        return defaults
+    return [str(x).strip().lower() for x in values if str(x).strip()]
+
+
+def _count_hits(text: str, keywords: list[str]) -> int:
+    text_l = text.lower()
+    return sum(1 for k in keywords if k and k in text_l)
+
+
+def _domain_allowed(domain: str, allowed_domains: set[str]) -> bool:
+    if not domain or not allowed_domains:
+        return False
+    return any(domain.endswith(x) for x in allowed_domains)
+
+
+def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
+    signal_words = _keyword_list(kw_cfg.get("pilot_signal_keywords"), _DEFAULT_PILOT_SIGNAL_KEYWORDS)
+    entity_words = _keyword_list(kw_cfg.get("pilot_entity_keywords"), _DEFAULT_PILOT_ENTITY_KEYWORDS)
+    reject_words = _keyword_list(kw_cfg.get("hard_reject_keywords"), _DEFAULT_HARD_REJECT_KEYWORDS)
+
+    allowed_source_ids = {str(x).strip() for x in kw_cfg.get("pilot_allowed_source_ids", []) if str(x).strip()}
+    allowed_domains = {
+        str(x).strip().lower()
+        for x in kw_cfg.get("pilot_allowed_domains", [])
+        if str(x).strip()
+    }
+
+    canonical_url = (item.get("canonical_url") or item.get("url") or "").strip()
+    domain = _domain(canonical_url)
+    source_id = str(item.get("source_id") or "").strip()
+
+    text_l = text.lower()
+    signal_hits = _count_hits(text_l, signal_words)
+    entity_hits = _count_hits(text_l, entity_words)
+    reject_hits = _count_hits(text_l, reject_words)
+    trusted_source = source_id in allowed_source_ids or _domain_allowed(domain, allowed_domains)
+
+    # Reject obvious noise unless signal is very strong.
+    if reject_hits > 0 and signal_hits < 2:
+        return False, "hard_reject_keywords"
+
+    if signal_hits <= 0:
+        return False, "missing_pilot_signal"
+
+    if entity_hits <= 0 and not trusted_source:
+        return False, "missing_aviation_entity"
+
+    return True, "ok"
 
 
 def _has_valid_published_at(value: str) -> bool:
@@ -58,6 +201,20 @@ def _has_valid_published_at(value: str) -> bool:
     try:
         dt_parser.parse(str(value))
         return True
+    except (ValueError, TypeError):
+        return False
+
+
+def _is_too_old(value: str, max_age_hours: int) -> bool:
+    """Return True if published_at is older than *max_age_hours* from now."""
+    if not value or max_age_hours <= 0:
+        return False
+    try:
+        pub = dt_parser.parse(str(value))
+        if pub.tzinfo is None:
+            pub = pub.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        return (now - pub) > timedelta(hours=max_age_hours)
     except (ValueError, TypeError):
         return False
 
@@ -76,30 +233,6 @@ def _pick_by_quota(candidates: list[dict], total: int, domestic_ratio: float) ->
         chosen.extend(remain[: total - len(chosen)])
 
     return chosen[:total]
-
-
-def _enforce_section_diversity(candidates: list[dict], ranked_pool: list[dict], total: int) -> list[dict]:
-    required_sections = ["运行与安全", "航司经营与网络", "机队与制造商", "监管与行业政策"]
-    out = list(candidates[:total])
-    for section in required_sections:
-        if any(x.get("section") == section for x in out):
-            continue
-        repl = next((x for x in ranked_pool if x.get("section") == section and x not in out), None)
-        if repl is None:
-            continue
-        counts: dict[str, int] = {}
-        for row in out:
-            s = row.get("section", "")
-            counts[s] = counts.get(s, 0) + 1
-        replace_idx = None
-        for i in range(len(out) - 1, -1, -1):
-            if counts.get(out[i].get("section", ""), 0) > 1:
-                replace_idx = i
-                break
-        if replace_idx is None:
-            replace_idx = len(out) - 1
-        out[replace_idx] = repl
-    return out[:total]
 
 
 def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per_source: int) -> tuple[list[dict], bool]:
@@ -122,10 +255,6 @@ def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per
         if not over_key:
             break
 
-        section_counts: dict[str, int] = {}
-        for row in out:
-            section_counts[row.get("section", "")] = section_counts.get(row.get("section", ""), 0) + 1
-
         victim_idx = None
         for i in range(len(out) - 1, -1, -1):
             key = str(out[i].get("source_id") or out[i].get("source_name") or "")
@@ -144,7 +273,6 @@ def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per
                 and str(x.get("source_id") or x.get("source_name") or "") != over_key
                 and counts.get(str(x.get("source_id") or x.get("source_name") or ""), 0) < max_per_source
                 and x.get("region") == victim.get("region")
-                and x.get("section") == victim.get("section")
             ),
             None,
         )
@@ -156,27 +284,9 @@ def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per
                     if x.get("id") not in used_ids
                     and str(x.get("source_id") or x.get("source_name") or "") != over_key
                     and counts.get(str(x.get("source_id") or x.get("source_name") or ""), 0) < max_per_source
-                    and x.get("region") == victim.get("region")
                 ),
                 None,
             )
-        if replacement is None:
-            replacement = next(
-                (
-                    x
-                    for x in ranked_pool
-                    if x.get("id") not in used_ids
-                    and str(x.get("source_id") or x.get("source_name") or "") != over_key
-                    and counts.get(str(x.get("source_id") or x.get("source_name") or ""), 0) < max_per_source
-                ),
-                None,
-            )
-        if (
-            replacement is not None
-            and section_counts.get(victim.get("section", ""), 0) <= 1
-            and replacement.get("section") != victim.get("section")
-        ):
-            replacement = None
         if replacement is None:
             break
 
@@ -193,14 +303,23 @@ def run(target_date: str | None = None) -> Path:
     rows = _load_raw(day)
     kw = load_yaml(settings.keywords_config)
     section_map = kw.get("sections", {})
-    all_keywords = [x for words in section_map.values() for x in words]
+    relevance_kw = kw.get("relevance_keywords", [])
+    # Support both old sections format and new flat relevance_keywords
+    if relevance_kw:
+        all_keywords = [str(x).strip() for x in relevance_kw if str(x).strip()]
+    else:
+        all_keywords = [x for words in section_map.values() for x in words]
     blocked_domains = [x.lower() for x in kw.get("blocked_domains", [])]
 
     ranked: list[dict] = []
     dropped_non_relevant = 0
+    dropped_non_pilot_relevant = 0
+    dropped_hard_reject = 0
     dropped_blocked_domain = 0
     dropped_no_original_link = 0
     dropped_no_published_at = 0
+    dropped_too_old = 0
+    max_age = settings.max_article_age_hours
     for item in rows:
         canonical_url = (item.get("canonical_url") or item.get("url") or "").strip()
         if not canonical_url.startswith(("http://", "https://")):
@@ -210,31 +329,40 @@ def run(target_date: str | None = None) -> Path:
         if dm in blocked_domains:
             dropped_blocked_domain += 1
             continue
-        if _looks_like_google_redirect(canonical_url):
-            # 无原始可验证直链，按业务规则直接丢弃。
-            dropped_no_original_link += 1
-            continue
+        # Google redirect URLs are kept but penalised in scoring below.
+        # Dropping them would eliminate nearly all domestic news from Google News RSS.
         if not _has_valid_published_at(item.get("published_at", "")):
             dropped_no_published_at += 1
             continue
+        if _is_too_old(item.get("published_at", ""), max_age):
+            dropped_too_old += 1
+            continue
 
         text = f"{item['title']} {item['raw_text']}"
-        section, hits = _classify_section(text, section_map)
+        hits = _keyword_hits(text, all_keywords)
         if not _is_relevant(item, hits, all_keywords):
             dropped_non_relevant += 1
             continue
-        rel = relevance_score(text, hits)
+        pilot_ok, pilot_reason = _is_pilot_relevant(item, text, kw)
+        if not pilot_ok:
+            dropped_non_pilot_relevant += 1
+            if pilot_reason == "hard_reject_keywords":
+                dropped_hard_reject += 1
+            continue
+
+        pilot_signal_words = _keyword_list(kw.get("pilot_signal_keywords"), _DEFAULT_PILOT_SIGNAL_KEYWORDS)
+        pilot_hits = _count_hits(text, pilot_signal_words)
+        rel = relevance_score(text, hits + pilot_hits)
         auth = tier_score(item.get("source_tier", "C"))
         if str(item.get("source_id", "")).startswith("google_"):
             auth = min(auth, 80.0)
         time_score = recency_score(item.get("published_at", ""))
         google_penalty = 15.0 if _looks_like_google_redirect(canonical_url) else 0.0
-        rank_score = round(rel * 0.45 + auth * 0.35 + time_score * 0.20 - google_penalty, 2)
+        rank_score = round(rel * 0.65 + auth * 0.20 + time_score * 0.15 - google_penalty, 2)
 
         enriched = dict(item)
         enriched.update(
             {
-                "section": section,
                 "canonical_url": canonical_url,
                 "publisher_domain": item.get("publisher_domain", dm),
                 "event_fingerprint": item.get("event_fingerprint") or item.get("id"),
@@ -265,7 +393,6 @@ def run(target_date: str | None = None) -> Path:
 
     candidate_total = max(settings.target_article_count * 2, 12)
     top_candidates = _pick_by_quota(deduped, total=candidate_total, domestic_ratio=settings.domestic_ratio)
-    top_candidates = _enforce_section_diversity(top_candidates, deduped, candidate_total)
     top_candidates, source_cap_applied = _enforce_source_cap(
         top_candidates,
         deduped,
@@ -290,9 +417,6 @@ def run(target_date: str | None = None) -> Path:
             if current_a >= min_a:
                 break
 
-    section_stats = defaultdict(int)
-    for row in top_candidates:
-        section_stats[row["section"]] += 1
     source_distribution = Counter(x.get("source_id", "") for x in top_candidates if x.get("source_id"))
 
     payload = {
@@ -300,13 +424,16 @@ def run(target_date: str | None = None) -> Path:
         "meta": {
             "total_candidates": len(rows),
             "dropped_non_relevant": dropped_non_relevant,
+            "dropped_non_pilot_relevant": dropped_non_pilot_relevant,
+            "dropped_hard_reject": dropped_hard_reject,
             "dropped_blocked_domain": dropped_blocked_domain,
             "dropped_no_original_link": dropped_no_original_link,
             "dropped_no_published_at": dropped_no_published_at,
+            "dropped_too_old": dropped_too_old,
+            "max_article_age_hours": max_age,
             "selected_for_compose": len(top_candidates),
             "source_cap_applied": source_cap_applied,
             "source_distribution": dict(source_distribution.most_common(10)),
-            "section_stats": dict(section_stats),
         },
         "articles": top_candidates,
     }

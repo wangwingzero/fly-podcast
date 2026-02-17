@@ -22,6 +22,7 @@ class NewsItem:
     publisher_domain: str = ""
     is_google_redirect: bool = False
     event_fingerprint: str = ""
+    image_url: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -45,6 +46,8 @@ class DigestEntry:
     canonical_url: str = ""
     publisher_domain: str = ""
     event_fingerprint: str = ""
+    published_at: str = ""
+    image_url: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

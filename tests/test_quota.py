@@ -5,7 +5,7 @@ def _item(idx: int, region: str):
     return {
         "id": str(idx),
         "region": region,
-        "section": "运行与安全" if idx % 2 == 0 else "航司经营与网络",
+        "section": "",
     }
 
 
