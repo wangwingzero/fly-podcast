@@ -152,7 +152,7 @@ def _render_html(digest: dict) -> str:
             image_html = (
                 f'<img src="{safe_img}" style="width:100%;height:auto;'
                 f"border-radius:10px;margin:10px 0 0 0;display:block;"
-                f'object-fit:cover;max-height:200px;" />'
+                f'object-fit:contain;" />'
             )
 
         # Facts
@@ -284,7 +284,7 @@ def _render_html(digest: dict) -> str:
 
     html = (
         # Outer wrapper
-        f'<section style="padding:0;margin:0;'
+        f'<section style="padding:0;margin:0 auto;max-width:420px;'
         f"font-family:-apple-system,BlinkMacSystemFont,"
         f"'SF Pro Display','PingFang SC','Helvetica Neue',"
         f"'Microsoft YaHei',sans-serif;"
