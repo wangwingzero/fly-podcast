@@ -138,7 +138,7 @@ def _render_html(digest: dict) -> str:
             try:
                 dt = dt_parser.parse(str(raw_pa))
                 date_html = (
-                    f'<p style="margin:5px 0 0 0;font-size:12px;color:#86868B;">'
+                    f'<p style="margin:5px 0 0 0;font-size:12px;color:#6E6E73;">'
                     f"{dt.month}月{dt.day}日 {dt.strftime('%H:%M')}</p>"
                 )
             except (ValueError, TypeError):
@@ -187,8 +187,9 @@ def _render_html(digest: dict) -> str:
         if citation:
             source_meta = (
                 f'<section style="margin:12px 0 0 0;text-align:right;">'
-                f'<a href="{safe_href}" style="font-size:12px;color:#0A84FF;'
-                f'text-decoration:none;font-weight:500;">阅读原文 →</a>'
+                f'<a href="{safe_href}" style="display:inline-block;'
+                f"font-size:12px;color:#0A84FF;text-decoration:none;"
+                f'font-weight:500;padding:8px 0;">阅读原文 →</a>'
                 f"</section>"
             )
 
@@ -214,7 +215,7 @@ def _render_html(digest: dict) -> str:
                 f'<span style="display:inline-flex;align-items:center;'
                 f"justify-content:center;width:22px;height:22px;"
                 f"border-radius:6px;background:#F2F2F7;"
-                f'color:#86868B;font-size:11px;font-weight:700;">{idx}</span>'
+                f'color:#6E6E73;font-size:11px;font-weight:700;">{idx}</span>'
             )
 
         # Top border accent for hero card
@@ -229,7 +230,7 @@ def _render_html(digest: dict) -> str:
             f'<section style="display:flex;align-items:center;'
             f'gap:6px;margin:0 0 8px 0;">'
             f"{num_badge}"
-            f'<span style="font-size:11px;color:#86868B;'
+            f'<span style="font-size:12px;color:#6E6E73;'
             f'font-weight:500;">{domain}</span>'
             f'<span style="margin-left:auto;font-size:10px;color:#FFFFFF;'
             f"background:{region_color};padding:2px 7px;"
@@ -295,12 +296,12 @@ def _render_html(digest: dict) -> str:
         f"background:linear-gradient(90deg,#0A84FF,#30D158);"
         f'margin:0 auto 18px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:10px;font-weight:600;'
-        f"color:#86868B;letter-spacing:4px;"
+        f"color:#6E6E73;letter-spacing:4px;"
         f'text-transform:uppercase;">FLYING PODCAST</p>'
         f'<p style="margin:6px 0 0 0;font-size:26px;font-weight:700;'
         f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">每日航空简报</p>'
         f'<p style="margin:8px 0 0 0;font-size:13px;'
-        f'color:#86868B;font-weight:400;">{date_long}</p>'
+        f'color:#6E6E73;font-weight:400;">{date_long}</p>'
         f'<section style="margin:16px auto 0 auto;display:flex;'
         f'justify-content:center;gap:20px;">'
         # Domestic pill
@@ -328,7 +329,7 @@ def _render_html(digest: dict) -> str:
         f'<section style="width:40px;height:3px;'
         f"background:linear-gradient(90deg,#0A84FF,#30D158);"
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
-        f'<p style="margin:0;font-size:12px;color:#86868B;'
+        f'<p style="margin:0;font-size:12px;color:#6E6E73;'
         f'line-height:1.6;font-weight:500;">飞行播客 · 运输航空新闻精选</p>'
         f'<p style="margin:6px 0 0 0;font-size:11px;color:#AEAEB2;'
         f'line-height:1.5;">数据来源：民航局 / 航司 / 行业媒体'
