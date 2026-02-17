@@ -18,6 +18,10 @@ FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "web"
         ("airbus_newsroom_web", "https://www.airbus.com/en/newsroom", "airbus_newsroom_web.html", "airbus.com"),
         ("boeing_newsroom_web", "https://boeing.mediaroom.com/news-releases-statements", "boeing_newsroom_web.html", "boeing.mediaroom.com"),
         ("flightglobal_news_web", "https://www.flightglobal.com/news", "flightglobal_news_web.html", "flightglobal.com"),
+        ("reuters_aerospace_web", "https://www.reuters.com/business/aerospace-defense/", "reuters_aerospace_web.html", "reuters.com"),
+        ("ain_online_web", "https://www.ainonline.com/aviation-news/air-transport", "ain_online_web.html", "ainonline.com"),
+        ("ntsb_press_web", "https://www.ntsb.gov/news/press-releases/Pages/default.aspx", "ntsb_press_web.html", "ntsb.gov"),
+        ("easa_newsroom_web", "https://www.easa.europa.eu/en/newsroom-and-events/press-releases", "easa_newsroom_web.html", "easa.europa.eu"),
     ],
 )
 def test_registry_parses_enabled_web_sources(source_id: str, list_url: str, fixture_name: str, expected_domain: str):
@@ -44,6 +48,7 @@ def test_registry_filters_invalid_entries():
     [
         ("carnoc_web_list", "https://www.carnoc.com/", "carnoc_web_list.html"),
         ("caac_gov_web_mhyw", "http://www.caac.gov.cn/XWZX/MHYW/", "caac_gov_web_mhyw.html"),
+        ("ntsb_press_web", "https://www.ntsb.gov/news/press-releases/Pages/default.aspx", "ntsb_press_web.html"),
     ],
 )
 def test_registry_extracts_published_hint(source_id: str, list_url: str, fixture_name: str):

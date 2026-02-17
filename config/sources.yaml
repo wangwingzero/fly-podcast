@@ -237,7 +237,7 @@ sources:
       - 飞机
       - 航司
     max_items: 40
-    enabled: false
+    enabled: true
 
   - id: caacnews_web_list
     name: 中国民航网-新闻列表页
@@ -427,6 +427,100 @@ sources:
       - engine
       - fleet
     max_items: 80
+    enabled: true
+
+  - id: reuters_aerospace_web
+    name: Reuters Aerospace & Defense
+    url: https://www.reuters.com/business/aerospace-defense/
+    type: web
+    fetch_mode: requests
+    source_tier: A
+    region: international
+    lang: en
+    fallback_order: [playwright]
+    link_patterns:
+      - "reuters\\.com/business/aerospace-defense/.+-20\\d{2}-\\d{2}-\\d{2}"
+    published_at_patterns:
+      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
+    exclude_patterns:
+      - "/video/"
+      - "javascript:"
+      - "#"
+    article_include_keywords: []
+    max_items: 40
+    enabled: true
+
+  - id: ain_online_web
+    name: AIN Online - Aviation International News
+    url: https://www.ainonline.com/aviation-news/air-transport
+    type: web
+    fetch_mode: requests
+    source_tier: B
+    region: international
+    lang: en
+    fallback_order: [playwright]
+    link_patterns:
+      - "ainonline\\.com/aviation-news/.+/20\\d{2}-\\d{2}-\\d{2}/.+"
+    published_at_patterns:
+      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
+    exclude_patterns:
+      - "/author/"
+      - "/tag/"
+      - "javascript:"
+      - "#"
+    article_include_keywords: []
+    max_items: 40
+    enabled: true
+
+  - id: ntsb_press_web
+    name: NTSB Press Releases
+    url: https://www.ntsb.gov/news/press-releases/Pages/default.aspx
+    type: web
+    fetch_mode: requests
+    source_tier: A
+    region: international
+    lang: en
+    fallback_order: [playwright]
+    link_patterns:
+      - "ntsb\\.gov/news/press-releases/Pages/.+\\.aspx"
+    published_at_patterns:
+      - "(?:NR|MA|MR)(20\\d{2})(0[1-9]|1[0-2])([0-3]\\d)"
+    exclude_patterns:
+      - "/default.aspx"
+      - "javascript:"
+      - "#"
+    article_include_keywords: []
+    max_items: 30
+    enabled: true
+
+  - id: easa_newsroom_web
+    name: EASA Newsroom
+    url: https://www.easa.europa.eu/en/newsroom-and-events/press-releases
+    type: web
+    fetch_mode: playwright
+    source_tier: A
+    region: international
+    lang: en
+    fallback_order: [nodriver]
+    xvfb: true
+    link_patterns:
+      - "easa\\.europa\\.eu/en/.+"
+    published_at_patterns:
+      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
+      - "([0-3]?\\d\\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+20\\d{2})"
+    exclude_patterns:
+      - "/domains/"
+      - "/events/"
+      - "javascript:"
+      - "#"
+    article_include_keywords:
+      - aviation
+      - safety
+      - aircraft
+      - airworthiness
+      - drone
+      - certification
+    max_items: 30
     enabled: true
 
   # ============================================================

@@ -78,6 +78,8 @@ def _extract_date_hint(text: str) -> str:
         r"(20\d{2}年[01]?\d月[0-3]?\d日)",
         r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+[0-3]?\d,\s*20\d{2})",
         r"(t(20\d{2})(0[1-9]|1[0-2])([0-3]\d)_)",
+        r"([0-3]?\d\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+20\d{2})",
+        r"((?:NR|MA|MR)(20\d{2})(0[1-9]|1[0-2])([0-3]\d))",
     ]
     for pat in patterns:
         m = re.search(pat, text, flags=re.IGNORECASE)
@@ -87,6 +89,9 @@ def _extract_date_hint(text: str) -> str:
         compact = re.match(r"t(20\d{2})(0[1-9]|1[0-2])([0-3]\d)_", token, flags=re.IGNORECASE)
         if compact:
             return f"{compact.group(1)}-{compact.group(2)}-{compact.group(3)}"
+        ntsb = re.match(r"(?:NR|MA|MR)(20\d{2})(0[1-9]|1[0-2])([0-3]\d)", token, flags=re.IGNORECASE)
+        if ntsb:
+            return f"{ntsb.group(1)}-{ntsb.group(2)}-{ntsb.group(3)}"
         return token
     return ""
 
@@ -260,6 +265,42 @@ def _parse_carnoc(list_url: str, html_text: str) -> list[ParsedWebEntry]:
     )
 
 
+def _parse_reuters_aerospace(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    return _parse_generic(
+        list_url=list_url,
+        html_text=html_text,
+        allowed_domains={"reuters.com"},
+        path_hints={"/business/aerospace-defense/"},
+    )
+
+
+def _parse_ain_online(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    return _parse_generic(
+        list_url=list_url,
+        html_text=html_text,
+        allowed_domains={"ainonline.com"},
+        path_hints={"/aviation-news/"},
+    )
+
+
+def _parse_ntsb(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    return _parse_generic(
+        list_url=list_url,
+        html_text=html_text,
+        allowed_domains={"ntsb.gov"},
+        path_hints={"/news/press-releases/"},
+    )
+
+
+def _parse_easa(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    return _parse_generic(
+        list_url=list_url,
+        html_text=html_text,
+        allowed_domains={"easa.europa.eu"},
+        path_hints={"/newsroom-and-events/", "/news/"},
+    )
+
+
 Parser = Callable[[str, str], list[ParsedWebEntry]]
 
 _WEB_PARSER_REGISTRY: dict[str, Parser] = {
@@ -271,6 +312,10 @@ _WEB_PARSER_REGISTRY: dict[str, Parser] = {
     "airbus_newsroom_web": _parse_airbus,
     "boeing_newsroom_web": _parse_boeing,
     "flightglobal_news_web": _parse_flightglobal,
+    "reuters_aerospace_web": _parse_reuters_aerospace,
+    "ain_online_web": _parse_ain_online,
+    "ntsb_press_web": _parse_ntsb,
+    "easa_newsroom_web": _parse_easa,
 }
 
 

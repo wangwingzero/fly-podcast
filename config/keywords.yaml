@@ -216,6 +216,10 @@ pilot_allowed_source_ids:
   - easa_news
   - boeing_news
   - airbus_news
+  - reuters_aerospace_web
+  - ain_online_web
+  - ntsb_press_web
+  - easa_newsroom_web
 
 pilot_allowed_domains:
   - caac.gov.cn
@@ -233,3 +237,7 @@ pilot_allowed_domains:
   - theaviationist.com
   - onemileatatime.com
   - viewfromthewing.com
+  - reuters.com
+  - ainonline.com
+  - ntsb.gov
+  - easa.europa.eu
