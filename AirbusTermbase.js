@@ -3914,5 +3914,1105 @@ module.exports = [
   {
     "english_full": "direct law",
     "chinese_translation": "直接法则"
+  },
+  {
+    "english_full": "reset",
+    "chinese_translation": "重置"
+  },
+  {
+    "english_full": "fuel",
+    "chinese_translation": "燃油"
+  },
+  {
+    "english_full": "bleed",
+    "chinese_translation": "引气"
+  },
+  {
+    "english_full": "smoke",
+    "chinese_translation": "烟雾"
+  },
+  {
+    "english_full": "pitch",
+    "chinese_translation": "俯仰"
+  },
+  {
+    "english_full": "flaps",
+    "chinese_translation": "襟翼"
+  },
+  {
+    "english_full": "alert",
+    "chinese_translation": "告警"
+  },
+  {
+    "english_full": "slats",
+    "chinese_translation": "缝翼"
+  },
+  {
+    "english_full": "fire",
+    "chinese_translation": "火警"
+  },
+  {
+    "english_full": "failure",
+    "chinese_translation": "故障"
+  },
+  {
+    "english_full": "braking",
+    "chinese_translation": "刹车"
+  },
+  {
+    "english_full": "ice",
+    "chinese_translation": "冰"
+  },
+  {
+    "english_full": "idle",
+    "chinese_translation": "慢车"
+  },
+  {
+    "english_full": "wing",
+    "chinese_translation": "机翼"
+  },
+  {
+    "english_full": "pack",
+    "chinese_translation": "组件/空调组件"
+  },
+  {
+    "english_full": "weather",
+    "chinese_translation": "天气"
+  },
+  {
+    "english_full": "trim",
+    "chinese_translation": "配平"
+  },
+  {
+    "english_full": "windshear",
+    "chinese_translation": "风切变"
+  },
+  {
+    "english_full": "leak",
+    "chinese_translation": "泄漏"
+  },
+  {
+    "english_full": "flight path",
+    "chinese_translation": "飞行轨迹"
+  },
+  {
+    "english_full": "stall",
+    "chinese_translation": "失速"
+  },
+  {
+    "english_full": "door",
+    "chinese_translation": "舱门"
+  },
+  {
+    "english_full": "taxi",
+    "chinese_translation": "滑行"
+  },
+  {
+    "english_full": "relight",
+    "chinese_translation": "重新起动"
+  },
+  {
+    "english_full": "auto flight",
+    "chinese_translation": "自动飞行"
+  },
+  {
+    "english_full": "caution",
+    "chinese_translation": "注意"
+  },
+  {
+    "english_full": "flare",
+    "chinese_translation": "拉平"
+  },
+  {
+    "english_full": "electrical",
+    "chinese_translation": "电气"
+  },
+  {
+    "english_full": "jammed",
+    "chinese_translation": "卡阻"
+  },
+  {
+    "english_full": "turbulence",
+    "chinese_translation": "颠簸"
+  },
+  {
+    "english_full": "final approach",
+    "chinese_translation": "最后进近"
+  },
+  {
+    "english_full": "briefing",
+    "chinese_translation": "简令"
+  },
+  {
+    "english_full": "touchdown",
+    "chinese_translation": "接地"
+  },
+  {
+    "english_full": "roll",
+    "chinese_translation": "横滚"
+  },
+  {
+    "english_full": "green dot",
+    "chinese_translation": "绿点"
+  },
+  {
+    "english_full": "fuel leak",
+    "chinese_translation": "燃油泄漏"
+  },
+  {
+    "english_full": "pitch trim",
+    "chinese_translation": "俯仰配平"
+  },
+  {
+    "english_full": "cabin crew",
+    "chinese_translation": "乘务组"
+  },
+  {
+    "english_full": "monitoring",
+    "chinese_translation": "监控"
+  },
+  {
+    "english_full": "tail",
+    "chinese_translation": "尾部"
+  },
+  {
+    "english_full": "operative",
+    "chinese_translation": "工作的"
+  },
+  {
+    "english_full": "crosscheck",
+    "chinese_translation": "交叉检查"
+  },
+  {
+    "english_full": "diversion",
+    "chinese_translation": "备降"
+  },
+  {
+    "english_full": "clearance",
+    "chinese_translation": "许可"
+  },
+  {
+    "english_full": "rotation",
+    "chinese_translation": "抬轮"
+  },
+  {
+    "english_full": "maneuver",
+    "chinese_translation": "机动"
+  },
+  {
+    "english_full": "tasksharing",
+    "chinese_translation": "任务分工"
+  },
+  {
+    "english_full": "crosswind",
+    "chinese_translation": "侧风"
+  },
+  {
+    "english_full": "icing",
+    "chinese_translation": "结冰"
+  },
+  {
+    "english_full": "bus",
+    "chinese_translation": "汇流条"
+  },
+  {
+    "english_full": "engine failure",
+    "chinese_translation": "发动机故障"
+  },
+  {
+    "english_full": "captain",
+    "chinese_translation": "机长"
+  },
+  {
+    "english_full": "evacuation",
+    "chinese_translation": "撤离"
+  },
+  {
+    "english_full": "alpha prot",
+    "chinese_translation": "保护迎角"
+  },
+  {
+    "english_full": "holding",
+    "chinese_translation": "等待"
+  },
+  {
+    "english_full": "threshold",
+    "chinese_translation": "跑道入口"
+  },
+  {
+    "english_full": "air conditioning",
+    "chinese_translation": "空调"
+  },
+  {
+    "english_full": "ditching",
+    "chinese_translation": "水上迫降"
+  },
+  {
+    "english_full": "flight warning",
+    "chinese_translation": "飞行警告"
+  },
+  {
+    "english_full": "engine start",
+    "chinese_translation": "发动机起动"
+  },
+  {
+    "english_full": "flight phase",
+    "chinese_translation": "飞行阶段"
+  },
+  {
+    "english_full": "dispatch",
+    "chinese_translation": "签派"
+  },
+  {
+    "english_full": "overhead panel",
+    "chinese_translation": "顶板"
+  },
+  {
+    "english_full": "managed speed",
+    "chinese_translation": "管理速度"
+  },
+  {
+    "english_full": "sidestick",
+    "chinese_translation": "侧杆"
+  },
+  {
+    "english_full": "gear down",
+    "chinese_translation": "放起落架"
+  },
+  {
+    "english_full": "detent",
+    "chinese_translation": "卡位"
+  },
+  {
+    "english_full": "tire",
+    "chinese_translation": "轮胎"
+  },
+  {
+    "english_full": "level off",
+    "chinese_translation": "改平"
+  },
+  {
+    "english_full": "autoland",
+    "chinese_translation": "自动着陆"
+  },
+  {
+    "english_full": "bank angle",
+    "chinese_translation": "坡度角"
+  },
+  {
+    "english_full": "target speed",
+    "chinese_translation": "目标速度"
+  },
+  {
+    "english_full": "green dot speed",
+    "chinese_translation": "绿点速度"
+  },
+  {
+    "english_full": "stall warning",
+    "chinese_translation": "失速警告"
+  },
+  {
+    "english_full": "tail strike",
+    "chinese_translation": "擦机尾"
+  },
+  {
+    "english_full": "status page",
+    "chinese_translation": "状态页"
+  },
+  {
+    "english_full": "elevator",
+    "chinese_translation": "升降舵"
+  },
+  {
+    "english_full": "aural alert",
+    "chinese_translation": "音响告警"
+  },
+  {
+    "english_full": "trim tank",
+    "chinese_translation": "配平油箱"
+  },
+  {
+    "english_full": "alpha floor",
+    "chinese_translation": "迎角底线"
+  },
+  {
+    "english_full": "braking action",
+    "chinese_translation": "刹车效应"
+  },
+  {
+    "english_full": "wake turbulence",
+    "chinese_translation": "尾流"
+  },
+  {
+    "english_full": "pushback",
+    "chinese_translation": "推出"
+  },
+  {
+    "english_full": "autothrust",
+    "chinese_translation": "自动推力"
+  },
+  {
+    "english_full": "missed approach",
+    "chinese_translation": "复飞"
+  },
+  {
+    "english_full": "crewmember",
+    "chinese_translation": "机组成员"
+  },
+  {
+    "english_full": "parking brake",
+    "chinese_translation": "停留刹车"
+  },
+  {
+    "english_full": "windmill",
+    "chinese_translation": "风车状态"
+  },
+  {
+    "english_full": "buffet",
+    "chinese_translation": "抖振"
+  },
+  {
+    "english_full": "thrust lever",
+    "chinese_translation": "推力手柄"
+  },
+  {
+    "english_full": "main gear",
+    "chinese_translation": "主起落架"
+  },
+  {
+    "english_full": "bleed valve",
+    "chinese_translation": "引气活门"
+  },
+  {
+    "english_full": "circling approach",
+    "chinese_translation": "盘旋进近"
+  },
+  {
+    "english_full": "pylon",
+    "chinese_translation": "吊架"
+  },
+  {
+    "english_full": "fly-by-wire",
+    "chinese_translation": "电传操纵"
+  },
+  {
+    "english_full": "visibility",
+    "chinese_translation": "能见度"
+  },
+  {
+    "english_full": "stabilizer",
+    "chinese_translation": "安定面"
+  },
+  {
+    "english_full": "stabilized approach",
+    "chinese_translation": "稳定进近"
+  },
+  {
+    "english_full": "selected speed",
+    "chinese_translation": "选择速度"
+  },
+  {
+    "english_full": "malfunction",
+    "chinese_translation": "故障"
+  },
+  {
+    "english_full": "speed brake",
+    "chinese_translation": "减速板"
+  },
+  {
+    "english_full": "thrust reduction",
+    "chinese_translation": "减推力"
+  },
+  {
+    "english_full": "navaid",
+    "chinese_translation": "导航台"
+  },
+  {
+    "english_full": "rate of descent",
+    "chinese_translation": "下降率"
+  },
+  {
+    "english_full": "pedestal",
+    "chinese_translation": "操纵台"
+  },
+  {
+    "english_full": "display unit",
+    "chinese_translation": "显示组件"
+  },
+  {
+    "english_full": "yaw",
+    "chinese_translation": "偏航"
+  },
+  {
+    "english_full": "nose down",
+    "chinese_translation": "低头"
+  },
+  {
+    "english_full": "pitch up",
+    "chinese_translation": "抬头"
+  },
+  {
+    "english_full": "terrain",
+    "chinese_translation": "地形"
+  },
+  {
+    "english_full": "liftoff",
+    "chinese_translation": "离地"
+  },
+  {
+    "english_full": "rudder pedal",
+    "chinese_translation": "方向舵脚蹬"
+  },
+  {
+    "english_full": "gear up",
+    "chinese_translation": "收起落架"
+  },
+  {
+    "english_full": "ceiling",
+    "chinese_translation": "云底高/升限"
+  },
+  {
+    "english_full": "gradient",
+    "chinese_translation": "梯度"
+  },
+  {
+    "english_full": "contaminated runway",
+    "chinese_translation": "污染跑道"
+  },
+  {
+    "english_full": "rollout",
+    "chinese_translation": "着陆滑跑"
+  },
+  {
+    "english_full": "turbine",
+    "chinese_translation": "涡轮"
+  },
+  {
+    "english_full": "barometric altitude",
+    "chinese_translation": "气压高度"
+  },
+  {
+    "english_full": "anti-icing",
+    "chinese_translation": "防冰"
+  },
+  {
+    "english_full": "cabin pressure",
+    "chinese_translation": "客舱压力"
+  },
+  {
+    "english_full": "overweight landing",
+    "chinese_translation": "超重着陆"
+  },
+  {
+    "english_full": "overweight",
+    "chinese_translation": "超重"
+  },
+  {
+    "english_full": "intermediate approach",
+    "chinese_translation": "中间进近"
+  },
+  {
+    "english_full": "flare height",
+    "chinese_translation": "拉平高度"
+  },
+  {
+    "english_full": "deicing",
+    "chinese_translation": "除冰"
+  },
+  {
+    "english_full": "walkaround",
+    "chinese_translation": "绕机检查"
+  },
+  {
+    "english_full": "idle thrust",
+    "chinese_translation": "慢车推力"
+  },
+  {
+    "english_full": "hydraulic system",
+    "chinese_translation": "液压系统"
+  },
+  {
+    "english_full": "center tank",
+    "chinese_translation": "中央油箱"
+  },
+  {
+    "english_full": "radome",
+    "chinese_translation": "雷达罩"
+  },
+  {
+    "english_full": "incapacitation",
+    "chinese_translation": "失能"
+  },
+  {
+    "english_full": "nose up",
+    "chinese_translation": "抬头"
+  },
+  {
+    "english_full": "climb thrust",
+    "chinese_translation": "爬升推力"
+  },
+  {
+    "english_full": "oil quantity",
+    "chinese_translation": "滑油量"
+  },
+  {
+    "english_full": "fuel imbalance",
+    "chinese_translation": "燃油不平衡"
+  },
+  {
+    "english_full": "towing",
+    "chinese_translation": "拖曳"
+  },
+  {
+    "english_full": "wings level",
+    "chinese_translation": "改平"
+  },
+  {
+    "english_full": "obstacle",
+    "chinese_translation": "障碍物"
+  },
+  {
+    "english_full": "normal law",
+    "chinese_translation": "正常法则"
+  },
+  {
+    "english_full": "alternate law",
+    "chinese_translation": "备用法则"
+  },
+  {
+    "english_full": "nose gear",
+    "chinese_translation": "前起落架"
+  },
+  {
+    "english_full": "engine shutdown",
+    "chinese_translation": "发动机关车"
+  },
+  {
+    "english_full": "flame out",
+    "chinese_translation": "熄火"
+  },
+  {
+    "english_full": "tailwind",
+    "chinese_translation": "顺风"
+  },
+  {
+    "english_full": "normal checklist",
+    "chinese_translation": "正常检查单"
+  },
+  {
+    "english_full": "callout",
+    "chinese_translation": "喊话"
+  },
+  {
+    "english_full": "volcanic ash",
+    "chinese_translation": "火山灰"
+  },
+  {
+    "english_full": "climb gradient",
+    "chinese_translation": "爬升梯度"
+  },
+  {
+    "english_full": "instrument approach",
+    "chinese_translation": "仪表进近"
+  },
+  {
+    "english_full": "overshoot",
+    "chinese_translation": "复飞"
+  },
+  {
+    "english_full": "control law",
+    "chinese_translation": "操纵法则"
+  },
+  {
+    "english_full": "fan",
+    "chinese_translation": "风扇"
+  },
+  {
+    "english_full": "compressor",
+    "chinese_translation": "压气机"
+  },
+  {
+    "english_full": "headwind",
+    "chinese_translation": "顶风"
+  },
+  {
+    "english_full": "cabin altitude",
+    "chinese_translation": "客舱高度"
+  },
+  {
+    "english_full": "exterior inspection",
+    "chinese_translation": "外部检查"
+  },
+  {
+    "english_full": "load factor",
+    "chinese_translation": "载荷系数"
+  },
+  {
+    "english_full": "hail",
+    "chinese_translation": "冰雹"
+  },
+  {
+    "english_full": "dry runway",
+    "chinese_translation": "干跑道"
+  },
+  {
+    "english_full": "manual thrust",
+    "chinese_translation": "人工推力"
+  },
+  {
+    "english_full": "thrust reverser",
+    "chinese_translation": "反推装置"
+  },
+  {
+    "english_full": "takeoff thrust",
+    "chinese_translation": "起飞推力"
+  },
+  {
+    "english_full": "wing tank",
+    "chinese_translation": "机翼油箱"
+  },
+  {
+    "english_full": "minimum control speed",
+    "chinese_translation": "最小操纵速度"
+  },
+  {
+    "english_full": "microburst",
+    "chinese_translation": "微爆流"
+  },
+  {
+    "english_full": "convective weather",
+    "chinese_translation": "对流天气"
+  },
+  {
+    "english_full": "clear air turbulence",
+    "chinese_translation": "晴空颠簸"
+  },
+  {
+    "english_full": "fuel jettison",
+    "chinese_translation": "放油"
+  },
+  {
+    "english_full": "extra fuel",
+    "chinese_translation": "额外燃油"
+  },
+  {
+    "english_full": "fuselage",
+    "chinese_translation": "机身"
+  },
+  {
+    "english_full": "visual approach",
+    "chinese_translation": "目视进近"
+  },
+  {
+    "english_full": "combustion chamber",
+    "chinese_translation": "燃烧室"
+  },
+  {
+    "english_full": "bleed air",
+    "chinese_translation": "引气"
+  },
+  {
+    "english_full": "master warning",
+    "chinese_translation": "主警告"
+  },
+  {
+    "english_full": "fuel pump",
+    "chinese_translation": "燃油泵"
+  },
+  {
+    "english_full": "emergency descent",
+    "chinese_translation": "应急下降"
+  },
+  {
+    "english_full": "stall speed",
+    "chinese_translation": "失速速度"
+  },
+  {
+    "english_full": "initial approach",
+    "chinese_translation": "起始进近"
+  },
+  {
+    "english_full": "glareshield",
+    "chinese_translation": "遮光板"
+  },
+  {
+    "english_full": "instrument panel",
+    "chinese_translation": "仪表面板"
+  },
+  {
+    "english_full": "pitch down",
+    "chinese_translation": "低头"
+  },
+  {
+    "english_full": "descent rate",
+    "chinese_translation": "下降率"
+  },
+  {
+    "english_full": "downburst",
+    "chinese_translation": "下击暴流"
+  },
+  {
+    "english_full": "lightning",
+    "chinese_translation": "闪电"
+  },
+  {
+    "english_full": "wet runway",
+    "chinese_translation": "湿跑道"
+  },
+  {
+    "english_full": "mayday",
+    "chinese_translation": "遇险呼叫"
+  },
+  {
+    "english_full": "speedbrake",
+    "chinese_translation": "减速板"
+  },
+  {
+    "english_full": "flameout",
+    "chinese_translation": "熄火"
+  },
+  {
+    "english_full": "oil pressure",
+    "chinese_translation": "滑油压力"
+  },
+  {
+    "english_full": "oil temperature",
+    "chinese_translation": "滑油温度"
+  },
+  {
+    "english_full": "rate of climb",
+    "chinese_translation": "爬升率"
+  },
+  {
+    "english_full": "horizontal stabilizer",
+    "chinese_translation": "水平安定面"
+  },
+  {
+    "english_full": "memory item",
+    "chinese_translation": "记忆项目"
+  },
+  {
+    "english_full": "annunciator",
+    "chinese_translation": "信号牌"
+  },
+  {
+    "english_full": "cargo compartment",
+    "chinese_translation": "货舱"
+  },
+  {
+    "english_full": "emergency evacuation",
+    "chinese_translation": "应急撤离"
+  },
+  {
+    "english_full": "depressurization",
+    "chinese_translation": "释压"
+  },
+  {
+    "english_full": "hijack",
+    "chinese_translation": "劫机"
+  },
+  {
+    "english_full": "obstacle clearance",
+    "chinese_translation": "越障"
+  },
+  {
+    "english_full": "cowl",
+    "chinese_translation": "整流罩"
+  },
+  {
+    "english_full": "pressurization",
+    "chinese_translation": "增压"
+  },
+  {
+    "english_full": "emergency procedure",
+    "chinese_translation": "应急程序"
+  },
+  {
+    "english_full": "slide",
+    "chinese_translation": "滑梯/滑动"
+  },
+  {
+    "english_full": "bird strike",
+    "chinese_translation": "鸟击"
+  },
+  {
+    "english_full": "precision approach",
+    "chinese_translation": "精密进近"
+  },
+  {
+    "english_full": "reference speed",
+    "chinese_translation": "基准速度"
+  },
+  {
+    "english_full": "overrun",
+    "chinese_translation": "冲出跑道"
+  },
+  {
+    "english_full": "unserviceable",
+    "chinese_translation": "不可用"
+  },
+  {
+    "english_full": "operative engine",
+    "chinese_translation": "工作发动机"
+  },
+  {
+    "english_full": "preflight",
+    "chinese_translation": "飞行前"
+  },
+  {
+    "english_full": "alpha protection",
+    "chinese_translation": "迎角保护"
+  },
+  {
+    "english_full": "overstress",
+    "chinese_translation": "超应力"
+  },
+  {
+    "english_full": "thunderstorm",
+    "chinese_translation": "雷暴"
+  },
+  {
+    "english_full": "alpha max",
+    "chinese_translation": "最大迎角"
+  },
+  {
+    "english_full": "Automatic Dependance Surveillance - Broadcast",
+    "chinese_translation": "广播式自动相关监视"
+  },
+  {
+    "english_full": "Avionics Equipment Ventilation Computer",
+    "chinese_translation": "电子设备通风计算机"
+  },
+  {
+    "english_full": "Airbus in-Flight Information Services",
+    "chinese_translation": "空客空中信息服务"
+  },
+  {
+    "english_full": "Airborne",
+    "chinese_translation": "机载"
+  },
+  {
+    "english_full": "Special Air Report of Braking Action",
+    "chinese_translation": "特殊刹车效应的飞行员报告"
+  },
+  {
+    "english_full": "Advisory Material Joint",
+    "chinese_translation": "联合咨询材料"
+  },
+  {
+    "english_full": "Break-Even Fuel Price Ratio",
+    "chinese_translation": "保本的燃油价格比"
+  },
+  {
+    "english_full": "Cumulonimbus",
+    "chinese_translation": "积雨云"
+  },
+  {
+    "english_full": "Command",
+    "chinese_translation": "指令"
+  },
+  {
+    "english_full": "Calibration Memory Module",
+    "chinese_translation": "校准记忆模块"
+  },
+  {
+    "english_full": "Central Maintenance System",
+    "chinese_translation": "中央维修系统"
+  },
+  {
+    "english_full": "Contactor",
+    "chinese_translation": "接触器"
+  },
+  {
+    "english_full": "Current Unbalance Detection Unit",
+    "chinese_translation": "电流不平衡探测组件"
+  },
+  {
+    "english_full": "Damage Tolerance Monitoring System",
+    "chinese_translation": "损坏容差监控系统"
+  },
+  {
+    "english_full": "Engine Interface Unit or Engine Interface and Vibration Monitoring Unit",
+    "chinese_translation": "发动机接口组件或发动机接口和振动监控组件"
+  },
+  {
+    "english_full": "Electricity",
+    "chinese_translation": "电气"
+  },
+  {
+    "english_full": "Electrical Power Generation System",
+    "chinese_translation": "电池发电系统"
+  },
+  {
+    "english_full": "Estimated Time Enroute",
+    "chinese_translation": "预计航路时间"
+  },
+  {
+    "english_full": "Flight Deck Temperature Control",
+    "chinese_translation": "驾驶舱温度控制"
+  },
+  {
+    "english_full": "Fuel Price Ratio",
+    "chinese_translation": "燃油价格比"
+  },
+  {
+    "english_full": "Ground Based Augmentation System",
+    "chinese_translation": "陆基增强系统"
+  },
+  {
+    "english_full": "Ground Proximity Warning Computer",
+    "chinese_translation": "近地警告计算机"
+  },
+  {
+    "english_full": "Global Reporting Format for runway surface conditions",
+    "chinese_translation": "跑道道面条件的全球报告板式"
+  },
+  {
+    "english_full": "Ground Refrigeration Unit",
+    "chinese_translation": "地面重构组件"
+  },
+  {
+    "english_full": "International Organization for Standardization",
+    "chinese_translation": "国际标准组织"
+  },
+  {
+    "english_full": "In Seat Power Supply System",
+    "chinese_translation": "座椅供电系统"
+  },
+  {
+    "english_full": "In Trail Procedure",
+    "chinese_translation": "尾随程序"
+  },
+  {
+    "english_full": "Joint Airworthiness Requirements",
+    "chinese_translation": "联合适航要求"
+  },
+  {
+    "english_full": "Landing Distance Available",
+    "chinese_translation": "可用着陆距离"
+  },
+  {
+    "english_full": "List of Effective Flight Crew Bulletins",
+    "chinese_translation": "飞行机组通告有效页清单"
+  },
+  {
+    "english_full": "Low Frequency",
+    "chinese_translation": "低频"
+  },
+  {
+    "english_full": "LOC Back Course",
+    "chinese_translation": "反航道"
+  },
+  {
+    "english_full": "Meteorological Airport Report",
+    "chinese_translation": "气象条件机场报告"
+  },
+  {
+    "english_full": "Memorized Fault Annunciator",
+    "chinese_translation": "存储故障信号牌"
+  },
+  {
+    "english_full": "Noise Abatement Departure Procedure",
+    "chinese_translation": "降噪离场程序"
+  },
+  {
+    "english_full": "Non Directional Beacon — Navigation Database",
+    "chinese_translation": "无方向信标-导航数据库"
+  },
+  {
+    "english_full": "Non Precision Approach",
+    "chinese_translation": "非精密进近"
+  },
+  {
+    "english_full": "Onboard Information System",
+    "chinese_translation": "机载信息系统"
+  },
+  {
+    "english_full": "Protective Breathing Equipment",
+    "chinese_translation": "呼吸保护装置"
+  },
+  {
+    "english_full": "Pressure Maintenance Valve",
+    "chinese_translation": "压力维护活门"
+  },
+  {
+    "english_full": "Prerecorded Announcement and Music",
+    "chinese_translation": "预录广播以及音乐"
+  },
+  {
+    "english_full": "Sea Level Standard Atmosphere Pressure (1013 hPa)",
+    "chinese_translation": "标准海平面气压(1013 hPa)"
+  },
+  {
+    "english_full": "Radio Altimeter / Resolution Advisory",
+    "chinese_translation": "无线电高度表/决断咨询"
+  },
+  {
+    "english_full": "Rotor Active Clearance Control Start Bleed",
+    "chinese_translation": "转子主动间隙控制起动引气"
+  },
+  {
+    "english_full": "Radio Navigation",
+    "chinese_translation": "无线电导航"
+  },
+  {
+    "english_full": "Required Navigation Performance Approach",
+    "chinese_translation": "所需导航性能进近"
+  },
+  {
+    "english_full": "Required Navigation Performance Authorization Required",
+    "chinese_translation": "所需导航性能授权"
+  },
+  {
+    "english_full": "Runway Overrun Protection System",
+    "chinese_translation": "跑道超限保护系统"
+  },
+  {
+    "english_full": "Repellent",
+    "chinese_translation": "防水剂"
+  },
+  {
+    "english_full": "Runway Takeoff Weight",
+    "chinese_translation": "跑道起飞重量"
+  },
+  {
+    "english_full": "Shut Down / Step Descent",
+    "chinese_translation": "关车/阶梯下降"
+  },
+  {
+    "english_full": "Society of Automotive Engineers",
+    "chinese_translation": "美国汽车工程师协会"
+  },
+  {
+    "english_full": "Static Air Temperature",
+    "chinese_translation": "大气静温"
+  },
+  {
+    "english_full": "FLT CTL Secondary Computer (FCSC)",
+    "chinese_translation": "飞行控制备用计算机 (FCSC)"
+  },
+  {
+    "english_full": "Sign Status Matrix",
+    "chinese_translation": "信号状态矩阵"
+  },
+  {
+    "english_full": "Terminal Aerodrome Forecast",
+    "chinese_translation": "航站楼天气预报"
+  },
+  {
+    "english_full": "Traffic Collision Alert System Avoidance System",
+    "chinese_translation": "空中交通告警和防撞系统"
+  },
+  {
+    "english_full": "Terrestrial Flight Telephon System",
+    "chinese_translation": "陆上飞行电话系统"
+  },
+  {
+    "english_full": "Tank / Track Angle",
+    "chinese_translation": "油箱/航迹角"
+  },
+  {
+    "english_full": "Throttle Lever Angle",
+    "chinese_translation": "油门杆角度"
   }
 ];

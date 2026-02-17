@@ -2,7 +2,7 @@ name: verify
 
 on:
   schedule:
-    - cron: "0 23 * * *" # Beijing 07:00
+    - cron: "0 20 * * *" # Beijing 04:00
   workflow_dispatch:
 
 env:

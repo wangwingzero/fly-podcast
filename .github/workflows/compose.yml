@@ -2,7 +2,7 @@ name: compose
 
 on:
   schedule:
-    - cron: "30 22 * * *" # Beijing 06:30
+    - cron: "30 19 * * *" # Beijing 03:30
   workflow_dispatch:
 
 env:

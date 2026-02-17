@@ -193,17 +193,90 @@ def _load_aviation_glossary() -> dict[str, str]:
     return glossary
 
 
+def _normalize_for_match(text: str) -> str:
+    """Normalize text for fuzzy glossary matching: lowercase, hyphens→spaces."""
+    text = text.lower().replace("-", " ").replace("_", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def _stem_word(w: str) -> str:
+    """Naive English stemming: strip common suffixes for matching purposes."""
+    for suffix in ("ting", "ning", "ring", "ing", "ied", "ies", "ed", "es", "s"):
+        if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+            return w[: -len(suffix)]
+    return w
+
+
+def _stem_phrase(phrase: str) -> str:
+    """Stem each word in a phrase."""
+    return " ".join(_stem_word(w) for w in phrase.split())
+
+
+# Trivial words to skip when doing constituent-word matching for compound terms
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "of", "for", "and", "or", "in", "on", "to", "at",
+    "by", "is", "it", "no", "not", "all", "any", "up", "out", "off",
+})
+
+
 def _match_glossary_for_candidates(candidates: list[dict], glossary: dict[str, str]) -> str:
-    """Find glossary terms that appear in candidate texts and return as prompt string."""
+    """Find glossary terms that appear in candidate texts and return as prompt string.
+
+    Three-tier matching strategy (from strictest to most flexible):
+    1. Exact normalized match: term appears verbatim in corpus
+    2. Stemmed match: stemmed term appears in stemmed corpus
+    3. Constituent-word match (compound terms only): every significant word
+       of the term appears somewhere in the corpus (not necessarily adjacent)
+
+    This ensures terms like 'Rejected Takeoff' match 'Rejects Takeoff',
+    and 'Emergency Landing' matches articles mentioning both words separately.
+    """
     if not glossary:
         return ""
-    corpus = " ".join(
-        f"{c.get('title', '')} {c.get('raw_text', '')}" for c in candidates
-    ).lower()
-    matched: list[str] = []
+    raw_corpus = _normalize_for_match(
+        " ".join(f"{c.get('title', '')} {c.get('raw_text', '')}" for c in candidates)
+    )
+    stemmed_corpus = _stem_phrase(raw_corpus)
+    # Build a set of stemmed words for constituent-word matching (tier 3)
+    stemmed_word_set = set(stemmed_corpus.split())
+
+    exact: list[str] = []        # tier 1+2: exact/stemmed phrase match
+    constituent: list[str] = []  # tier 3: all constituent words present
+
     for en, zh in glossary.items():
-        if en.lower() in corpus:
-            matched.append(f"{en} → {zh}")
+        normalized = _normalize_for_match(en)
+        entry_str = f"{en} → {zh}"
+
+        # Tier 1: exact normalized substring
+        if normalized in raw_corpus:
+            exact.append(entry_str)
+            continue
+
+        stemmed = _stem_phrase(normalized)
+
+        # Tier 2: stemmed phrase substring (single-word: require len>=5 to avoid noise)
+        if " " in normalized:
+            if stemmed in stemmed_corpus:
+                exact.append(entry_str)
+                continue
+        elif len(normalized) >= 5:
+            if stemmed in stemmed_corpus:
+                exact.append(entry_str)
+                continue
+
+        # Tier 3: for compound terms (2+ words), check if every significant
+        # constituent word (stemmed) appears anywhere in the corpus
+        if " " in normalized:
+            significant_stems = [
+                _stem_word(w) for w in normalized.split()
+                if w not in _STOP_WORDS and len(w) >= 3
+            ]
+            if significant_stems and all(s in stemmed_word_set for s in significant_stems):
+                constituent.append(entry_str)
+
+    # Prioritize exact/stemmed matches, then add constituent matches up to cap
+    matched = exact + constituent
     if not matched:
         return ""
     return "\n".join(matched[:80])
@@ -354,7 +427,7 @@ def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: floa
     return picked[:total]
 
 
-def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: list[str], impact: str) -> DigestEntry:
+def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: list[str], impact: str, body: str = "") -> DigestEntry:
     source_name = item.get("source_name", "")
     clean_title = title.strip() or _clean_title(item.get("title", ""))[0]
     if _is_noisy_title(clean_title):
@@ -367,6 +440,15 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
         min_count=2,
     )
     impact = impact.strip() or _build_impact()
+    # If body is provided but facts are empty, derive facts from body for scoring
+    body = body.strip()
+    if body and not facts:
+        normalized_facts = _ensure_min_facts(
+            [s.strip() for s in re.split(r"[。.!?；]\s*", body) if s.strip()],
+            raw_text=item.get("raw_text", ""),
+            title=clean_title,
+            min_count=2,
+        )
     citation = item.get("canonical_url") or item.get("url") or item.get("source_url") or ""
     read_score = readability_score(conclusion, normalized_facts, impact)
     score = item.get("score_breakdown", {})
@@ -404,6 +486,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
         event_fingerprint=item.get("event_fingerprint", ""),
         published_at=item.get("published_at", ""),
         image_url=item.get("image_url", ""),
+        body=body,
     )
 
 
@@ -435,10 +518,12 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
         "你是服务于飞行员、签派和运行控制人员的民航新闻编辑。"
         "你的首要任务是筛掉与飞行运行无关的泛社会、娱乐、旅游、财经新闻。"
         "必须只基于输入内容改写，不得引入外部事实，不得编造链接或ID。"
-        "【重要】所有输出内容（title、conclusion、facts、impact）必须是中文。"
+        "【重要】所有输出内容（title、conclusion、body）必须是中文。"
         "英文新闻必须翻译成专业、准确的中文，航空专业术语使用标准译法。"
-        "impact 字段是「速评」：用一句话提炼这条资讯的核心要点，"
-        "说清楚发生了什么、对运输航空业意味着什么，不要写空话套话。"
+        "body 字段是正文：像一个记者一样，用2-4句话把核心事实讲清楚、讲明白。"
+        "读者可能通过微信「听文章」功能收听，所以正文必须仅靠听就能听懂，"
+        "不要用项目符号或编号列表，用自然的叙述语言连贯表达。"
+        "正文要简洁，不能冗长，不要写空话套话，不要加「总之」「综上」等总结语。"
         "输出必须是 JSON object，且仅包含 entries 字段。"
         + glossary_instruction
     )
@@ -452,10 +537,9 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
                 "international_quota": intl_quota,
                 "must_keep_ref_id": True,
                 "must_not_generate_links": True,
-                "facts_count": "2-3",
                 "pilot_relevance_first": True,
-                "language": "zh-CN（全部中文，包括标题、事实、速评）",
-                "impact_style": "速评：一句话提炼核心，不要套话",
+                "language": "zh-CN（全部中文，包括标题和正文）",
+                "body_style": "记者叙述体，2-4句话讲清核心事实，适合朗读收听",
                 "hard_reject_topics": [
                     "股价/财报/融资",
                     "明星娱乐",
@@ -477,8 +561,7 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
                         "ref_id": "string（保持原始ID不变）",
                         "title": "string（中文标题）",
                         "conclusion": "string（中文结论，一句话概括）",
-                        "facts": ["string（中文事实要点，2-3条）"],
-                        "impact": "string（速评：一句话提炼核心信息和行业意义）",
+                        "body": "string（正文：记者叙述体，2-4句话讲清核心事实）",
                     }
                 ]
             },
@@ -499,7 +582,11 @@ def _build_entries_with_rules(selected: list[dict]) -> list[DigestEntry]:
         facts = _split_facts(item.get("raw_text", ""), title=clean_title)
         conclusion = clean_title[:80]
         impact = _build_impact()
-        entry = _to_digest_entry(item, clean_title, conclusion, facts, impact)
+        body = "".join(
+            f if f.rstrip().endswith(("。", ".", "!", "?", "！", "？")) else f + "。"
+            for f in facts if f
+        ) if facts else ""
+        entry = _to_digest_entry(item, clean_title, conclusion, facts, impact, body=body)
         if not entry.citations:
             continue
         entries.append(entry)
@@ -691,6 +778,7 @@ def _validate_llm_entries(llm_payload: dict[str, Any], selected: list[dict], tot
             str(item.get("conclusion", "")).strip(),
             item.get("facts", []) if isinstance(item.get("facts"), list) else [],
             str(item.get("impact", "")).strip(),
+            body=str(item.get("body", "")).strip(),
         )
         if not entry.citations:
             continue

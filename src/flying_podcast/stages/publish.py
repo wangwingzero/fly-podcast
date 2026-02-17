@@ -6,9 +6,11 @@ from html import escape
 from pathlib import Path
 from urllib.parse import urlparse
 
+import requests
 from dateutil import parser as dt_parser
 
 from flying_podcast.core.config import ensure_dirs, settings
+from flying_podcast.core.image_gen import generate_article_image
 from flying_podcast.core.io_utils import dump_json, load_json
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
@@ -19,14 +21,7 @@ _TIER_LABEL = {"A": "核心来源", "B": "媒体来源", "C": "参考来源"}
 _REGION_COLOR = {"domestic": "#30D158", "international": "#0A84FF"}
 _REGION_LABEL = {"domestic": "国内", "international": "国际"}
 _REGION_SECTION = {"domestic": "国内动态", "international": "国际动态"}
-_IMPACT_GRADIENT = {
-    "domestic": "linear-gradient(135deg,#0A84FF,#30D158)",
-    "international": "linear-gradient(135deg,#0A84FF,#5E5CE6)",
-}
-
 _WEEKDAY_CN = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
-
-_STRIP_IMPACT_RE = re.compile(r"^速评[：:]\s*")
 
 
 def _publisher_domain(entry: dict) -> str:
@@ -67,8 +62,6 @@ def _render_markdown(digest: dict) -> str:
 
     for idx, entry in enumerate(digest.get("entries", []), 1):
         title = entry["title"]
-        source_name = entry.get("source_name", "")
-        tier = entry.get("source_tier", "C")
         region = "国内" if entry.get("region") == "domestic" else "国际"
         citation = (entry.get("citations") or [""])[0]
         has_link = bool(citation)
@@ -77,17 +70,15 @@ def _render_markdown(digest: dict) -> str:
             lines.append(f"### {idx}. [{title}]({citation})")
         else:
             lines.append(f"### {idx}. {title}")
-        facts = entry.get("facts", [])
-        if facts:
-            for f in facts:
-                lines.append(f"- {f}")
-        lines.append(f"- 影响：{entry['impact']}")
-        if has_link:
-            lines.append(f"- 原文：[{citation}]({citation})")
-        source_parts = [source_name] if source_name else []
-        source_parts.append(f"{tier}级")
-        source_parts.append(region)
-        lines.append(f"- 来源：{' · '.join(source_parts)}")
+        body = entry.get("body", "")
+        if body:
+            lines.append(f"\n{body}")
+        else:
+            facts = entry.get("facts", [])
+            if facts:
+                for f in facts:
+                    lines.append(f"- {f}")
+        lines.append(f"- 来源：{region}")
         lines.append("")
     return "\n".join(lines)
 
@@ -98,9 +89,8 @@ def _render_html(digest: dict) -> str:
     Design features:
     - Section headers separating domestic / international news
     - Hero accent border on the first card of each section
-    - Source domain + region pill on every card
-    - Gradient 速评 badge, stripped "速评：" prefix from impact text
-    - Left-accent facts block
+    - Clickable title linking to source
+    - Journalist-style body paragraph for reading and listening
     """
     date = digest["date"]
     dc = digest["domestic_count"]
@@ -120,16 +110,11 @@ def _render_html(digest: dict) -> str:
 
     def _build_card(idx: int, entry: dict, is_hero: bool = False) -> str:
         title = escape(entry["title"])
-        impact_raw = entry.get("impact", "")
-        impact = escape(_STRIP_IMPACT_RE.sub("", impact_raw))
-        facts = entry.get("facts", [])
         region = entry.get("region", "international")
         region_label = _REGION_LABEL.get(region, "国际")
         region_color = _REGION_COLOR.get(region, "#0A84FF")
         citation = str((entry.get("citations") or [""])[0]).strip()
         safe_href = escape(citation, quote=True)
-        domain = escape(_publisher_domain(entry))
-        gradient = _IMPACT_GRADIENT.get(region, _IMPACT_GRADIENT["international"])
 
         # Date
         date_html = ""
@@ -155,52 +140,27 @@ def _render_html(digest: dict) -> str:
                 f'object-fit:contain;" />'
             )
 
-        # Facts
-        facts_html = ""
-        if facts:
-            items = "".join(
-                f'<p style="margin:0 0 5px 0;font-size:13.5px;'
-                f'color:#48484A;line-height:1.6;">{escape(f)}</p>'
-                for f in facts
-            )
-            facts_html = (
-                f'<section style="margin:12px 0 0 0;padding:10px 12px;'
-                f"background:#F5F5F7;border-radius:10px;"
-                f'border-left:3px solid #E5E5EA;">'
-                f"{items}</section>"
-            )
-
-        # Impact badge
-        impact_html = ""
-        if impact:
-            impact_html = (
-                f'<p style="margin:10px 0 0 0;font-size:13px;'
-                f'color:#636366;line-height:1.55;">'
-                f'<span style="display:inline-block;background:{gradient};'
-                f"color:#FFF;font-size:10px;padding:2px 7px;border-radius:4px;"
-                f'margin-right:5px;font-weight:600;">速评</span>'
-                f"{impact}</p>"
+        # Body paragraph (fall back to joining facts)
+        body_text = entry.get("body", "")
+        if not body_text:
+            facts = entry.get("facts", [])
+            if facts:
+                body_text = "".join(
+                    f if f.rstrip().endswith(("。", ".", "!", "?", "！", "？"))
+                    else f + "。"
+                    for f in facts if f
+                )
+        body_html = ""
+        if body_text:
+            body_html = (
+                f'<p style="margin:12px 0 0 0;font-size:14px;'
+                f'color:#333333;line-height:1.75;">'
+                f"{escape(body_text)}</p>"
             )
 
-        # Read-more link
-        source_meta = ""
-        if citation:
-            source_meta = (
-                f'<section style="margin:12px 0 0 0;text-align:right;">'
-                f'<a href="{safe_href}" style="display:inline-block;'
-                f"font-size:12px;color:#0A84FF;text-decoration:none;"
-                f'font-weight:500;padding:8px 0;">阅读原文 →</a>'
-                f"</section>"
-            )
-
-        # Title (linked or plain)
+        # Title (plain text — WeChat personal accounts strip <a> tags)
         title_size = "17px" if is_hero else "16px"
         title_html = title
-        if citation:
-            title_html = (
-                f'<a href="{safe_href}" style="color:#1D1D1F;'
-                f'text-decoration:none;">{title}</a>'
-            )
 
         # Number badge
         if is_hero:
@@ -226,12 +186,10 @@ def _render_html(digest: dict) -> str:
             f"padding:18px;margin-bottom:10px;"
             f"box-shadow:0 1px 3px rgba(0,0,0,0.06);"
             f'{border_top}">'
-            # Meta row: number badge + domain + region pill
+            # Meta row: number badge + region pill
             f'<section style="display:flex;align-items:center;'
             f'gap:6px;margin:0 0 8px 0;">'
             f"{num_badge}"
-            f'<span style="font-size:12px;color:#6E6E73;'
-            f'font-weight:500;">{domain}</span>'
             f'<span style="margin-left:auto;font-size:10px;color:#FFFFFF;'
             f"background:{region_color};padding:2px 7px;"
             f'border-radius:4px;font-weight:500;">{region_label}</span>'
@@ -241,9 +199,7 @@ def _render_html(digest: dict) -> str:
             f'color:#1D1D1F;line-height:1.5;">{title_html}</p>'
             f"{date_html}"
             f"{image_html}"
-            f"{facts_html}"
-            f"{impact_html}"
-            f"{source_meta}"
+            f"{body_html}"
             f"</section>"
         )
         return card
@@ -333,11 +289,170 @@ def _render_html(digest: dict) -> str:
         f'line-height:1.6;font-weight:500;">飞行播客 · 运输航空新闻精选</p>'
         f'<p style="margin:6px 0 0 0;font-size:11px;color:#AEAEB2;'
         f'line-height:1.5;">数据来源：民航局 / 航司 / 行业媒体'
-        f"<br/>自动聚合 · 仅供参考</p>"
+        f"<br/>内容请看原文 · 仅供参考</p>"
         f"</section>"
         f"</section>"
     )
     return html
+
+
+def _fill_missing_images(digest: dict, client: WeChatClient) -> dict:
+    """Generate AI images for entries that have no image_url, upload to WeChat CDN."""
+    if not settings.image_gen_api_key:
+        return digest
+
+    token = client._access_token()
+    entries = digest.get("entries", [])
+
+    for entry in entries:
+        if entry.get("image_url"):
+            continue
+        title = entry.get("title", "")
+        body = entry.get("body", "") or ""
+        if not body:
+            facts = entry.get("facts", [])
+            body = " ".join(facts) if facts else ""
+
+        image_data = generate_article_image(title, body)
+        if not image_data:
+            logger.info("AI image generation failed for: %s", title[:40])
+            continue
+
+        wx_url = client.upload_content_image_bytes(image_data, token=token)
+        if wx_url:
+            # Ensure https
+            wx_url = wx_url.replace("http://mmbiz.qpic.cn", "https://mmbiz.qpic.cn")
+            entry["image_url"] = wx_url
+            logger.info("AI image set for: %s", title[:40])
+        else:
+            logger.info("AI image upload failed for: %s", title[:40])
+
+    return digest
+
+
+_DIGEST_SUMMARY_PROMPT = (
+    "你是航空新闻编辑。根据以下新闻标题列表，用一句话（不超过30个字）概括今天的播报要点。"
+    "要求：简洁有信息量，像新闻导语，不要用"本期"、"今日"等开头，直接说内容。"
+    "只输出这一句话，不要任何其他内容。\n\n标题列表：\n{titles}"
+)
+
+
+def _generate_digest_summary(digest: dict) -> str:
+    """Use LLM to generate a one-line summary of today's digest."""
+    fallback = "今日热点精选速读"
+    if not settings.llm_api_key:
+        return fallback
+
+    titles = "\n".join(
+        f"- {e.get('title', '')}" for e in digest.get("entries", []) if e.get("title")
+    )
+    if not titles:
+        return fallback
+
+    try:
+        resp = requests.post(
+            settings.llm_base_url,
+            headers={
+                "Authorization": f"Bearer {settings.llm_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.llm_model,
+                "messages": [{"role": "user", "content": _DIGEST_SUMMARY_PROMPT.format(titles=titles)}],
+                "max_tokens": 80,
+                "temperature": 0.7,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"].strip().strip("\"'""''")
+        if text and len(text) <= 60:
+            logger.info("Digest summary: %s", text)
+            return text
+    except Exception as exc:
+        logger.warning("Digest summary generation failed: %s", exc)
+
+    return fallback
+
+
+_COVER_PROMPT_TEMPLATE = (
+    "你是航空新闻视觉编辑。根据以下新闻摘要，写一段英文 Grok AI 画图提示词，"
+    "用于生成今天航空日报的封面图。要求：\n"
+    "1. 宽屏构图(16:9)，高端大气的航空主题\n"
+    "2. 摄影级画质，电影感光影，专业航空杂志风格\n"
+    "3. 不要文字、水印、UI元素\n"
+    "4. 结合今天新闻的核心主题选择场景（如机场、客机、驾驶舱、航线等）\n"
+    "只输出英文提示词，不要任何其他内容。\n\n今日新闻：\n{summary}"
+)
+
+
+def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
+    """Generate a cover image via LLM prompt + Grok, upload as permanent material.
+
+    Returns thumb_media_id, or empty string on failure.
+    """
+    if not settings.llm_api_key or not settings.image_gen_api_key:
+        return ""
+
+    # Build summary from titles + bodies
+    parts = []
+    for e in digest.get("entries", [])[:10]:
+        title = e.get("title", "")
+        body = e.get("body", "") or ""
+        parts.append(f"- {title}: {body[:80]}")
+    summary = "\n".join(parts)
+    if not summary:
+        return ""
+
+    # Step 1: Ask LLM to write a Grok prompt
+    try:
+        resp = requests.post(
+            settings.llm_base_url,
+            headers={
+                "Authorization": f"Bearer {settings.llm_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.llm_model,
+                "messages": [{"role": "user", "content": _COVER_PROMPT_TEMPLATE.format(summary=summary)}],
+                "max_tokens": 300,
+                "temperature": 0.7,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        prompt = resp.json()["choices"][0]["message"]["content"].strip()
+        logger.info("Cover prompt: %s", prompt[:120])
+    except Exception as exc:
+        logger.warning("Cover prompt generation failed: %s", exc)
+        return ""
+
+    # Step 2: Call Grok to generate image
+    from flying_podcast.core.image_gen import _call_grok_api
+
+    image_data = _call_grok_api(
+        settings.image_gen_base_url,
+        settings.image_gen_api_key,
+        settings.image_gen_model,
+        prompt,
+    )
+    if not image_data and settings.image_gen_backup_api_key:
+        logger.info("Cover: primary Grok failed, trying backup")
+        image_data = _call_grok_api(
+            settings.image_gen_backup_base_url,
+            settings.image_gen_backup_api_key,
+            settings.image_gen_backup_model,
+            prompt,
+        )
+    if not image_data:
+        logger.warning("Cover image generation failed")
+        return ""
+
+    # Step 3: Upload as permanent material
+    thumb_id = client.upload_thumb_image_bytes(image_data)
+    if thumb_id:
+        logger.info("Cover image uploaded: %s", thumb_id[:40])
+    return thumb_id
 
 
 def run(target_date: str | None = None) -> Path:
@@ -360,7 +475,7 @@ def run(target_date: str | None = None) -> Path:
         "reasons": quality.get("reasons", []),
     }
 
-    if quality["decision"] != "auto_publish":
+    if quality["decision"] != "auto_publish" and not settings.wechat_force_publish:
         result["status"] = "hold"
     elif settings.dry_run or not settings.wechat_enable_publish:
         result["status"] = "dry_run"
@@ -368,17 +483,33 @@ def run(target_date: str | None = None) -> Path:
     else:
         client = WeChatClient()
         try:
+            # Fill missing images with AI-generated ones
+            digest = _fill_missing_images(digest, client)
+            # Re-render HTML with new images
+            html = _render_html(digest)
+            html = client.replace_external_images(html)
+            # Generate AI cover image, fallback to default thumb
+            cover_thumb_id = _generate_cover_image(digest, client)
+            # Generate dynamic digest summary via LLM
+            summary = _generate_digest_summary(digest)
             media_id = client.create_draft(
                 title=f"飞行播客日报 | {day}",
                 author=settings.wechat_author,
                 content_html=html,
-                digest="面向航空公司职员的运输航空新闻日报",
+                digest=summary,
                 source_url="https://mp.weixin.qq.com",
+                thumb_media_id=cover_thumb_id,
             )
-            publish = client.publish_draft(media_id)
-            result["status"] = "published"
-            result["publish_id"] = publish.publish_id
-            result["url"] = f"wechat://publish/{publish.publish_id}"
+            result["status"] = "draft_created"
+            result["publish_id"] = media_id
+            result["url"] = f"https://mp.weixin.qq.com"
+            try:
+                publish = client.publish_draft(media_id)
+                result["status"] = "published"
+                result["publish_id"] = publish.publish_id
+                result["url"] = f"wechat://publish/{publish.publish_id}"
+            except WeChatPublishError:
+                logger.info("Auto-publish not available, draft saved to WeChat backend")
         except WeChatPublishError as exc:
             result["status"] = "failed"
             result["reasons"].append(str(exc))

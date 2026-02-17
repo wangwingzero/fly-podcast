@@ -54,6 +54,7 @@ def run(target_date: str | None = None) -> Path:
         title = (entry.get("title") or "").lower()
         conclusion = (entry.get("conclusion") or "").lower()
         facts = [x.lower() for x in entry.get("facts", [])]
+        body = (entry.get("body") or "").lower()
 
         citations = entry.get("citations") or []
         if not citations:
@@ -74,7 +75,7 @@ def run(target_date: str | None = None) -> Path:
             reasons.append("sensational_title")
             blocked.append(eid)
 
-        sensitive_hit = any(word in title or any(word in fact for fact in facts) for word in sensitive_keywords)
+        sensitive_hit = any(word in title or word in body or any(word in fact for fact in facts) for word in sensitive_keywords)
         if sensitive_hit and entry.get("source_tier") != "A":
             reasons.append("sensitive_without_tier_a")
             blocked.append(eid)

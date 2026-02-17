@@ -2,7 +2,7 @@ name: publish
 
 on:
   schedule:
-    - cron: "0 0 * * *" # Beijing 08:00
+    - cron: "0 21 * * *" # Beijing 05:00
   workflow_dispatch:
 
 env:

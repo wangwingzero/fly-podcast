@@ -47,12 +47,24 @@ class Settings:
     llm_temperature: float = _env_float("LLM_TEMPERATURE", 0.1)
 
     wechat_enable_publish: bool = _env_bool("WECHAT_ENABLE_PUBLISH", False)
+    wechat_force_publish: bool = _env_bool("WECHAT_FORCE_PUBLISH", False)
     wechat_app_id: str = os.getenv("WECHAT_APP_ID", "")
     wechat_app_secret: str = os.getenv("WECHAT_APP_SECRET", "")
     wechat_author: str = os.getenv("WECHAT_AUTHOR", "飞行播客")
     wechat_thumb_media_id: str = os.getenv("WECHAT_THUMB_MEDIA_ID", "")
 
     alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")
+
+    unsplash_access_key: str = os.getenv("UNSPLASH_ACCESS_KEY", "")
+    unsplash_access_key_2: str = os.getenv("UNSPLASH_ACCESS_KEY_2", "")
+    pixabay_api_key: str = os.getenv("PIXABAY_API_KEY", "")
+
+    image_gen_api_key: str = os.getenv("IMAGE_GEN_API_KEY", "")
+    image_gen_base_url: str = os.getenv("IMAGE_GEN_BASE_URL", "")
+    image_gen_model: str = os.getenv("IMAGE_GEN_MODEL", "")
+    image_gen_backup_api_key: str = os.getenv("IMAGE_GEN_BACKUP_API_KEY", "")
+    image_gen_backup_base_url: str = os.getenv("IMAGE_GEN_BACKUP_BASE_URL", "")
+    image_gen_backup_model: str = os.getenv("IMAGE_GEN_BACKUP_MODEL", "")
 
     sources_config: Path = ROOT_DIR / "config" / "sources.yaml"
     keywords_config: Path = ROOT_DIR / "config" / "keywords.yaml"

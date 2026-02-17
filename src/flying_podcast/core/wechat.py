@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import json
+import logging
+import re
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class WeChatPublishError(RuntimeError):
@@ -41,7 +47,135 @@ class WeChatClient:
             raise WeChatPublishError(f"Get token failed: {data}")
         return token
 
-    def create_draft(self, title: str, author: str, content_html: str, digest: str, source_url: str) -> str:
+    def upload_content_image_bytes(self, image_data: bytes, token: str | None = None) -> str:
+        """Upload raw image bytes to WeChat CDN for article content.
+
+        Returns the WeChat CDN URL, or empty string on failure.
+        """
+        if not token:
+            token = self._access_token()
+        try:
+            resp = requests.post(
+                f"{self.base}/media/uploadimg",
+                params={"access_token": token},
+                files={"media": ("generated.jpg", image_data, "image/jpeg")},
+                timeout=30,
+            )
+            data = resp.json()
+            wx_url = data.get("url", "")
+            if wx_url:
+                return wx_url
+            logger.warning("Upload image bytes failed: %s", data)
+        except Exception:
+            logger.warning("Upload image bytes exception")
+        return ""
+
+    def upload_thumb_image_bytes(self, image_data: bytes, token: str | None = None) -> str:
+        """Upload image bytes as permanent material for use as article thumbnail.
+
+        Returns the media_id (thumb_media_id), or empty string on failure.
+        """
+        if not token:
+            token = self._access_token()
+        try:
+            resp = requests.post(
+                f"{self.base}/material/add_material",
+                params={"access_token": token, "type": "image"},
+                files={"media": ("cover.jpg", image_data, "image/jpeg")},
+                timeout=30,
+            )
+            data = resp.json()
+            media_id = data.get("media_id", "")
+            if media_id:
+                logger.info("Uploaded thumb material: %s", media_id[:40])
+                return media_id
+            logger.warning("Upload thumb material failed: %s", data)
+        except Exception:
+            logger.warning("Upload thumb material exception")
+        return ""
+
+    def upload_content_image(self, image_url: str, token: str | None = None) -> str:
+        """Download an external image and upload it to WeChat's CDN for article content.
+
+        Returns the WeChat CDN URL, or empty string on failure.
+        """
+        if not token:
+            token = self._access_token()
+        try:
+            resp = requests.get(image_url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+        except Exception:
+            logger.warning("Failed to download image: %s", image_url)
+            return ""
+
+        content_type = resp.headers.get("Content-Type", "image/jpeg")
+        ext = "jpg"
+        if "png" in content_type:
+            ext = "png"
+        elif "gif" in content_type:
+            ext = "gif"
+
+        try:
+            upload_resp = requests.post(
+                f"{self.base}/media/uploadimg",
+                params={"access_token": token},
+                files={"media": (f"image.{ext}", resp.content, content_type)},
+                timeout=30,
+            )
+            data = upload_resp.json()
+            wx_url = data.get("url", "")
+            if wx_url:
+                logger.info("Uploaded image to WeChat CDN: %s -> %s", image_url[:60], wx_url[:60])
+                return wx_url
+            logger.warning("Upload image failed: %s", data)
+        except Exception:
+            logger.warning("Upload image exception for: %s", image_url)
+        return ""
+
+    def replace_external_images(self, html: str) -> str:
+        """Find all external <img src="..."> in HTML and replace with WeChat CDN URLs.
+
+        Also upgrades http:// to https:// for WeChat CDN images.
+        """
+        # Fix protocol for existing WeChat CDN images
+        html = html.replace("http://mmbiz.qpic.cn", "https://mmbiz.qpic.cn")
+
+        img_pattern = re.compile(r'(<img\s[^>]*?src=")([^"]+)(")')
+        urls_to_replace: dict[str, str] = {}
+
+        for match in img_pattern.finditer(html):
+            src = match.group(2)
+            parsed = urlparse(src)
+            if parsed.scheme in ("http", "https") and "qpic.cn" not in parsed.netloc:
+                if src not in urls_to_replace:
+                    urls_to_replace[src] = ""
+
+        if not urls_to_replace:
+            return html
+
+        token = self._access_token()
+        for ext_url in urls_to_replace:
+            wx_url = self.upload_content_image(ext_url, token=token)
+            if wx_url:
+                urls_to_replace[ext_url] = wx_url
+
+        for ext_url, wx_url in urls_to_replace.items():
+            if wx_url:
+                html = html.replace(ext_url, wx_url)
+            else:
+                # Remove broken img tags
+                html = re.sub(
+                    rf'<img\s[^>]*?src="{re.escape(ext_url)}"[^>]*/?>',
+                    "",
+                    html,
+                )
+
+        return html
+
+    def create_draft(
+        self, title: str, author: str, content_html: str, digest: str,
+        source_url: str, thumb_media_id: str = "",
+    ) -> str:
         token = self._access_token()
         url = f"{self.base}/draft/add"
         article = {
@@ -50,14 +184,15 @@ class WeChatClient:
             "digest": digest[:120],
             "content": content_html,
             "content_source_url": source_url,
-            "thumb_media_id": settings.wechat_thumb_media_id,
+            "thumb_media_id": thumb_media_id or settings.wechat_thumb_media_id,
             "need_open_comment": 0,
             "only_fans_can_comment": 0,
         }
         resp = requests.post(
             url,
             params={"access_token": token},
-            json={"articles": [article]},
+            data=json.dumps({"articles": [article]}, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
             timeout=30,
         )
         data = resp.json()
