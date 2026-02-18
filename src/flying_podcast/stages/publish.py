@@ -342,9 +342,11 @@ def _generate_web_intro(digest: dict) -> str:
         )
         resp.raise_for_status()
         text = (resp.json()["choices"][0]["message"].get("content") or "").strip()
-        if text and len(text) <= 300:
+        if text and len(text) <= 500:
             logger.info("Web intro generated: %s", text[:60])
             return text
+        if text:
+            logger.warning("Web intro too long (%d chars), skipping", len(text))
     except Exception as exc:
         logger.warning("Web intro generation failed: %s", exc)
 
@@ -416,9 +418,11 @@ def _translate_title(title: str) -> str:
         )
         resp.raise_for_status()
         text = (resp.json()["choices"][0]["message"].get("content") or "").strip().strip("\"'""''")
-        if text and len(text) <= 80:
+        if text and len(text) <= 120:
             logger.info("Translated: %s -> %s", title[:30], text[:30])
             return text
+        if text:
+            logger.warning("Translation too long (%d chars): %s", len(text), text[:80])
     except Exception as exc:
         logger.warning("Title translation failed: %s", exc)
 
@@ -766,9 +770,11 @@ def _generate_digest_summary(digest: dict) -> str:
         resp.raise_for_status()
         raw = resp.json()["choices"][0]["message"].get("content") or ""
         text = raw.strip().strip("\"'""''")
-        if text and len(text) <= 60:
+        if text and len(text) <= 100:
             logger.info("Digest summary: %s", text)
             return text
+        if text:
+            logger.warning("Digest summary too long (%d chars), using fallback", len(text))
     except Exception as exc:
         logger.warning("Digest summary generation failed: %s", exc)
 
