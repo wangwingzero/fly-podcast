@@ -28,6 +28,11 @@ class WeChatPublishResult:
 class WeChatClient:
     def __init__(self) -> None:
         self.base = "https://api.weixin.qq.com/cgi-bin"
+        self.proxies = (
+            {"http": settings.wechat_proxy, "https": settings.wechat_proxy}
+            if settings.wechat_proxy
+            else None
+        )
 
     def _access_token(self) -> str:
         if not settings.wechat_app_id or not settings.wechat_app_secret:
@@ -40,6 +45,7 @@ class WeChatClient:
                 "secret": settings.wechat_app_secret,
             },
             timeout=20,
+            proxies=self.proxies,
         )
         data = resp.json()
         token = data.get("access_token")
@@ -60,6 +66,7 @@ class WeChatClient:
                 params={"access_token": token},
                 files={"media": ("generated.jpg", image_data, "image/jpeg")},
                 timeout=30,
+                proxies=self.proxies,
             )
             data = resp.json()
             wx_url = data.get("url", "")
@@ -83,6 +90,7 @@ class WeChatClient:
                 params={"access_token": token, "type": "image"},
                 files={"media": ("cover.jpg", image_data, "image/jpeg")},
                 timeout=30,
+                proxies=self.proxies,
             )
             data = resp.json()
             media_id = data.get("media_id", "")
@@ -121,6 +129,7 @@ class WeChatClient:
                 params={"access_token": token},
                 files={"media": (f"image.{ext}", resp.content, content_type)},
                 timeout=30,
+                proxies=self.proxies,
             )
             data = upload_resp.json()
             wx_url = data.get("url", "")
@@ -194,6 +203,7 @@ class WeChatClient:
             data=json.dumps({"articles": [article]}, ensure_ascii=False).encode("utf-8"),
             headers={"Content-Type": "application/json; charset=utf-8"},
             timeout=30,
+            proxies=self.proxies,
         )
         data = resp.json()
         media_id = data.get("media_id")
@@ -209,6 +219,7 @@ class WeChatClient:
             params={"access_token": token},
             json={"media_id": media_id},
             timeout=30,
+            proxies=self.proxies,
         )
         submit_data = submit_resp.json()
         publish_id = submit_data.get("publish_id")

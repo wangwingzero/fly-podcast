@@ -52,6 +52,7 @@ class Settings:
     wechat_app_secret: str = os.getenv("WECHAT_APP_SECRET", "")
     wechat_author: str = os.getenv("WECHAT_AUTHOR", "飞行播客")
     wechat_thumb_media_id: str = os.getenv("WECHAT_THUMB_MEDIA_ID", "")
+    wechat_proxy: str = os.getenv("WECHAT_PROXY", "")
     web_digest_base_url: str = os.getenv("WEB_DIGEST_BASE_URL", "")
 
     alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")
