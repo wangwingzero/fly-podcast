@@ -24,4 +24,7 @@ data/history/seen_ids.txt
 # local preview artifacts
 wechat-preview.png
 封面图/
-备案/
+备案/*
+!备案/备案图标.png
+!备案/备案编号HTML代码.html
+grok说明/

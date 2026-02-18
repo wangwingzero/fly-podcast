@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import base64
 import re
 import time
 from datetime import datetime
@@ -100,6 +101,94 @@ _REGION_COLOR = {"domestic": "#30D158", "international": "#0A84FF"}
 _REGION_LABEL = {"domestic": "国内", "international": "国际"}
 _REGION_SECTION = {"domestic": "国内动态", "international": "国际动态"}
 _WEEKDAY_CN = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+_GOOGLE_NEWS_HOSTS = {"news.google.com"}
+_WECHAT_IMAGE_HOST_SUFFIXES = (
+    "mmbiz.qpic.cn",
+    "mmbiz.qlogo.cn",
+    "mmbiz.qpic.cn.cn",
+)
+_MPS_BEIAN_URL = "https://beian.mps.gov.cn/#/query/webSearch?code=31011502405233"
+
+
+def _is_google_news_url(url: str) -> bool:
+    try:
+        parsed = urlparse(str(url))
+        host = (parsed.netloc or "").lower()
+        path = (parsed.path or "").lower()
+        return host in _GOOGLE_NEWS_HOSTS and path.startswith("/rss/articles/")
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _is_blocked_wechat_image(url: str) -> bool:
+    try:
+        host = (urlparse(str(url)).netloc or "").lower()
+        return any(host.endswith(sfx) for sfx in _WECHAT_IMAGE_HOST_SUFFIXES)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _resolve_google_news_url(url: str) -> str:
+    """Resolve a Google News RSS article redirect URL to final source URL."""
+    if not _is_google_news_url(url):
+        return url
+    try:
+        resp = requests.get(
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
+                )
+            },
+            allow_redirects=True,
+            timeout=12,
+        )
+        final_url = (resp.url or "").strip()
+        if final_url and not _is_google_news_url(final_url):
+            return final_url
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Resolve google redirect failed: %s", exc)
+    return ""
+
+
+def _pick_click_url(entry: dict) -> str:
+    citation = str((entry.get("citations") or [""])[0]).strip()
+    candidates = [
+        citation,
+        str(entry.get("canonical_url", "")).strip(),
+        str(entry.get("url", "")).strip(),
+    ]
+    for raw in candidates:
+        if raw and not _is_google_news_url(raw):
+            return raw
+    for raw in candidates:
+        if raw and _is_google_news_url(raw):
+            resolved = _resolve_google_news_url(raw)
+            if resolved:
+                return resolved
+    return ""
+
+
+def _load_beian_icon_data_uri() -> str:
+    """Load local public-security beian icon as data URI for stable rendering."""
+    try:
+        root = Path(__file__).resolve().parents[3]
+        candidate_paths = [
+            root / "static" / "beian_icon.png",
+            root / "备案" / "备案图标.png",
+        ]
+        for icon_path in candidate_paths:
+            if not icon_path.exists():
+                continue
+            raw = icon_path.read_bytes()
+            if not raw:
+                continue
+            b64 = base64.b64encode(raw).decode("ascii")
+            return f"data:image/png;base64,{b64}"
+    except Exception:  # noqa: BLE001
+        return ""
+    return ""
 
 
 def _publisher_domain(entry: dict) -> str:
@@ -113,7 +202,7 @@ def _publisher_domain(entry: dict) -> str:
             host = urlparse(raw).netloc or ""
             if host and "news.google.com" not in host:
                 return host.removeprefix("www.")
-    citation = (entry.get("citations") or [""])[0]
+    citation = _pick_click_url(entry)
     if citation:
         host = urlparse(citation).netloc or ""
         return host.removeprefix("www.")
@@ -141,7 +230,7 @@ def _render_markdown(digest: dict) -> str:
     for idx, entry in enumerate(digest.get("entries", []), 1):
         title = entry["title"]
         region = "国内" if entry.get("region") == "domestic" else "国际"
-        citation = (entry.get("citations") or [""])[0]
+        citation = _pick_click_url(entry)
         has_link = bool(citation)
 
         if has_link:
@@ -228,7 +317,7 @@ def _render_html(digest: dict) -> str:
         region = entry.get("region", "international")
         region_label = _REGION_LABEL.get(region, "国际")
         region_color = _REGION_COLOR.get(region, "#0A84FF")
-        citation = str((entry.get("citations") or [""])[0]).strip()
+        citation = _pick_click_url(entry)
         safe_href = escape(citation, quote=True)
 
         # Date
@@ -250,7 +339,7 @@ def _render_html(digest: dict) -> str:
         if image_url:
             safe_img = escape(image_url, quote=True)
             image_html = (
-                f'<img src="{safe_img}" style="width:100%;height:auto;'
+                f'<img src="{safe_img}" referrerpolicy="no-referrer" style="width:100%;height:auto;'
                 f"border-radius:10px;margin:10px 0 0 0;display:block;"
                 f'object-fit:contain;" />'
             )
@@ -531,8 +620,25 @@ def _enhance_web_entries(digest: dict) -> dict:
     digest = copy.deepcopy(digest)
 
     for entry in digest.get("entries", []):
+        click_url = _pick_click_url(entry)
+        if click_url:
+            entry["canonical_url"] = click_url
+            citations = entry.get("citations") or []
+            if citations:
+                citations[0] = click_url
+            else:
+                citations = [click_url]
+            entry["citations"] = citations
+        elif _is_google_news_url(str((entry.get("citations") or [""])[0]).strip()):
+            # Do not send users to Google News redirect pages when unresolved.
+            entry["citations"] = []
+            if _is_google_news_url(str(entry.get("canonical_url", "")).strip()):
+                entry["canonical_url"] = ""
+            if _is_google_news_url(str(entry.get("url", "")).strip()):
+                entry["url"] = ""
+
         # Fill missing images with publicly accessible URLs
-        if not entry.get("image_url"):
+        if (not entry.get("image_url")) or _is_blocked_wechat_image(str(entry.get("image_url", ""))):
             url = search_public_image_url(entry.get("title", ""))
             if url:
                 entry["image_url"] = url
@@ -577,7 +683,7 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         region = entry.get("region", "international")
         region_label = _REGION_LABEL.get(region, "国际")
         region_color = _REGION_COLOR.get(region, "#0A84FF")
-        citation = str((entry.get("citations") or [""])[0]).strip()
+        citation = _pick_click_url(entry)
         domain = _publisher_domain(entry)
 
         # Date
@@ -599,7 +705,7 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         if image_url:
             safe_img = escape(image_url, quote=True)
             image_html = (
-                f'<img src="{safe_img}" style="width:100%;height:auto;'
+                f'<img src="{safe_img}" referrerpolicy="no-referrer" style="width:100%;height:auto;'
                 f"border-radius:10px;margin:10px 0 0 0;display:block;"
                 f'object-fit:contain;" />'
             )
@@ -769,6 +875,21 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
     # Build TOC from all entries in order
     all_entries = [(idx, entry) for idx, entry in enumerate(entries, 1)]
     toc_html = _build_toc(all_entries)
+    beian_icon_src = _load_beian_icon_data_uri()
+    if beian_icon_src:
+        beian_line = (
+            f'<a href="{_MPS_BEIAN_URL}" target="_blank" rel="noreferrer" '
+            f'style="display:inline-flex;align-items:center;gap:6px;'
+            f'justify-content:center;color:#AEAEB2;text-decoration:none;">'
+            f'<img src="{beian_icon_src}" alt="公安备案图标" '
+            f'style="width:14px;height:14px;vertical-align:middle;" />'
+            f"沪公网安备31011502405233号</a>"
+        )
+    else:
+        beian_line = (
+            f'<a href="{_MPS_BEIAN_URL}" target="_blank" rel="noreferrer" '
+            f'style="color:#AEAEB2;text-decoration:none;">沪公网安备31011502405233号</a>'
+        )
 
     body = (
         f'<section style="padding:0;margin:0 auto;max-width:420px;'
@@ -827,9 +948,7 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         f'<a href="https://beian.miit.gov.cn" target="_blank" rel="noopener" '
         f'style="color:#AEAEB2;text-decoration:none;">沪ICP备2025125704号-3</a>'
         f"<br/>"
-        f'<a href="https://beian.mps.gov.cn/#/query/webSearch?code=31011502405233" '
-        f'target="_blank" rel="noreferrer" style="color:#AEAEB2;text-decoration:none;">'
-        f'沪公网安备31011502405233号</a></p>'
+        f"{beian_line}</p>"
         f"</section>"
         f"</section>"
     )
@@ -839,6 +958,7 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         f'<html lang="zh-CN">\n<head>\n'
         f'<meta charset="UTF-8">\n'
         f'<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
+        f'<meta name="referrer" content="no-referrer">\n'
         f"<title>飞行播客日报 | {escape(date)}</title>\n"
         f"<style>body{{margin:0;padding:0;background:#F2F2F7;}}"
         f"a:hover{{opacity:0.7;}}</style>\n"
