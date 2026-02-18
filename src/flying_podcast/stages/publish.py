@@ -365,9 +365,11 @@ def _render_html(digest: dict) -> str:
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
         f'line-height:1.6;font-weight:500;">飞行播客 · 运输航空新闻精选</p>'
-        f'<p style="margin:6px 0 0 0;font-size:11px;color:#AEAEB2;'
-        f'line-height:1.5;">数据来源：民航局 / 航司 / 行业媒体'
-        f"<br/>内容请看原文 · 仅供参考</p>"
+        f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
+        f'line-height:1.6;">本文由系统自动聚合公开渠道信息并经 AI 辅助摘要生成'
+        f"<br/>版权归原作者及原机构所有 · 仅供行业信息交流"
+        f"<br/>不作为飞行运行或签派决策依据"
+        f"<br/>如有侵权请联系后台，核实后立即删除</p>"
         f"</section>"
         f"</section>"
     )
@@ -729,9 +731,11 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
         f'line-height:1.6;font-weight:500;">飞行播客 · 运输航空新闻精选</p>'
-        f'<p style="margin:6px 0 0 0;font-size:11px;color:#AEAEB2;'
-        f'line-height:1.5;">数据来源：民航局 / 航司 / 行业媒体'
-        f"<br/>点击标题可查看原文出处</p>"
+        f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
+        f'line-height:1.6;">本文由系统自动聚合公开渠道信息并经 AI 辅助摘要生成'
+        f"<br/>版权归原作者及原机构所有 · 点击标题可查看原文出处"
+        f"<br/>仅供行业信息交流，不作为飞行运行或签派决策依据"
+        f"<br/>如有侵权请联系后台，核实后立即删除</p>"
         f"</section>"
         f"</section>"
     )
