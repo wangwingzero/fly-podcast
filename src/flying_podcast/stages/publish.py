@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from html import escape
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -260,6 +261,7 @@ def _render_html(digest: dict) -> str:
     - Journalist-style body paragraph for reading and listening
     """
     date = digest["date"]
+    notice_url = str(digest.get("copyright_notice_url", "")).strip()
     dc = digest["domestic_count"]
     ic = digest["international_count"]
     entries = digest.get("entries", [])
@@ -654,7 +656,9 @@ def _enhance_web_entries(digest: dict) -> dict:
     return digest
 
 
-def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
+def _render_web_html(
+    digest: dict, summary: str = "", intro: str = "", copyright_notice_url: str = ""
+) -> str:
     """Generate standalone HTML page with clickable links for hosting on external domain.
 
     Same Apple-style card design as _render_html(), but:
@@ -891,6 +895,16 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
             f'style="color:#AEAEB2;text-decoration:none;">沪公网安备31011502405233号</a>'
         )
 
+    notice_line = "如有侵权请联系后台，核实后立即删除"
+    notice_url = str(copyright_notice_url).strip()
+    if notice_url:
+        safe_notice = escape(notice_url, quote=True)
+        notice_line = (
+            f'如有侵权请联系后台，核实后立即删除'
+            f' · <a href="{safe_notice}" target="_blank" rel="noopener" '
+            f'style="color:#AEAEB2;text-decoration:underline;">版权声明</a>'
+        )
+
     body = (
         f'<section style="padding:0;margin:0 auto;max-width:420px;'
         f"font-family:-apple-system,BlinkMacSystemFont,"
@@ -942,7 +956,7 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         f'line-height:1.6;font-weight:500;">飞行播客 · 自动聚合公开渠道信息</p>'
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
         f'line-height:1.6;">版权归原作者及原机构所有 · 仅供行业信息交流'
-        f"<br/>如有侵权请联系后台，核实后立即删除</p>"
+        f"<br/>{notice_line}</p>"
         f'<p style="margin:10px 0 0 0;font-size:10px;color:#AEAEB2;'
         f'line-height:1.8;">'
         f'<a href="https://beian.miit.gov.cn" target="_blank" rel="noopener" '
@@ -1045,13 +1059,13 @@ _COVER_PROMPT_TEMPLATE = (
 )
 
 
-def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
-    """Generate a cover image via LLM prompt + Grok, upload as permanent material.
+def _generate_cover_image_bytes(digest: dict) -> bytes | None:
+    """Generate a cover image via LLM prompt + Grok.
 
-    Returns thumb_media_id, or empty string on failure.
+    Returns image bytes, or None on failure.
     """
     if not settings.llm_api_key or not settings.image_gen_api_key:
-        return ""
+        return None
 
     # Build summary from titles + bodies
     parts = []
@@ -1061,7 +1075,7 @@ def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
         parts.append(f"- {title}: {body[:80]}")
     summary = "\n".join(parts)
     if not summary:
-        return ""
+        return None
 
     # Step 1: Ask LLM to write a Grok prompt
     prompt = _llm_chat(
@@ -1072,10 +1086,10 @@ def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
     )
     if not prompt:
         logger.warning("Cover prompt generation failed")
-        return ""
+        return None
     logger.info("Cover prompt: %s", prompt[:120])
 
-    # Step 2: Call Grok to generate image
+    # Step 2: Call Grok to generate image (16:9 widescreen)
     from flying_podcast.core.image_gen import _call_grok_api
 
     image_data = _call_grok_api(
@@ -1083,6 +1097,7 @@ def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
         settings.image_gen_api_key,
         settings.image_gen_model,
         prompt,
+        size="1792x1024",
     )
     if not image_data and settings.image_gen_backup_api_key:
         logger.info("Cover: primary Grok failed, trying backup")
@@ -1091,12 +1106,18 @@ def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
             settings.image_gen_backup_api_key,
             settings.image_gen_backup_model,
             prompt,
+            size="1792x1024",
         )
     if not image_data:
         logger.warning("Cover image generation failed")
-        return ""
+    return image_data
 
-    # Step 3: Upload as permanent material
+
+def _upload_cover_image(image_data: bytes, client: WeChatClient) -> str:
+    """Upload cover image bytes to WeChat as permanent material.
+
+    Returns thumb_media_id, or empty string on failure.
+    """
     thumb_id = client.upload_thumb_image_bytes(image_data)
     if thumb_id:
         logger.info("Cover image uploaded: %s", thumb_id[:40])
@@ -1148,11 +1169,135 @@ def _save_recent_published(digest: dict, day: str) -> None:
     logger.info("Recent published history saved: %d days, %d entries today", len(days), len(today_entries))
 
 
+def _copyright_web_fallback_url() -> str:
+    base = settings.web_digest_base_url.rstrip("/")
+    return f"{base}/copyright.html" if base else "https://mp.weixin.qq.com"
+
+
+def _load_saved_copyright_notice_url() -> str:
+    if settings.copyright_notice_url.strip():
+        return settings.copyright_notice_url.strip()
+    path = settings.history_dir / "copyright_notice.json"
+    if not path.exists():
+        return ""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return ""
+    url = str(data.get("url", "")).strip()
+    if url.startswith("https://mp.weixin.qq.com"):
+        return url
+    return ""
+
+
+def _save_copyright_notice_url(url: str, publish_id: str = "", article_id: str = "") -> None:
+    if not url:
+        return
+    path = settings.history_dir / "copyright_notice.json"
+    payload = {
+        "url": url,
+        "publish_id": publish_id,
+        "article_id": article_id,
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _extract_body_html(full_html: str) -> str:
+    m = re.search(r"<body[^>]*>(.*?)</body>", full_html, flags=re.IGNORECASE | re.DOTALL)
+    return (m.group(1).strip() if m else full_html.strip())
+
+
+def _extract_article_id(status: dict[str, Any]) -> str:
+    direct = status.get("article_id")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    if isinstance(direct, int):
+        return str(direct)
+    detail = status.get("article_detail")
+    if isinstance(detail, dict):
+        aid = detail.get("article_id")
+        if isinstance(aid, str) and aid.strip():
+            return aid.strip()
+        if isinstance(aid, int):
+            return str(aid)
+    return ""
+
+
+def _extract_article_url(article_detail: dict[str, Any]) -> str:
+    for k in ("url", "article_url", "link"):
+        v = article_detail.get(k)
+        if isinstance(v, str) and v.startswith("https://mp.weixin.qq.com"):
+            return v
+    items = article_detail.get("news_item")
+    if isinstance(items, list):
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            for k in ("url", "article_url", "link"):
+                v = it.get(k)
+                if isinstance(v, str) and v.startswith("https://mp.weixin.qq.com"):
+                    return v
+    return ""
+
+
+def _ensure_wechat_copyright_notice_url(client: WeChatClient) -> str:
+    existing = _load_saved_copyright_notice_url()
+    if existing:
+        return existing
+
+    fallback_url = _copyright_web_fallback_url()
+    static_path = Path(__file__).resolve().parents[3] / "static" / "copyright.html"
+    if not static_path.exists():
+        return fallback_url
+
+    content_html = static_path.read_text(encoding="utf-8")
+    icon_data = _load_beian_icon_data_uri()
+    if icon_data:
+        content_html = content_html.replace('src="beian_icon.png"', f'src="{icon_data}"')
+    content_html = _extract_body_html(content_html)
+    content_html = client.replace_external_images(content_html)
+
+    media_id = client.create_draft(
+        title="版权声明与侵权处理说明",
+        author=settings.wechat_author,
+        content_html=content_html,
+        digest="版权声明、侵权处理流程与联系方式说明。",
+        source_url=fallback_url,
+        thumb_media_id="",
+    )
+    publish = client.publish_draft(media_id)
+
+    article_id = ""
+    for _ in range(30):
+        status = client.get_publish_status(publish.publish_id)
+        article_id = _extract_article_id(status)
+        if article_id:
+            break
+        publish_status = status.get("publish_status")
+        # 0 means success in WeChat docs; if succeeded without article_id, keep polling briefly.
+        if publish_status in (2, "2"):
+            raise WeChatPublishError(f"Copyright publish failed: {status}")
+        time.sleep(3)
+
+    if not article_id:
+        return fallback_url
+
+    detail = client.get_article_detail(article_id)
+    article_url = _extract_article_url(detail)
+    if article_url:
+        _save_copyright_notice_url(article_url, publish.publish_id, article_id)
+        return article_url
+    return fallback_url
+
+
 def run(target_date: str | None = None) -> Path:
     ensure_dirs()
     day = target_date or datetime.now().strftime("%Y-%m-%d")
     digest = load_json(settings.processed_dir / f"composed_{day}.json")
     quality = load_json(settings.processed_dir / f"quality_{day}.json")
+    copyright_notice_url = _load_saved_copyright_notice_url() or _copyright_web_fallback_url()
+    digest["copyright_notice_url"] = copyright_notice_url
 
     md = _render_markdown(digest)
     html = _render_html(digest)
@@ -1165,7 +1310,12 @@ def run(target_date: str | None = None) -> Path:
     web_digest = _enhance_web_entries(digest)
 
     # Initial web render (with public images + translated titles)
-    web_html = _render_web_html(web_digest, summary=summary, intro=intro)
+    web_html = _render_web_html(
+        web_digest,
+        summary=summary,
+        intro=intro,
+        copyright_notice_url=copyright_notice_url,
+    )
 
     # Build web URL for content_source_url
     web_filename = f"web_{day}.html"
@@ -1180,8 +1330,16 @@ def run(target_date: str | None = None) -> Path:
         "status": "skipped",
         "publish_id": "",
         "url": "",
+        "copyright_notice_url": copyright_notice_url,
         "reasons": quality.get("reasons", []),
     }
+
+    # Generate AI cover image (always, regardless of dry_run)
+    cover_image_data = _generate_cover_image_bytes(digest)
+    if cover_image_data:
+        cover_path = settings.output_dir / f"cover_{day}.jpg"
+        cover_path.write_bytes(cover_image_data)
+        logger.info("Cover image saved locally: %s (%d bytes)", cover_path, len(cover_image_data))
 
     if settings.dry_run or not settings.wechat_enable_publish:
         result["status"] = "dry_run"
@@ -1189,6 +1347,13 @@ def run(target_date: str | None = None) -> Path:
     else:
         client = WeChatClient()
         try:
+            try:
+                copyright_notice_url = _ensure_wechat_copyright_notice_url(client)
+            except WeChatPublishError as exc:
+                logger.warning("Use fallback copyright notice URL: %s", exc)
+                copyright_notice_url = _copyright_web_fallback_url()
+            digest["copyright_notice_url"] = copyright_notice_url
+            result["copyright_notice_url"] = copyright_notice_url
             # Fill missing images with AI-generated ones
             digest = _fill_missing_images(digest, client)
             # Re-render HTML with new images
@@ -1196,9 +1361,16 @@ def run(target_date: str | None = None) -> Path:
             html = client.replace_external_images(html)
             # Re-render web HTML with AI images + LLM content
             web_digest = _enhance_web_entries(digest)
-            web_html = _render_web_html(web_digest, summary=summary, intro=intro)
-            # Generate AI cover image, fallback to default thumb
-            cover_thumb_id = _generate_cover_image(digest, client)
+            web_html = _render_web_html(
+                web_digest,
+                summary=summary,
+                intro=intro,
+                copyright_notice_url=copyright_notice_url,
+            )
+            # Upload cover image, fallback to default thumb
+            cover_thumb_id = ""
+            if cover_image_data:
+                cover_thumb_id = _upload_cover_image(cover_image_data, client)
             media_id = client.create_draft(
                 title=f"飞行播客日报 | {day}",
                 author=settings.wechat_author,
@@ -1235,6 +1407,7 @@ def run(target_date: str | None = None) -> Path:
         "html": html,
         "web_html": web_html,
         "web_url": web_url,
+        "copyright_notice_url": copyright_notice_url,
     })
 
     # Save published titles for cross-day dedup

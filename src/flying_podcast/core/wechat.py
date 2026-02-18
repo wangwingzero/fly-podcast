@@ -230,3 +230,31 @@ class WeChatClient:
             message="submitted",
             detail=submit_data,
         )
+
+    def get_publish_status(self, publish_id: str) -> dict[str, Any]:
+        token = self._access_token()
+        resp = requests.post(
+            f"{self.base}/freepublish/get",
+            params={"access_token": token},
+            json={"publish_id": publish_id},
+            timeout=30,
+            proxies=self.proxies,
+        )
+        data = resp.json()
+        if data.get("errcode", 0) not in (0, None):
+            raise WeChatPublishError(f"Get publish status failed: {data}")
+        return data
+
+    def get_article_detail(self, article_id: str) -> dict[str, Any]:
+        token = self._access_token()
+        resp = requests.post(
+            f"{self.base}/freepublish/getarticle",
+            params={"access_token": token},
+            json={"article_id": article_id},
+            timeout=30,
+            proxies=self.proxies,
+        )
+        data = resp.json()
+        if data.get("errcode", 0) not in (0, None):
+            raise WeChatPublishError(f"Get article detail failed: {data}")
+        return data

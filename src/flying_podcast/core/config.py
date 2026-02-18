@@ -53,6 +53,7 @@ class Settings:
     wechat_thumb_media_id: str = os.getenv("WECHAT_THUMB_MEDIA_ID", "")
     wechat_proxy: str = os.getenv("WECHAT_PROXY", "")
     web_digest_base_url: str = os.getenv("WEB_DIGEST_BASE_URL", "")
+    copyright_notice_url: str = os.getenv("COPYRIGHT_NOTICE_URL", "")
 
     alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")
 

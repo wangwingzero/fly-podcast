@@ -82,6 +82,10 @@ jobs:
             --endpoint-url "${R2_ENDPOINT}" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "public, max-age=604800"
+          aws s3 cp static/beian_icon.png "s3://${R2_BUCKET}/digest/beian_icon.png" \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --content-type "image/png" \
+            --cache-control "public, max-age=2592000"
       - name: Upload recent published history to R2
         if: hashFiles('data/history/recent_published.json') != ''
         env:
