@@ -78,6 +78,10 @@ jobs:
             --exclude "*" --include "web_*.html" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "public, max-age=86400"
+          aws s3 cp static/copyright.html "s3://${R2_BUCKET}/digest/copyright.html" \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "public, max-age=604800"
       - name: Upload recent published history to R2
         if: hashFiles('data/history/recent_published.json') != ''
         env:
