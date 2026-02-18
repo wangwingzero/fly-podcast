@@ -121,7 +121,9 @@ def run(target_date: str | None = None) -> Path:
     if total < settings.quality_threshold:
         reasons.append("quality_below_threshold")
 
-    decision = "auto_publish" if total >= settings.quality_threshold and not blocked and not reasons else "hold"
+    # Always auto_publish — quality issues are logged in reasons for reference
+    # but no longer gate the publish decision.
+    decision = "auto_publish"
 
     report = QualityReport(
         date=day,

@@ -17,7 +17,6 @@ env:
   LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
   LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
   WECHAT_ENABLE_PUBLISH: ${{ vars.WECHAT_ENABLE_PUBLISH || 'false' }}
-  WECHAT_FORCE_PUBLISH: ${{ vars.WECHAT_FORCE_PUBLISH || 'false' }}
   WECHAT_APP_ID: ${{ secrets.WECHAT_APP_ID }}
   WECHAT_APP_SECRET: ${{ secrets.WECHAT_APP_SECRET }}
   WECHAT_AUTHOR: ${{ vars.WECHAT_AUTHOR || '' }}

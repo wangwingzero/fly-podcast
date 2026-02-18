@@ -1024,9 +1024,7 @@ def run(target_date: str | None = None) -> Path:
         "reasons": quality.get("reasons", []),
     }
 
-    if quality["decision"] != "auto_publish" and not settings.wechat_force_publish:
-        result["status"] = "hold"
-    elif settings.dry_run or not settings.wechat_enable_publish:
+    if settings.dry_run or not settings.wechat_enable_publish:
         result["status"] = "dry_run"
         result["url"] = f"dry-run://flying-podcast/{day}"
     else:

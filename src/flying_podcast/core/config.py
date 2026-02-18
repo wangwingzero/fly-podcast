@@ -47,7 +47,6 @@ class Settings:
     llm_temperature: float = _env_float("LLM_TEMPERATURE", 0.1)
 
     wechat_enable_publish: bool = _env_bool("WECHAT_ENABLE_PUBLISH", False)
-    wechat_force_publish: bool = _env_bool("WECHAT_FORCE_PUBLISH", False)
     wechat_app_id: str = os.getenv("WECHAT_APP_ID", "")
     wechat_app_secret: str = os.getenv("WECHAT_APP_SECRET", "")
     wechat_author: str = os.getenv("WECHAT_AUTHOR", "飞行播客")
