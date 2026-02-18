@@ -296,13 +296,100 @@ def _render_html(digest: dict) -> str:
     return html
 
 
-def _render_web_html(digest: dict) -> str:
+_WEB_INTRO_PROMPT = (
+    "你是资深航空新闻编辑。根据以下今日航空新闻列表，写一段3-5句话的导读概述。"
+    "要求：\n"
+    "1. 专业、简洁、有信息量\n"
+    "2. 概括今日最重要的2-3条核心要点\n"
+    "3. 语气类似新闻联播导语，客观中立\n"
+    "4. 不要用'本期'、'本日'开头，直接说内容\n"
+    "5. 不超过150字\n"
+    "只输出这段导读，不要任何其他内容。\n\n今日新闻：\n{entries}"
+)
+
+
+def _generate_web_intro(digest: dict) -> str:
+    """Use LLM to generate a 3-5 sentence overview for the web digest page."""
+    if not settings.llm_api_key:
+        return ""
+
+    parts = []
+    for e in digest.get("entries", [])[:10]:
+        title = e.get("title", "")
+        body = e.get("body", "") or ""
+        if not body:
+            facts = e.get("facts", [])
+            body = "；".join(facts[:3]) if facts else ""
+        parts.append(f"- {title}：{body[:100]}")
+    entries_text = "\n".join(parts)
+    if not entries_text:
+        return ""
+
+    try:
+        resp = requests.post(
+            settings.llm_base_url,
+            headers={
+                "Authorization": f"Bearer {settings.llm_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.llm_model,
+                "messages": [{"role": "user", "content": _WEB_INTRO_PROMPT.format(entries=entries_text)}],
+                "max_tokens": 300,
+                "temperature": 0.5,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        text = (resp.json()["choices"][0]["message"].get("content") or "").strip()
+        if text and len(text) <= 300:
+            logger.info("Web intro generated: %s", text[:60])
+            return text
+    except Exception as exc:
+        logger.warning("Web intro generation failed: %s", exc)
+
+    return ""
+
+
+def _web_summary_block(summary: str, intro: str) -> str:
+    """Build the summary + intro HTML block for the web page header."""
+    if not summary and not intro:
+        return ""
+
+    parts = []
+    parts.append(
+        '<section style="padding:0 20px 12px 20px;">'
+        '<section style="background:#FFFFFF;border-radius:14px;'
+        'padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">'
+    )
+
+    if summary:
+        parts.append(
+            f'<p style="margin:0;font-size:15px;font-weight:600;'
+            f'color:#1D1D1F;line-height:1.6;text-align:center;">'
+            f'{escape(summary)}</p>'
+        )
+
+    if intro:
+        top_margin = "12px" if summary else "0"
+        parts.append(
+            f'<p style="margin:{top_margin} 0 0 0;font-size:13px;'
+            f'color:#6E6E73;line-height:1.8;">'
+            f'{escape(intro)}</p>'
+        )
+
+    parts.append('</section></section>')
+    return "".join(parts)
+
+
+def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
     """Generate standalone HTML page with clickable links for hosting on external domain.
 
     Same Apple-style card design as _render_html(), but:
     - Full <!DOCTYPE html> standalone page
     - Titles wrapped in <a> tags linking to citation URLs
     - Source domain shown on each card
+    - Optional LLM-generated summary and intro paragraph
     """
     date = digest["date"]
     dc = digest["domestic_count"]
@@ -508,6 +595,8 @@ def _render_web_html(digest: dict) -> str:
         f"国际 {ic}</span>"
         f"</section>"
         f"</section>"
+        # Summary + Intro block
+        f"{_web_summary_block(summary, intro)}"
         # Cards
         f"{''.join(parts)}"
         # Footer
@@ -605,7 +694,8 @@ def _generate_digest_summary(digest: dict) -> str:
             timeout=30,
         )
         resp.raise_for_status()
-        text = resp.json()["choices"][0]["message"]["content"].strip().strip("\"'""''")
+        raw = resp.json()["choices"][0]["message"].get("content") or ""
+        text = raw.strip().strip("\"'""''")
         if text and len(text) <= 60:
             logger.info("Digest summary: %s", text)
             return text
@@ -661,7 +751,7 @@ def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
             timeout=30,
         )
         resp.raise_for_status()
-        prompt = resp.json()["choices"][0]["message"]["content"].strip()
+        prompt = (resp.json()["choices"][0]["message"].get("content") or "").strip()
         logger.info("Cover prompt: %s", prompt[:120])
     except Exception as exc:
         logger.warning("Cover prompt generation failed: %s", exc)
@@ -703,15 +793,16 @@ def run(target_date: str | None = None) -> Path:
 
     md = _render_markdown(digest)
     html = _render_html(digest)
-    web_html = _render_web_html(digest)
 
-    # Save standalone web page for "阅读原文"
-    web_filename = f"web_{day}.html"
-    web_path = settings.output_dir / web_filename
-    web_path.write_text(web_html, encoding="utf-8")
-    logger.info("Web version saved: %s", web_path)
+    # Generate LLM content for web version (works in all modes, only needs LLM key)
+    summary = _generate_digest_summary(digest)
+    intro = _generate_web_intro(digest)
+
+    # Initial web render (without AI images, used for dry_run/hold)
+    web_html = _render_web_html(digest, summary=summary, intro=intro)
 
     # Build web URL for content_source_url
+    web_filename = f"web_{day}.html"
     base = settings.web_digest_base_url.rstrip("/")
     web_url = f"{base}/{web_filename}" if base else ""
 
@@ -739,10 +830,10 @@ def run(target_date: str | None = None) -> Path:
             # Re-render HTML with new images
             html = _render_html(digest)
             html = client.replace_external_images(html)
+            # Re-render web HTML with AI images + LLM content
+            web_html = _render_web_html(digest, summary=summary, intro=intro)
             # Generate AI cover image, fallback to default thumb
             cover_thumb_id = _generate_cover_image(digest, client)
-            # Generate dynamic digest summary via LLM
-            summary = _generate_digest_summary(digest)
             media_id = client.create_draft(
                 title=f"飞行播客日报 | {day}",
                 author=settings.wechat_author,
@@ -764,6 +855,11 @@ def run(target_date: str | None = None) -> Path:
         except WeChatPublishError as exc:
             result["status"] = "failed"
             result["reasons"].append(str(exc))
+
+    # Save standalone web page for "阅读原文"
+    web_path = settings.output_dir / web_filename
+    web_path.write_text(web_html, encoding="utf-8")
+    logger.info("Web version saved: %s", web_path)
 
     out = settings.output_dir / f"publish_{day}.json"
     dump_json(out, result)
