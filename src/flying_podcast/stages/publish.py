@@ -368,6 +368,10 @@ def _render_html(digest: dict) -> str:
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
         f'line-height:1.6;">版权归原作者及原机构所有 · 仅供行业信息交流'
         f"<br/>如有侵权请联系后台，核实后立即删除</p>"
+        f'<p style="margin:10px 0 0 0;font-size:10px;color:#AEAEB2;'
+        f'line-height:1.8;">'
+        f"沪ICP备2025125704号"
+        f"<br/>沪公网安备31011502405233号</p>"
         f"</section>"
         f"</section>"
     )
@@ -732,6 +736,14 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
         f'line-height:1.6;">版权归原作者及原机构所有 · 仅供行业信息交流'
         f"<br/>如有侵权请联系后台，核实后立即删除</p>"
+        f'<p style="margin:10px 0 0 0;font-size:10px;color:#AEAEB2;'
+        f'line-height:1.8;">'
+        f'<a href="https://beian.miit.gov.cn" target="_blank" rel="noopener" '
+        f'style="color:#AEAEB2;text-decoration:none;">沪ICP备2025125704号</a>'
+        f"<br/>"
+        f'<a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502405233" '
+        f'target="_blank" rel="noopener" style="color:#AEAEB2;text-decoration:none;">'
+        f'沪公网安备31011502405233号</a></p>'
         f"</section>"
         f"</section>"
     )
