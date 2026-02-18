@@ -188,7 +188,7 @@ def _render_html(digest: dict) -> str:
 
     # Build TOC (plain list, no anchor links — WeChat doesn't support them)
     toc_rows: list[str] = []
-    all_entries = domestic + international
+    all_entries = sorted(domestic + international, key=lambda x: x[0])
     for idx, entry in all_entries:
         t = escape(entry["title"])
         region = entry.get("region", "international")
