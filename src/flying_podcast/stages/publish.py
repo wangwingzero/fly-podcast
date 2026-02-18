@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -16,6 +17,82 @@ from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
 
 logger = get_logger("publish")
+
+
+def _extract_llm_text(data: dict) -> str:
+    """Extract text content from an OpenAI-compatible chat completion response.
+
+    Handles multiple content formats: string, list of content blocks, dict, None.
+    Mirrors the robust extraction logic in llm_client.py.
+    """
+    choices = data.get("choices") or []
+    if not choices:
+        return ""
+    msg = choices[0].get("message") or {}
+    content = msg.get("content")
+
+    if content is None:
+        # Legacy: some providers put text at choice.text
+        content = choices[0].get("text") or ""
+
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                text_parts.append(block)
+            elif isinstance(block, dict):
+                if isinstance(block.get("text"), str):
+                    text_parts.append(block["text"])
+                elif block.get("type") == "text" and isinstance(block.get("content"), str):
+                    text_parts.append(block["content"])
+        content = "\n".join([x for x in text_parts if x.strip()])
+    elif isinstance(content, dict):
+        content = content.get("text") or content.get("content") or ""
+
+    return str(content).strip() if content else ""
+
+
+def _llm_chat(messages: list[dict], max_tokens: int = 200,
+              temperature: float = 0.5, retries: int = 2,
+              timeout: int = 30) -> str:
+    """Make an LLM chat completion request with retry and robust extraction.
+
+    Returns the extracted text content, or "" on failure.
+    """
+    if not settings.llm_api_key:
+        return ""
+
+    headers = {
+        "Authorization": f"Bearer {settings.llm_api_key}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": settings.llm_model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.post(
+                settings.llm_base_url,
+                headers=headers,
+                json=body,
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            text = _extract_llm_text(resp.json())
+            if text:
+                return text
+            logger.warning("LLM returned empty content (attempt %d/%d)", attempt, retries)
+        except Exception as exc:
+            logger.warning("LLM request failed (attempt %d/%d): %s", attempt, retries, exc)
+        if attempt < retries:
+            time.sleep(min(2 ** attempt, 8))
+
+    return ""
+
 
 _TIER_LABEL = {"A": "核心来源", "B": "媒体来源", "C": "参考来源"}
 _REGION_COLOR = {"domestic": "#30D158", "international": "#0A84FF"}
@@ -310,9 +387,6 @@ _WEB_INTRO_PROMPT = (
 
 def _generate_web_intro(digest: dict) -> str:
     """Use LLM to generate a 3-5 sentence overview for the web digest page."""
-    if not settings.llm_api_key:
-        return ""
-
     parts = []
     for e in digest.get("entries", [])[:10]:
         title = e.get("title", "")
@@ -325,31 +399,18 @@ def _generate_web_intro(digest: dict) -> str:
     if not entries_text:
         return ""
 
-    try:
-        resp = requests.post(
-            settings.llm_base_url,
-            headers={
-                "Authorization": f"Bearer {settings.llm_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": _WEB_INTRO_PROMPT.format(entries=entries_text)}],
-                "max_tokens": 300,
-                "temperature": 0.5,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        text = (resp.json()["choices"][0]["message"].get("content") or "").strip()
-        if text and len(text) <= 500:
-            logger.info("Web intro generated: %s", text[:60])
-            return text
-        if text:
-            logger.warning("Web intro too long (%d chars), skipping", len(text))
-    except Exception as exc:
-        logger.warning("Web intro generation failed: %s", exc)
-
+    text = _llm_chat(
+        messages=[{"role": "user", "content": _WEB_INTRO_PROMPT.format(entries=entries_text)}],
+        max_tokens=300,
+        temperature=0.5,
+        timeout=30,
+    )
+    if text and len(text) <= 500:
+        logger.info("Web intro generated: %s", text[:60])
+        return text
+    if text:
+        logger.warning("Web intro too long (%d chars), using truncated", len(text))
+        return text[:500]
     return ""
 
 
@@ -394,38 +455,25 @@ _TRANSLATE_PROMPT = (
 
 def _translate_title(title: str) -> str:
     """Translate an English title to Chinese via LLM."""
-    if not settings.llm_api_key:
-        return title
     # Skip if already mostly Chinese
     cn_chars = sum(1 for c in title if '\u4e00' <= c <= '\u9fff')
     if cn_chars > len(title) * 0.3:
         return title
 
-    try:
-        resp = requests.post(
-            settings.llm_base_url,
-            headers={
-                "Authorization": f"Bearer {settings.llm_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": _TRANSLATE_PROMPT.format(title=title)}],
-                "max_tokens": 100,
-                "temperature": 0.3,
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        text = (resp.json()["choices"][0]["message"].get("content") or "").strip().strip("\"'""''")
-        if text and len(text) <= 120:
-            logger.info("Translated: %s -> %s", title[:30], text[:30])
-            return text
-        if text:
-            logger.warning("Translation too long (%d chars): %s", len(text), text[:80])
-    except Exception as exc:
-        logger.warning("Title translation failed: %s", exc)
-
+    text = _llm_chat(
+        messages=[{"role": "user", "content": _TRANSLATE_PROMPT.format(title=title)}],
+        max_tokens=100,
+        temperature=0.3,
+        retries=2,
+        timeout=20,
+    )
+    if text:
+        text = text.strip("\"'""''")
+    if text and len(text) <= 120:
+        logger.info("Translated: %s -> %s", title[:30], text[:30])
+        return text
+    if text:
+        logger.warning("Translation too long (%d chars): %s", len(text), text[:80])
     return title
 
 
@@ -743,8 +791,6 @@ _DIGEST_SUMMARY_PROMPT = (
 def _generate_digest_summary(digest: dict) -> str:
     """Use LLM to generate a one-line summary of today's digest."""
     fallback = "今日热点精选速读"
-    if not settings.llm_api_key:
-        return fallback
 
     titles = "\n".join(
         f"- {e.get('title', '')}" for e in digest.get("entries", []) if e.get("title")
@@ -752,32 +798,20 @@ def _generate_digest_summary(digest: dict) -> str:
     if not titles:
         return fallback
 
-    try:
-        resp = requests.post(
-            settings.llm_base_url,
-            headers={
-                "Authorization": f"Bearer {settings.llm_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": _DIGEST_SUMMARY_PROMPT.format(titles=titles)}],
-                "max_tokens": 80,
-                "temperature": 0.7,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        raw = resp.json()["choices"][0]["message"].get("content") or ""
-        text = raw.strip().strip("\"'""''")
-        if text and len(text) <= 100:
-            logger.info("Digest summary: %s", text)
-            return text
-        if text:
-            logger.warning("Digest summary too long (%d chars), using fallback", len(text))
-    except Exception as exc:
-        logger.warning("Digest summary generation failed: %s", exc)
-
+    text = _llm_chat(
+        messages=[{"role": "user", "content": _DIGEST_SUMMARY_PROMPT.format(titles=titles)}],
+        max_tokens=80,
+        temperature=0.7,
+        timeout=30,
+    )
+    if text:
+        text = text.strip("\"'""''")
+    if text and len(text) <= 100:
+        logger.info("Digest summary: %s", text)
+        return text
+    if text:
+        logger.warning("Digest summary too long (%d chars), truncating", len(text))
+        return text[:100]
     return fallback
 
 
@@ -811,27 +845,16 @@ def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
         return ""
 
     # Step 1: Ask LLM to write a Grok prompt
-    try:
-        resp = requests.post(
-            settings.llm_base_url,
-            headers={
-                "Authorization": f"Bearer {settings.llm_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": _COVER_PROMPT_TEMPLATE.format(summary=summary)}],
-                "max_tokens": 300,
-                "temperature": 0.7,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        prompt = (resp.json()["choices"][0]["message"].get("content") or "").strip()
-        logger.info("Cover prompt: %s", prompt[:120])
-    except Exception as exc:
-        logger.warning("Cover prompt generation failed: %s", exc)
+    prompt = _llm_chat(
+        messages=[{"role": "user", "content": _COVER_PROMPT_TEMPLATE.format(summary=summary)}],
+        max_tokens=300,
+        temperature=0.7,
+        timeout=30,
+    )
+    if not prompt:
+        logger.warning("Cover prompt generation failed")
         return ""
+    logger.info("Cover prompt: %s", prompt[:120])
 
     # Step 2: Call Grok to generate image
     from flying_podcast.core.image_gen import _call_grok_api
