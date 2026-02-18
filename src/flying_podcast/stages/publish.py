@@ -296,6 +296,246 @@ def _render_html(digest: dict) -> str:
     return html
 
 
+def _render_web_html(digest: dict) -> str:
+    """Generate standalone HTML page with clickable links for hosting on external domain.
+
+    Same Apple-style card design as _render_html(), but:
+    - Full <!DOCTYPE html> standalone page
+    - Titles wrapped in <a> tags linking to citation URLs
+    - Source domain shown on each card
+    """
+    date = digest["date"]
+    dc = digest["domestic_count"]
+    ic = digest["international_count"]
+    entries = digest.get("entries", [])
+    date_long = _format_date_cn(date)
+
+    domestic: list[tuple[int, dict]] = []
+    international: list[tuple[int, dict]] = []
+    for idx, entry in enumerate(entries, 1):
+        region = entry.get("region", "international")
+        if region == "domestic":
+            domestic.append((idx, entry))
+        else:
+            international.append((idx, entry))
+
+    def _build_web_card(idx: int, entry: dict, is_hero: bool = False) -> str:
+        title = escape(entry["title"])
+        region = entry.get("region", "international")
+        region_label = _REGION_LABEL.get(region, "国际")
+        region_color = _REGION_COLOR.get(region, "#0A84FF")
+        citation = str((entry.get("citations") or [""])[0]).strip()
+        domain = _publisher_domain(entry)
+
+        # Date
+        date_html = ""
+        raw_pa = entry.get("published_at", "")
+        if raw_pa:
+            try:
+                dt = dt_parser.parse(str(raw_pa))
+                date_html = (
+                    f'<p style="margin:5px 0 0 0;font-size:12px;color:#6E6E73;">'
+                    f"{dt.month}月{dt.day}日 {dt.strftime('%H:%M')}</p>"
+                )
+            except (ValueError, TypeError):
+                pass
+
+        # Image
+        image_html = ""
+        image_url = entry.get("image_url", "")
+        if image_url:
+            safe_img = escape(image_url, quote=True)
+            image_html = (
+                f'<img src="{safe_img}" style="width:100%;height:auto;'
+                f"border-radius:10px;margin:10px 0 0 0;display:block;"
+                f'object-fit:contain;" />'
+            )
+
+        # Body
+        body_text = entry.get("body", "")
+        if not body_text:
+            facts = entry.get("facts", [])
+            if facts:
+                body_text = "".join(
+                    f if f.rstrip().endswith(("。", ".", "!", "?", "！", "？"))
+                    else f + "。"
+                    for f in facts if f
+                )
+        body_html = ""
+        if body_text:
+            body_html = (
+                f'<p style="margin:12px 0 0 0;font-size:14px;'
+                f'color:#333333;line-height:1.75;">'
+                f"{escape(body_text)}</p>"
+            )
+
+        # Title — clickable link if citation exists
+        title_size = "17px" if is_hero else "16px"
+        if citation:
+            safe_href = escape(citation, quote=True)
+            title_html = (
+                f'<a href="{safe_href}" target="_blank" rel="noopener" '
+                f'style="color:#1D1D1F;text-decoration:none;'
+                f'border-bottom:1px solid #D1D1D6;">{title}</a>'
+            )
+        else:
+            title_html = title
+
+        # Source domain link
+        source_html = ""
+        if domain:
+            if citation:
+                safe_href = escape(citation, quote=True)
+                source_html = (
+                    f'<p style="margin:8px 0 0 0;font-size:11px;color:#8E8E93;">'
+                    f'来源：<a href="{safe_href}" target="_blank" rel="noopener" '
+                    f'style="color:#0A84FF;text-decoration:none;">{escape(domain)}</a></p>'
+                )
+            else:
+                source_html = (
+                    f'<p style="margin:8px 0 0 0;font-size:11px;color:#8E8E93;">'
+                    f"来源：{escape(domain)}</p>"
+                )
+
+        # Number badge
+        if is_hero:
+            num_badge = (
+                f'<span style="display:inline-flex;align-items:center;'
+                f"justify-content:center;width:22px;height:22px;"
+                f"border-radius:6px;background:{region_color};"
+                f'color:#FFF;font-size:11px;font-weight:700;">{idx}</span>'
+            )
+        else:
+            num_badge = (
+                f'<span style="display:inline-flex;align-items:center;'
+                f"justify-content:center;width:22px;height:22px;"
+                f"border-radius:6px;background:#F2F2F7;"
+                f'color:#6E6E73;font-size:11px;font-weight:700;">{idx}</span>'
+            )
+
+        border_top = f"border-top:3px solid {region_color};" if is_hero else ""
+
+        card = (
+            f'<section style="background:#FFFFFF;border-radius:14px;'
+            f"padding:18px;margin-bottom:10px;"
+            f"box-shadow:0 1px 3px rgba(0,0,0,0.06);"
+            f'{border_top}">'
+            f'<section style="display:flex;align-items:center;'
+            f'gap:6px;margin:0 0 8px 0;">'
+            f"{num_badge}"
+            f'<span style="margin-left:auto;font-size:10px;color:#FFFFFF;'
+            f"background:{region_color};padding:2px 7px;"
+            f'border-radius:4px;font-weight:500;">{region_label}</span>'
+            f"</section>"
+            f'<p style="margin:0;font-size:{title_size};font-weight:600;'
+            f'color:#1D1D1F;line-height:1.5;">{title_html}</p>'
+            f"{date_html}"
+            f"{image_html}"
+            f"{body_html}"
+            f"{source_html}"
+            f"</section>"
+        )
+        return card
+
+    def _web_section_header(label: str, color: str) -> str:
+        return (
+            f'<section style="display:flex;align-items:center;'
+            f'gap:8px;padding:4px 8px 10px 8px;">'
+            f'<span style="display:inline-block;width:3px;height:14px;'
+            f'border-radius:2px;background:{color};"></span>'
+            f'<span style="font-size:13px;font-weight:600;'
+            f'color:#1D1D1F;letter-spacing:0.5px;">{label}</span>'
+            f'<span style="flex:1;height:1px;background:#E5E5EA;"></span>'
+            f"</section>"
+        )
+
+    # Build sections
+    parts: list[str] = []
+
+    if domestic:
+        parts.append(
+            f'<section style="padding:0 12px;">'
+            f'{_web_section_header(_REGION_SECTION["domestic"], _REGION_COLOR["domestic"])}'
+        )
+        for i, (idx, entry) in enumerate(domestic):
+            parts.append(_build_web_card(idx, entry, is_hero=(i == 0)))
+        parts.append("</section>")
+
+    if international:
+        top_pad = "14px" if domestic else "0"
+        parts.append(
+            f'<section style="padding:0 12px;">'
+            f'<section style="padding:{top_pad} 0 0 0;"></section>'
+            f'{_web_section_header(_REGION_SECTION["international"], _REGION_COLOR["international"])}'
+        )
+        for i, (idx, entry) in enumerate(international):
+            parts.append(_build_web_card(idx, entry, is_hero=(i == 0)))
+        parts.append("</section>")
+
+    body = (
+        f'<section style="padding:0;margin:0 auto;max-width:420px;'
+        f"font-family:-apple-system,BlinkMacSystemFont,"
+        f"'SF Pro Display','PingFang SC','Helvetica Neue',"
+        f"'Microsoft YaHei',sans-serif;"
+        f'background:#F2F2F7;-webkit-font-smoothing:antialiased;">'
+        # Header
+        f'<section style="padding:36px 20px 24px 20px;text-align:center;">'
+        f'<section style="width:40px;height:3px;'
+        f"background:linear-gradient(90deg,#0A84FF,#30D158);"
+        f'margin:0 auto 18px auto;border-radius:2px;"></section>'
+        f'<p style="margin:0;font-size:10px;font-weight:600;'
+        f"color:#6E6E73;letter-spacing:4px;"
+        f'text-transform:uppercase;">FLYING PODCAST</p>'
+        f'<p style="margin:6px 0 0 0;font-size:26px;font-weight:700;'
+        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">每日航空简报</p>'
+        f'<p style="margin:8px 0 0 0;font-size:13px;'
+        f'color:#6E6E73;font-weight:400;">{date_long}</p>'
+        f'<section style="margin:16px auto 0 auto;display:flex;'
+        f'justify-content:center;gap:20px;">'
+        f'<span style="display:inline-flex;align-items:center;'
+        f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
+        f"padding:4px 10px;border-radius:20px;"
+        f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
+        f'<span style="display:inline-block;width:6px;height:6px;'
+        f'border-radius:50%;background:#30D158;margin-right:5px;"></span>'
+        f"国内 {dc}</span>"
+        f'<span style="display:inline-flex;align-items:center;'
+        f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
+        f"padding:4px 10px;border-radius:20px;"
+        f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
+        f'<span style="display:inline-block;width:6px;height:6px;'
+        f'border-radius:50%;background:#0A84FF;margin-right:5px;"></span>'
+        f"国际 {ic}</span>"
+        f"</section>"
+        f"</section>"
+        # Cards
+        f"{''.join(parts)}"
+        # Footer
+        f'<section style="padding:24px 20px 36px 20px;text-align:center;">'
+        f'<section style="width:40px;height:3px;'
+        f"background:linear-gradient(90deg,#0A84FF,#30D158);"
+        f'margin:0 auto 14px auto;border-radius:2px;"></section>'
+        f'<p style="margin:0;font-size:12px;color:#6E6E73;'
+        f'line-height:1.6;font-weight:500;">飞行播客 · 运输航空新闻精选</p>'
+        f'<p style="margin:6px 0 0 0;font-size:11px;color:#AEAEB2;'
+        f'line-height:1.5;">数据来源：民航局 / 航司 / 行业媒体'
+        f"<br/>点击标题可查看原文出处</p>"
+        f"</section>"
+        f"</section>"
+    )
+
+    return (
+        f"<!DOCTYPE html>\n"
+        f'<html lang="zh-CN">\n<head>\n'
+        f'<meta charset="UTF-8">\n'
+        f'<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
+        f"<title>飞行播客日报 | {escape(date)}</title>\n"
+        f"<style>body{{margin:0;padding:0;background:#F2F2F7;}}"
+        f"a:hover{{opacity:0.7;}}</style>\n"
+        f"</head>\n<body>\n{body}\n</body>\n</html>"
+    )
+
+
 def _fill_missing_images(digest: dict, client: WeChatClient) -> dict:
     """Generate AI images for entries that have no image_url, upload to WeChat CDN."""
     if not settings.image_gen_api_key:
@@ -463,6 +703,17 @@ def run(target_date: str | None = None) -> Path:
 
     md = _render_markdown(digest)
     html = _render_html(digest)
+    web_html = _render_web_html(digest)
+
+    # Save standalone web page for "阅读原文"
+    web_filename = f"web_{day}.html"
+    web_path = settings.output_dir / web_filename
+    web_path.write_text(web_html, encoding="utf-8")
+    logger.info("Web version saved: %s", web_path)
+
+    # Build web URL for content_source_url
+    base = settings.web_digest_base_url.rstrip("/")
+    web_url = f"{base}/{web_filename}" if base else ""
 
     result = {
         "date": day,
@@ -497,7 +748,7 @@ def run(target_date: str | None = None) -> Path:
                 author=settings.wechat_author,
                 content_html=html,
                 digest=summary,
-                source_url="https://mp.weixin.qq.com",
+                source_url=web_url or "https://mp.weixin.qq.com",
                 thumb_media_id=cover_thumb_id,
             )
             result["status"] = "draft_created"
@@ -518,7 +769,12 @@ def run(target_date: str | None = None) -> Path:
     dump_json(out, result)
 
     # Persist human-readable draft for audit.
-    dump_json(settings.output_dir / f"draft_{day}.json", {"markdown": md, "html": html})
+    dump_json(settings.output_dir / f"draft_{day}.json", {
+        "markdown": md,
+        "html": html,
+        "web_html": web_html,
+        "web_url": web_url,
+    })
 
     logger.info("Publish done. status=%s score=%.2f", result["status"], quality["total_score"])
     return out
