@@ -64,6 +64,7 @@ jobs:
         run: |
           aws s3 cp data/output/ "s3://${R2_BUCKET}/digest/" \
             --endpoint-url "${R2_ENDPOINT}" \
+            --recursive \
             --exclude "*" --include "web_*.html" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "public, max-age=86400"
