@@ -10,7 +10,7 @@ import requests
 from dateutil import parser as dt_parser
 
 from flying_podcast.core.config import ensure_dirs, settings
-from flying_podcast.core.image_gen import generate_article_image
+from flying_podcast.core.image_gen import generate_article_image, search_public_image_url
 from flying_podcast.core.io_utils import dump_json, load_json
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
@@ -380,6 +380,76 @@ def _web_summary_block(summary: str, intro: str) -> str:
 
     parts.append('</section></section>')
     return "".join(parts)
+
+
+_TRANSLATE_PROMPT = (
+    "将以下英文航空新闻标题翻译成简洁的中文标题。"
+    "要求：保留专有名词（航司名、机型等），简洁通顺，不超过40字。"
+    "只输出翻译结果，不要任何其他内容。\n\n"
+    "英文标题：{title}"
+)
+
+
+def _translate_title(title: str) -> str:
+    """Translate an English title to Chinese via LLM."""
+    if not settings.llm_api_key:
+        return title
+    # Skip if already mostly Chinese
+    cn_chars = sum(1 for c in title if '\u4e00' <= c <= '\u9fff')
+    if cn_chars > len(title) * 0.3:
+        return title
+
+    try:
+        resp = requests.post(
+            settings.llm_base_url,
+            headers={
+                "Authorization": f"Bearer {settings.llm_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.llm_model,
+                "messages": [{"role": "user", "content": _TRANSLATE_PROMPT.format(title=title)}],
+                "max_tokens": 100,
+                "temperature": 0.3,
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        text = (resp.json()["choices"][0]["message"].get("content") or "").strip().strip("\"'""''")
+        if text and len(text) <= 80:
+            logger.info("Translated: %s -> %s", title[:30], text[:30])
+            return text
+    except Exception as exc:
+        logger.warning("Title translation failed: %s", exc)
+
+    return title
+
+
+def _enhance_web_entries(digest: dict) -> dict:
+    """Enhance digest entries for the web version.
+
+    - Fill missing images with public stock photo URLs
+    - Translate international (English) titles to Chinese
+    """
+    import copy
+    digest = copy.deepcopy(digest)
+
+    for entry in digest.get("entries", []):
+        # Fill missing images with publicly accessible URLs
+        if not entry.get("image_url"):
+            url = search_public_image_url(entry.get("title", ""))
+            if url:
+                entry["image_url"] = url
+
+        # Translate English titles for international entries
+        title = entry.get("title", "")
+        if title and entry.get("region") == "international":
+            translated = _translate_title(title)
+            if translated != title:
+                entry["title"] = translated
+                entry["original_title"] = title
+
+    return digest
 
 
 def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
@@ -798,8 +868,11 @@ def run(target_date: str | None = None) -> Path:
     summary = _generate_digest_summary(digest)
     intro = _generate_web_intro(digest)
 
-    # Initial web render (without AI images, used for dry_run/hold)
-    web_html = _render_web_html(digest, summary=summary, intro=intro)
+    # Enhance entries for web: public image URLs + title translation
+    web_digest = _enhance_web_entries(digest)
+
+    # Initial web render (with public images + translated titles)
+    web_html = _render_web_html(web_digest, summary=summary, intro=intro)
 
     # Build web URL for content_source_url
     web_filename = f"web_{day}.html"
@@ -831,7 +904,8 @@ def run(target_date: str | None = None) -> Path:
             html = _render_html(digest)
             html = client.replace_external_images(html)
             # Re-render web HTML with AI images + LLM content
-            web_html = _render_web_html(digest, summary=summary, intro=intro)
+            web_digest = _enhance_web_entries(digest)
+            web_html = _render_web_html(web_digest, summary=summary, intro=intro)
             # Generate AI cover image, fallback to default thumb
             cover_thumb_id = _generate_cover_image(digest, client)
             media_id = client.create_draft(

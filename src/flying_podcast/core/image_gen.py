@@ -299,3 +299,67 @@ def generate_article_image(title: str, body: str = "") -> bytes | None:
 
     # 3. Grok AI generation (fallback)
     return _generate_with_grok(title, body)
+
+
+def search_public_image_url(title: str) -> str:
+    """Search for a publicly accessible image URL for an article.
+
+    Chain: Unsplash -> Pixabay.  Returns a direct URL string or "".
+    Unlike generate_article_image(), does NOT download image bytes —
+    just returns the public URL for embedding in external web pages.
+    """
+    query = _extract_search_query(title)
+
+    # 1. Unsplash
+    keys = [k for k in [settings.unsplash_access_key, settings.unsplash_access_key_2] if k]
+    for key in keys:
+        try:
+            resp = requests.get(
+                "https://api.unsplash.com/search/photos",
+                params={
+                    "query": query,
+                    "per_page": 1,
+                    "orientation": "landscape",
+                    "content_filter": "high",
+                },
+                headers={"Authorization": f"Client-ID {key}"},
+                timeout=15,
+            )
+            if resp.status_code == 403:
+                continue
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            if results:
+                url = results[0]["urls"].get("regular", "")
+                if url:
+                    logger.info("Unsplash URL for '%s': %s", query, url[:60])
+                    return url
+        except Exception:
+            continue
+
+    # 2. Pixabay
+    if settings.pixabay_api_key:
+        try:
+            resp = requests.get(
+                "https://pixabay.com/api/",
+                params={
+                    "key": settings.pixabay_api_key,
+                    "q": query,
+                    "image_type": "photo",
+                    "orientation": "horizontal",
+                    "per_page": 3,
+                    "safesearch": "true",
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            hits = resp.json().get("hits", [])
+            if hits:
+                url = hits[0].get("webformatURL", "")
+                if url:
+                    logger.info("Pixabay URL for '%s': %s", query, url[:60])
+                    return url
+        except Exception:
+            pass
+
+    return ""
