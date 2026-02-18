@@ -630,7 +630,7 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         border_top = f"border-top:3px solid {region_color};" if is_hero else ""
 
         card = (
-            f'<section style="background:#FFFFFF;border-radius:14px;'
+            f'<section id="article-{idx}" style="background:#FFFFFF;border-radius:14px;'
             f"padding:18px;margin-bottom:10px;"
             f"box-shadow:0 1px 3px rgba(0,0,0,0.06);"
             f'{border_top}">'
@@ -650,6 +650,47 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
             f"</section>"
         )
         return card
+
+    def _build_toc(all_entries: list[tuple[int, dict]]) -> str:
+        """Build a clickable table of contents for the web page."""
+        if not all_entries:
+            return ""
+        rows: list[str] = []
+        for idx, entry in all_entries:
+            title = escape(entry["title"])
+            region = entry.get("region", "international")
+            region_color = _REGION_COLOR.get(region, "#0A84FF")
+            rows.append(
+                f'<a href="#article-{idx}" style="display:flex;align-items:center;'
+                f"gap:8px;padding:8px 0;"
+                f"border-bottom:1px solid #F2F2F7;text-decoration:none;"
+                f'color:#1D1D1F;">'
+                f'<span style="display:inline-flex;align-items:center;'
+                f"justify-content:center;min-width:20px;height:20px;"
+                f"border-radius:5px;background:#F2F2F7;"
+                f'color:#6E6E73;font-size:10px;font-weight:700;">{idx}</span>'
+                f'<span style="display:inline-block;width:4px;height:4px;'
+                f'border-radius:50%;background:{region_color};"></span>'
+                f'<span style="font-size:13px;line-height:1.4;'
+                f'font-weight:500;flex:1;">{title}</span>'
+                f"</a>"
+            )
+        # Remove bottom border from last item
+        if rows:
+            rows[-1] = rows[-1].replace(
+                "border-bottom:1px solid #F2F2F7;", ""
+            )
+        return (
+            f'<section style="padding:0 16px 10px 16px;">'
+            f'<section style="background:#FFFFFF;border-radius:14px;'
+            f"padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.06);"
+            f'margin-bottom:4px;">'
+            f'<p style="margin:0 0 6px 0;font-size:11px;font-weight:600;'
+            f"color:#6E6E73;letter-spacing:1px;"
+            f'text-transform:uppercase;">目录 INDEX</p>'
+            f"{''.join(rows)}"
+            f"</section></section>"
+        )
 
     def _web_section_header(label: str, color: str) -> str:
         return (
@@ -685,6 +726,10 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         for i, (idx, entry) in enumerate(international):
             parts.append(_build_web_card(idx, entry, is_hero=(i == 0)))
         parts.append("</section>")
+
+    # Build TOC from all entries in order
+    all_entries = [(idx, entry) for idx, entry in enumerate(entries, 1)]
+    toc_html = _build_toc(all_entries)
 
     body = (
         f'<section style="padding:0;margin:0 auto;max-width:420px;'
@@ -724,6 +769,8 @@ def _render_web_html(digest: dict, summary: str = "", intro: str = "") -> str:
         f"</section>"
         # Summary + Intro block
         f"{_web_summary_block(summary, intro)}"
+        # Table of contents
+        f"{toc_html}"
         # Cards
         f"{''.join(parts)}"
         # Footer
