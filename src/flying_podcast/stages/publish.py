@@ -186,6 +186,43 @@ def _render_html(digest: dict) -> str:
         else:
             international.append((idx, entry))
 
+    # Build TOC (plain list, no anchor links — WeChat doesn't support them)
+    toc_rows: list[str] = []
+    all_entries = domestic + international
+    for idx, entry in all_entries:
+        t = escape(entry["title"])
+        region = entry.get("region", "international")
+        region_color = _REGION_COLOR.get(region, "#0A84FF")
+        toc_rows.append(
+            f'<section style="display:flex;align-items:center;'
+            f"gap:8px;padding:7px 0;"
+            f'border-bottom:1px solid #F2F2F7;">'
+            f'<span style="display:inline-flex;align-items:center;'
+            f"justify-content:center;min-width:20px;height:20px;"
+            f"border-radius:5px;background:#F2F2F7;"
+            f'color:#6E6E73;font-size:10px;font-weight:700;">{idx}</span>'
+            f'<span style="display:inline-block;width:4px;height:4px;'
+            f'border-radius:50%;background:{region_color};"></span>'
+            f'<span style="font-size:13px;line-height:1.4;'
+            f'font-weight:500;color:#1D1D1F;flex:1;">{t}</span>'
+            f"</section>"
+        )
+    if toc_rows:
+        toc_rows[-1] = toc_rows[-1].replace(
+            "border-bottom:1px solid #F2F2F7;", ""
+        )
+    toc_html = (
+        f'<section style="padding:0 16px 10px 16px;">'
+        f'<section style="background:#FFFFFF;border-radius:14px;'
+        f"padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.06);"
+        f'margin-bottom:4px;">'
+        f'<p style="margin:0 0 6px 0;font-size:11px;font-weight:600;'
+        f"color:#6E6E73;letter-spacing:1px;"
+        f'text-transform:uppercase;">目录 INDEX</p>'
+        f"{''.join(toc_rows)}"
+        f"</section></section>"
+    ) if toc_rows else ""
+
     def _build_card(idx: int, entry: dict, is_hero: bool = False) -> str:
         title = escape(entry["title"])
         region = entry.get("region", "international")
@@ -356,6 +393,8 @@ def _render_html(digest: dict) -> str:
         f"国际 {ic}</span>"
         f"</section>"
         f"</section>"
+        # TOC
+        f"{toc_html}"
         # Cards by section
         f"{''.join(parts)}"
         # Footer
