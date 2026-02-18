@@ -17,6 +17,33 @@ from flying_podcast.core.scoring import readability_score, weighted_quality
 
 logger = get_logger("compose")
 
+
+def _load_recent_published() -> list[dict]:
+    """Load recently published titles from history for cross-day dedup.
+
+    Returns a flat list of {"date": "...", "title": "..."} dicts.
+    Returns empty list if the file doesn't exist or is corrupted.
+    """
+    history_path = settings.processed_dir.parent / "history" / "recent_published.json"
+    if not history_path.exists():
+        logger.info("No recent_published.json found, skipping cross-day dedup")
+        return []
+    try:
+        raw = json.loads(history_path.read_text(encoding="utf-8"))
+        days = raw.get("days", {})
+        result = []
+        for date_str, entries in days.items():
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("title"):
+                    result.append({"date": date_str, "title": entry["title"]})
+        logger.info("Cross-day dedup: %d recent titles loaded", len(result))
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to load recent_published.json: %s", exc)
+        return []
+
 _GLOSSARY_PATH = Path(__file__).resolve().parents[3] / "AirbusTermbase.js"
 
 _OG_IMAGE_RE = re.compile(
@@ -490,7 +517,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
     )
 
 
-def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: int, intl_quota: int) -> tuple[str, str]:
+def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: int, intl_quota: int, recent_published: list[dict] | None = None) -> tuple[str, str]:
     payload = []
     for row in candidates_pool:
         payload.append(
@@ -514,6 +541,13 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
             + glossary_block
         )
 
+    dedup_instruction = ""
+    if recent_published:
+        dedup_instruction = (
+            "\n\n【去重】请参考recently_published列表中最近已发布的标题，"
+            "避免选择与已发布内容相同或主题高度相似的文章。"
+        )
+
     system_prompt = (
         "你是服务于飞行员、签派和运行控制人员的民航新闻编辑。"
         "你的首要任务是筛掉与飞行运行无关的泛社会、娱乐、旅游、财经新闻。"
@@ -526,49 +560,51 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
         "正文要简洁，不能冗长，不要写空话套话，不要加「总之」「综上」等总结语。"
         "输出必须是 JSON object，且仅包含 entries 字段。"
         + glossary_instruction
+        + dedup_instruction
     )
-    user_prompt = json.dumps(
-        {
-            "task": "从候选新闻中生成日报条目（全部中文输出）",
-            "audience": "飞行员、签派、运行控制",
-            "rules": {
-                "total": total,
-                "domestic_quota": domestic_quota,
-                "international_quota": intl_quota,
-                "must_keep_ref_id": True,
-                "must_not_generate_links": True,
-                "pilot_relevance_first": True,
-                "language": "zh-CN（全部中文，包括标题和正文）",
-                "body_style": "记者叙述体，2-4句话讲清核心事实，适合朗读收听",
-                "hard_reject_topics": [
-                    "股价/财报/融资",
-                    "明星娱乐",
-                    "旅游生活方式",
-                    "泛科技八卦",
-                    "与飞行运行无关的社会新闻",
-                ],
-                "prefer_topics": [
-                    "运行安全",
-                    "适航与监管",
-                    "空域与航班运行",
-                    "机队与机务维护",
-                    "航司运行网络变化",
-                ],
-            },
-            "output_schema": {
-                "entries": [
-                    {
-                        "ref_id": "string（保持原始ID不变）",
-                        "title": "string（中文标题）",
-                        "conclusion": "string（中文结论，一句话概括）",
-                        "body": "string（正文：记者叙述体，2-4句话讲清核心事实）",
-                    }
-                ]
-            },
-            "candidates": payload,
+    user_data: dict[str, Any] = {
+        "task": "从候选新闻中生成日报条目（全部中文输出）",
+        "audience": "飞行员、签派、运行控制",
+        "rules": {
+            "total": total,
+            "domestic_quota": domestic_quota,
+            "international_quota": intl_quota,
+            "must_keep_ref_id": True,
+            "must_not_generate_links": True,
+            "pilot_relevance_first": True,
+            "language": "zh-CN（全部中文，包括标题和正文）",
+            "body_style": "记者叙述体，2-4句话讲清核心事实，适合朗读收听",
+            "hard_reject_topics": [
+                "股价/财报/融资",
+                "明星娱乐",
+                "旅游生活方式",
+                "泛科技八卦",
+                "与飞行运行无关的社会新闻",
+            ],
+            "prefer_topics": [
+                "运行安全",
+                "适航与监管",
+                "空域与航班运行",
+                "机队与机务维护",
+                "航司运行网络变化",
+            ],
         },
-        ensure_ascii=False,
-    )
+        "output_schema": {
+            "entries": [
+                {
+                    "ref_id": "string（保持原始ID不变）",
+                    "title": "string（中文标题）",
+                    "conclusion": "string（中文结论，一句话概括）",
+                    "body": "string（正文：记者叙述体，2-4句话讲清核心事实）",
+                }
+            ]
+        },
+        "candidates": payload,
+    }
+    if recent_published:
+        user_data["recently_published"] = recent_published
+        user_data["rules"]["avoid_recent_duplicates"] = "避免选择与recently_published中标题相同或主题高度相似的文章"
+    user_prompt = json.dumps(user_data, ensure_ascii=False)
     return system_prompt, user_prompt
 
 
@@ -813,6 +849,8 @@ def run(target_date: str | None = None) -> Path:
     compose_mode = "rules"
     compose_reason = "llm_not_configured"
     if OpenAICompatibleClient.is_configured():
+        # Load recently published titles for cross-day dedup
+        recent_published = _load_recent_published()
         # Request extra entries from LLM as buffer for enforce_constraints
         llm_total = settings.target_article_count + 4
         domestic_quota = round(settings.target_article_count * settings.domestic_ratio)
@@ -822,6 +860,7 @@ def run(target_date: str | None = None) -> Path:
             llm_total,
             domestic_quota + 2,
             intl_quota + 2,
+            recent_published=recent_published,
         )
         client = OpenAICompatibleClient(
             api_key=settings.llm_api_key,

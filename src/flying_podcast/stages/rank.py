@@ -391,7 +391,7 @@ def run(target_date: str | None = None) -> Path:
         seen_url.add(u)
         deduped.append(row)
 
-    candidate_total = max(settings.target_article_count * 2, 12)
+    candidate_total = max(settings.target_article_count * 3, 25)
     top_candidates = _pick_by_quota(deduped, total=candidate_total, domestic_ratio=settings.domestic_ratio)
     top_candidates, source_cap_applied = _enforce_source_cap(
         top_candidates,

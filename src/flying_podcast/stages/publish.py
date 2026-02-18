@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import time
 from datetime import datetime
@@ -884,6 +885,51 @@ def _generate_cover_image(digest: dict, client: WeChatClient) -> str:
     return thumb_id
 
 
+def _save_recent_published(digest: dict, day: str) -> None:
+    """Save today's published titles to history for cross-day dedup.
+
+    Keeps the last 3 days of published titles in data/history/recent_published.json.
+    """
+    history_dir = settings.history_dir
+    history_dir.mkdir(parents=True, exist_ok=True)
+    history_path = history_dir / "recent_published.json"
+
+    existing: dict = {}
+    if history_path.exists():
+        try:
+            raw = json.loads(history_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                existing = raw
+        except Exception:  # noqa: BLE001
+            logger.warning("Failed to read recent_published.json, starting fresh")
+
+    days = existing.get("days", {})
+    if not isinstance(days, dict):
+        days = {}
+
+    # Add today's entries
+    today_entries = []
+    for entry in digest.get("entries", []):
+        title = entry.get("title", "")
+        url = ""
+        citations = entry.get("citations", [])
+        if citations:
+            url = citations[0] if isinstance(citations[0], str) else str(citations[0])
+        elif entry.get("canonical_url"):
+            url = entry["canonical_url"]
+        if title:
+            today_entries.append({"title": title, "url": url})
+    days[day] = today_entries
+
+    # Keep only the last 3 days
+    sorted_days = sorted(days.keys(), reverse=True)[:3]
+    days = {k: days[k] for k in sorted_days}
+
+    payload = {"days": days, "updated_at": day}
+    history_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Recent published history saved: %d days, %d entries today", len(days), len(today_entries))
+
+
 def run(target_date: str | None = None) -> Path:
     ensure_dirs()
     day = target_date or datetime.now().strftime("%Y-%m-%d")
@@ -974,6 +1020,9 @@ def run(target_date: str | None = None) -> Path:
         "web_html": web_html,
         "web_url": web_url,
     })
+
+    # Save published titles for cross-day dedup
+    _save_recent_published(digest, day)
 
     logger.info("Publish done. status=%s score=%.2f", result["status"], quality["total_score"])
     return out

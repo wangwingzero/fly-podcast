@@ -30,6 +30,16 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
+      - name: Download recent published history from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'flying-podcast' }}
+        run: |
+          mkdir -p data/history
+          aws s3 cp "s3://${R2_BUCKET}/history/recent_published.json" data/history/recent_published.json \
+            --endpoint-url "${R2_ENDPOINT}" || echo "No history file yet, first run"
       - name: Ensure ranked data exists
         run: |
           python run.py ingest --date "$(date -u +%F)"
