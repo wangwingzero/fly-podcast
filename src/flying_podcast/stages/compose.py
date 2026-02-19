@@ -788,54 +788,75 @@ def _build_selection_prompt(
     total: int,
     recent_published: list[dict] | None = None,
 ) -> tuple[str, str]:
-    """Build prompts for Phase 1: article selection only (no content generation)."""
+    """Build prompts for Phase 1: article selection only (no content generation).
+
+    Uses a prompt structure similar to the original compose prompt to ensure
+    compatibility with the LLM API. Output schema requests only ref_id per entry.
+    """
     payload = []
     for row in candidates_pool:
-        snippet = _strip_html(row.get("raw_text", ""))[:200]
         payload.append(
             {
                 "ref_id": row["id"],
                 "title": row.get("title", ""),
-                "snippet": snippet,
+                "raw_text": _strip_html(row.get("raw_text", ""))[:300],
                 "source_tier": row.get("source_tier", "C"),
                 "source_name": row.get("source_name", ""),
+                "publisher_domain": row.get("publisher_domain", ""),
             }
         )
 
+    dedup_instruction = ""
+    if recent_published:
+        dedup_instruction = (
+            "\n\n【去重】请参考recently_published列表中最近已发布的标题，"
+            "避免选择与已发布内容相同或主题高度相似的文章。"
+        )
+
     system_prompt = (
-        "你是国际航空新闻编辑，服务于飞行员、签派和运行控制人员。\n"
-        "你的唯一任务是从候选新闻中选择最有价值的文章，不需要翻译、改写或生成任何内容。\n\n"
-        "【选稿原则】\n"
-        "- 优先选择有真正信息增量的内容——新事实、新数据、新政策、新事件\n"
-        "- 坚决过滤：股价财报、明星娱乐、旅游生活方式、泛科技八卦、"
-        "政治宣传/政绩报道、企业软文/广告、空洞口号式报道、领导视察/会议通稿\n"
-        "- 判断标准：读完这条新闻，飞行员/签派能获得什么具体的、可操作的信息？\n"
-        "- 优先选择Tier A源的稿件\n"
-        "- 确保话题多样性，避免多条新闻讲同一件事\n\n"
-        f"输出JSON：{{\"selected_ids\": [\"ref_id_1\", \"ref_id_2\", ...]}}，按推荐优先级排序，选{total}条。"
+        "你是服务于飞行员、签派和运行控制人员的国际航空新闻编辑。"
+        "你的首要任务是筛掉与飞行运行无关的泛社会、娱乐、旅游、财经新闻。"
+        "【选稿原则】优先选择有真正信息增量的内容——新事实、新数据、新政策、新事件。"
+        "坚决过滤：政治宣传/政绩报道、企业软文/广告、空洞的口号式报道、"
+        "领导视察/会议通稿、无实质内容的表态类新闻。"
+        "判断标准：读完这条新闻，飞行员/签派能获得什么具体的、可操作的信息？"
+        "如果答案是「没有」，就不要选。"
+        "确保话题多样性，避免多条新闻讲同一件事。"
+        "输出必须是 JSON object，且仅包含 entries 字段。"
+        + dedup_instruction
     )
     user_data: dict[str, Any] = {
-        "task": "select",
-        "total": total,
-        "hard_reject_topics": [
-            "股价/财报/融资", "明星娱乐", "旅游生活方式", "泛科技八卦",
-            "与飞行运行无关的社会新闻", "政治宣传/政绩报道/领导视察",
-            "企业软文/品牌广告/营销推广", "空洞的会议通稿/表态式报道",
-        ],
-        "prefer_topics": [
-            "运行安全（事故/事件/安全通报）", "适航与监管（新规/适航指令/罚单）",
-            "空域与航班运行（流控/航路/NOTAM）", "机队与机务维护（故障/AD/SB）",
-            "航司运行网络变化（新航线/停航/换季）", "气象与运行影响（极端天气/火山灰）",
-            "有具体数据或事实的行业动态",
-        ],
+        "task": "从候选国际航空新闻中选出最有价值的文章",
+        "audience": "飞行员、签派、运行控制",
+        "rules": {
+            "total": total,
+            "must_keep_ref_id": True,
+            "pilot_relevance_first": True,
+            "selection_only": "只需返回选中文章的ref_id，不需要翻译或改写任何内容",
+            "hard_reject_topics": [
+                "股价/财报/融资", "明星娱乐", "旅游生活方式", "泛科技八卦",
+                "与飞行运行无关的社会新闻", "政治宣传/政绩报道/领导视察",
+                "企业软文/品牌广告/营销推广", "空洞的会议通稿/表态式报道",
+            ],
+            "prefer_topics": [
+                "运行安全（事故/事件/安全通报）", "适航与监管（新规/适航指令/罚单）",
+                "空域与航班运行（流控/航路/NOTAM）", "机队与机务维护（故障/AD/SB）",
+                "航司运行网络变化（新航线/停航/换季）", "气象与运行影响（极端天气/火山灰）",
+                "有具体数据或事实的行业动态",
+            ],
+        },
+        "output_schema": {
+            "entries": [
+                {
+                    "ref_id": "string（保持原始ID不变）",
+                }
+            ]
+        },
         "candidates": payload,
     }
     if recent_published:
-        user_data["recently_published"] = [
-            {"title": r.get("title", ""), "date": r.get("date", "")}
-            for r in recent_published[:30]
-        ]
-        user_data["avoid_recent_duplicates"] = "避免选择与recently_published中标题相同或主题高度相似的文章"
+        user_data["recently_published"] = recent_published
+        user_data["rules"]["avoid_recent_duplicates"] = "避免选择与recently_published中标题相同或主题高度相似的文章"
     return system_prompt, json.dumps(user_data, ensure_ascii=False)
 
 
@@ -855,23 +876,36 @@ def _llm_select_articles(
     response = client.complete_json(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
-        max_tokens=1500,
-        temperature=0.1,
+        max_tokens=settings.llm_max_tokens,
+        temperature=settings.llm_temperature,
         retries=3,
-        timeout=90,
+        timeout=120,
     )
-    raw_ids = response.payload.get("selected_ids")
-    if not isinstance(raw_ids, list):
-        raise ValueError("selection_missing_selected_ids")
+    # Parse entries format: {"entries": [{"ref_id": "..."}, ...]}
+    raw_entries = response.payload.get("entries")
+    if not isinstance(raw_entries, list):
+        # Also try selected_ids format as fallback
+        raw_ids = response.payload.get("selected_ids")
+        if isinstance(raw_ids, list):
+            raw_entries = [{"ref_id": rid} for rid in raw_ids]
+        else:
+            raise ValueError("selection_missing_entries")
 
     valid_ids = {c["id"] for c in candidates_pool}
-    selected = [str(rid).strip() for rid in raw_ids if str(rid).strip() in valid_ids]
+    selected = []
+    for entry in raw_entries:
+        if isinstance(entry, dict):
+            rid = str(entry.get("ref_id", "")).strip()
+        else:
+            rid = str(entry).strip()
+        if rid and rid in valid_ids and rid not in selected:
+            selected.append(rid)
 
     if len(selected) < total // 2:
         raise ValueError(
             f"selection_insufficient: got {len(selected)}, need >= {total // 2}"
         )
-    logger.info("Phase 1 selection: %d ids returned, %d valid", len(raw_ids), len(selected))
+    logger.info("Phase 1 selection: %d entries returned, %d valid", len(raw_entries), len(selected))
     return selected
 
 
