@@ -266,7 +266,7 @@ def _format_date_cn(date_str: str) -> str:
 def _render_markdown(digest: dict) -> str:
     """Generate clean markdown for audit/preview purposes."""
     lines: list[str] = []
-    lines.append(f"# Global Aviation Digest | {digest['date']}")
+    lines.append(f"# 国际航空日报 | {digest['date']}")
     lines.append("")
     lines.append(f"{digest.get('article_count', len(digest.get('entries', [])))} articles")
     lines.append("")
@@ -1326,7 +1326,7 @@ def run(target_date: str | None = None) -> Path:
             if cover_image_data:
                 cover_thumb_id = _upload_cover_image(cover_image_data, client)
             media_id = client.create_draft(
-                title=f"Global Aviation Digest | {day}",
+                title=f"国际航空日报 | {day}",
                 author=settings.wechat_author,
                 content_html=html,
                 digest=summary,
