@@ -944,25 +944,59 @@ def _build_composition_prompt(
     if glossary_terms:
         glossary_block = f"\n\n航空专业术语对照表（翻译时必须使用标准译法）：\n{glossary_terms}"
 
+    # Determine content type based on raw_text length
+    title_text = candidate.get("title", "")
+    content_len = len(raw_text.strip())
+    title_len = len(title_text.strip())
+    # If raw_text is short (< 200 chars) or barely longer than the title,
+    # it's likely just a summary/headline from RSS, not a full article.
+    is_summary_only = content_len < 200 or (content_len < title_len * 2)
+
+    if is_summary_only:
+        mode_instruction = (
+            "【内容类型：摘要/标题级】这条新闻只有简短的摘要或标题，没有完整原文。\n"
+            "处理方式：将这段简短内容翻译为中文，可适当调整语序使其通顺，但不要扩写或补充任何信息。\n"
+            "正文用1-2句话即可，忠实反映原文的全部信息量，不多不少。\n"
+        )
+    else:
+        mode_instruction = (
+            "【内容类型：完整原文】这条新闻有较完整的原文内容。\n"
+            "处理方式：提炼核心事实，用2-4句话总结最重要的信息，去掉冗余细节。\n"
+            "不得编造原文中没有的内容。\n"
+        )
+
     system_prompt = (
         "你是服务于飞行员、签派和运行控制人员的国际航空新闻编辑。\n"
-        "你的任务是将下面这一条英文航空新闻改写为中文摘要。\n\n"
-        "【核心原则】必须且只能基于提供的原文内容改写，不得引入外部事实，不得编造任何信息。\n"
-        "如果原文信息不足以支撑某个细节，宁可不写也不要猜测或补充。\n\n"
+        "你的任务是将下面这一条英文航空新闻改写为中文摘要，并对其价值打分。\n\n"
+        f"{mode_instruction}\n"
+        "【核心原则】必须且只能基于提供的原文内容改写，不得引入外部事实，不得编造任何信息。\n\n"
+        "【绝对禁止的写法】\n"
+        "- 禁止写「原文未提供更多细节」「具体原因尚不清楚」「详情有待进一步报道」等元评论\n"
+        "- 禁止评论原文的信息量、质量或完整程度\n"
+        "- 禁止添加「值得关注」「引发关注」等空话套话\n"
+        "- 只写原文中有的事实，写完就结束，不需要凑字数\n\n"
         "【术语要求】航空专业术语必须使用ICAO/民航标准中文译法。\n"
         "如果下方提供了术语对照表，必须严格按照对照表翻译，不得自行发挥。\n"
         "例如：Rejected Takeoff=中断起飞，Diversion=备降，Go-Around=复飞，"
         "Turbulence=颠簸，NOTAM=航行通告，METAR=例行天气报告。\n\n"
+        "【打分要求】根据以下维度给文章打score分（1-10分）：\n"
+        "- 信息量：原文是否包含具体的事实、数据、时间、地点？（占40%）\n"
+        "- 飞行运行相关性：对飞行员/签派的实际工作有多大参考价值？（占40%）\n"
+        "- 新闻质量：是否有实质新闻价值，而非软文/广告/空洞报道？（占20%）\n"
+        "打分标准：8-10=高价值必发，5-7=一般价值可发可不发，1-4=低价值不值得发布\n"
+        "注意：如果原文信息量极少（只有标题级内容），信息量维度最高只能给3分。\n\n"
         "【输出要求】\n"
         "- title: 中文标题，简洁准确，忠实于原文\n"
         "- conclusion: 一句话中文结论概括\n"
-        "- body: 正文，记者叙述体，2-4句话讲清核心事实，适合朗读收听，"
+        "- body: 正文，记者叙述体，适合朗读收听，"
         "不要用项目符号或编号列表\n"
+        "- score: 1-10的整数评分\n"
+        "- score_reason: 一句话说明打分理由\n"
         "- 外国航空公司名称保留英文原名（如Delta、United、Lufthansa、Emirates等）\n"
         "- 飞机型号保留英文（如Boeing 737 MAX、Airbus A350等）\n"
         "- 正文简洁，不写空话套话，不加「总之」「综上」等总结语"
         + glossary_block
-        + "\n\n输出JSON：{\"title\": \"...\", \"conclusion\": \"...\", \"body\": \"...\"}"
+        + "\n\n输出JSON：{\"title\": \"...\", \"conclusion\": \"...\", \"body\": \"...\", \"score\": 8, \"score_reason\": \"...\"}"
     )
     user_data = {
         "source_title": candidate.get("title", ""),
@@ -974,6 +1008,10 @@ def _build_composition_prompt(
     return system_prompt, json.dumps(user_data, ensure_ascii=False)
 
 
+# Minimum score threshold for articles to be published
+_MIN_PUBLISH_SCORE = 5
+
+
 def _llm_compose_single(
     client: "OpenAICompatibleClient",
     candidate: dict,
@@ -981,7 +1019,7 @@ def _llm_compose_single(
 ) -> dict[str, str] | None:
     """Phase 2: Compose ONE article using an isolated LLM call.
 
-    Returns {title, conclusion, body} on success, or None on failure.
+    Returns {title, conclusion, body, score, score_reason} on success, or None on failure.
     """
     try:
         glossary_terms = _match_glossary_for_single(candidate, glossary)
@@ -998,10 +1036,19 @@ def _llm_compose_single(
         title = str(result.get("title", "")).strip()
         conclusion = str(result.get("conclusion", "")).strip()
         body = str(result.get("body", "")).strip()
+        score = int(result.get("score", 0))
+        score_reason = str(result.get("score_reason", "")).strip()
         if not title or not body:
             logger.warning("Phase 2 empty response for %s", candidate.get("id", "")[:12])
             return None
-        return {"title": title, "conclusion": conclusion, "body": body}
+        logger.info(
+            "Phase 2 scored %s: %d/10 (%s) — %s",
+            candidate.get("id", "")[:12], score, score_reason, title,
+        )
+        return {
+            "title": title, "conclusion": conclusion, "body": body,
+            "score": score, "score_reason": score_reason,
+        }
     except Exception as exc:  # noqa: BLE001
         logger.warning("Phase 2 compose failed for %s: %s", candidate.get("id", "")[:12], exc)
         return None
@@ -1038,9 +1085,20 @@ def _llm_compose_entries(
     entries: list[DigestEntry] = []
     n_llm_ok = 0
     n_fallback = 0
+    n_filtered = 0
     for cand in candidates_ordered:
         llm_result = results.get(cand["id"])
         if llm_result is not None:
+            # Filter by LLM score
+            score = llm_result.get("score", 0)
+            if score < _MIN_PUBLISH_SCORE:
+                logger.info(
+                    "Phase 2 filtered (score %d < %d): %s — %s",
+                    score, _MIN_PUBLISH_SCORE, cand.get("id", "")[:12],
+                    llm_result.get("score_reason", ""),
+                )
+                n_filtered += 1
+                continue
             entry = _to_digest_entry(
                 cand,
                 llm_result["title"],
@@ -1057,7 +1115,10 @@ def _llm_compose_entries(
         if entry and entry.citations:
             entries.append(entry)
 
-    logger.info("Phase 2 compose: %d LLM ok, %d rules-fallback", n_llm_ok, n_fallback)
+    logger.info(
+        "Phase 2 compose: %d LLM ok, %d filtered (score<%d), %d rules-fallback",
+        n_llm_ok, n_filtered, _MIN_PUBLISH_SCORE, n_fallback,
+    )
     return entries
 
 
