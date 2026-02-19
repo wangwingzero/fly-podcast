@@ -8,6 +8,8 @@ on:
 
 env:
   ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+  EMAIL_USER: ${{ secrets.EMAIL_USER }}
+  EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
   DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
   TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
   DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.6' }}

@@ -221,12 +221,13 @@ def _build_prompt(title: str, body: str) -> str:
     return _PROMPT_TEMPLATE.format(title=title, context=context)
 
 
-def _call_grok_api(base_url: str, api_key: str, model: str, prompt: str) -> bytes | None:
+def _call_grok_api(base_url: str, api_key: str, model: str, prompt: str,
+                    size: str = "1024x1024") -> bytes | None:
     try:
         resp = requests.post(
             f"{base_url.rstrip('/')}/v1/images/generations",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model, "prompt": prompt, "n": 1, "size": "1024x1024"},
+            json={"model": model, "prompt": prompt, "n": 1, "size": size},
             timeout=90,
         )
         resp.raise_for_status()

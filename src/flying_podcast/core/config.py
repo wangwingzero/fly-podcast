@@ -57,6 +57,12 @@ class Settings:
 
     alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")
 
+    email_user: str = os.getenv("EMAIL_USER", "")
+    email_pass: str = os.getenv("EMAIL_PASS", "")
+    email_to: str = os.getenv("EMAIL_TO", "")
+    email_sender: str = os.getenv("EMAIL_SENDER", "飞行播客")
+    email_smtp_server: str = os.getenv("EMAIL_SMTP_SERVER", "")
+
     unsplash_access_key: str = os.getenv("UNSPLASH_ACCESS_KEY", "")
     unsplash_access_key_2: str = os.getenv("UNSPLASH_ACCESS_KEY_2", "")
     pixabay_api_key: str = os.getenv("PIXABAY_API_KEY", "")

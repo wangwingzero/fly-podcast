@@ -5,6 +5,7 @@ from datetime import datetime
 import requests
 
 from flying_podcast.core.config import settings
+from flying_podcast.core.email_notify import send_pipeline_report
 from flying_podcast.core.io_utils import load_json
 from flying_podcast.core.logging_utils import get_logger
 
@@ -32,6 +33,22 @@ def run(target_date: str | None = None) -> None:
     composed = load_json(settings.processed_dir / f"composed_{day}.json")
     publish["compose_mode"] = composed.get("meta", {}).get("compose_mode", "-")
 
+    # --- Email: pipeline process report ---
+    raw = load_json(settings.raw_dir / f"{day}.json")
+    ingest_count = len(raw) if isinstance(raw, list) else 0
+
+    ranked = load_json(settings.processed_dir / f"ranked_{day}.json")
+    rank_meta = ranked.get("meta", {}) if isinstance(ranked, dict) else {}
+
+    compose_meta = {
+        "domestic_count": composed.get("domestic_count", 0),
+        "international_count": composed.get("international_count", 0),
+        "entry_count": len(composed.get("entries", [])),
+    }
+
+    send_pipeline_report(day, ingest_count, rank_meta, compose_meta, quality, publish)
+
+    # --- Webhook notification ---
     msg = _build_message(day, quality, publish)
     if settings.dry_run or not settings.alert_webhook_url:
         logger.info("[DRY_RUN notify]\n%s", msg)
