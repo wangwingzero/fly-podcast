@@ -24,11 +24,24 @@ logger = get_logger("publish")
 
 
 def _extract_llm_text(data: dict) -> str:
-    """Extract text content from an OpenAI-compatible chat completion response.
+    """Extract text content from an LLM response (OpenAI or Anthropic format).
 
     Handles multiple content formats: string, list of content blocks, dict, None.
     Mirrors the robust extraction logic in llm_client.py.
     """
+    # Anthropic native format: {"content": [{"type": "text", "text": "..."}]}
+    if "content" in data and "choices" not in data:
+        content_blocks = data.get("content") or []
+        if isinstance(content_blocks, list):
+            parts = []
+            for block in content_blocks:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    parts.append(block)
+            return "\n".join([x for x in parts if x.strip()])
+
+    # OpenAI format
     choices = data.get("choices") or []
     if not choices:
         return ""
@@ -61,30 +74,61 @@ def _llm_chat(messages: list[dict], max_tokens: int = 200,
               timeout: int = 30) -> str:
     """Make an LLM chat completion request with retry and robust extraction.
 
+    Auto-detects Anthropic native API (sk-ant- key) vs OpenAI-compatible format.
     Returns the extracted text content, or "" on failure.
     """
     if not settings.llm_api_key:
         return ""
 
-    headers = {
-        "Authorization": f"Bearer {settings.llm_api_key}",
-        "Content-Type": "application/json",
-    }
-    body = {
-        "model": settings.llm_model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
+    is_anthropic = settings.llm_api_key.startswith("sk-ant-")
 
     for attempt in range(1, retries + 1):
         try:
-            resp = requests.post(
-                settings.llm_base_url,
-                headers=headers,
-                json=body,
-                timeout=timeout,
-            )
+            if is_anthropic:
+                # Anthropic native Messages API
+                base = settings.llm_base_url.rstrip("/")
+                if base.endswith("/messages"):
+                    url = base
+                elif base.endswith("/v1"):
+                    url = f"{base}/messages"
+                else:
+                    url = f"{base}/v1/messages"
+                headers = {
+                    "x-api-key": settings.llm_api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                }
+                # Extract system prompt from messages
+                system_text = ""
+                user_messages = []
+                for m in messages:
+                    if m.get("role") == "system":
+                        system_text += m.get("content", "") + "\n"
+                    else:
+                        user_messages.append(m)
+                body: dict[str, Any] = {
+                    "model": settings.llm_model,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                    "messages": user_messages or [{"role": "user", "content": ""}],
+                }
+                if system_text.strip():
+                    body["system"] = system_text.strip()
+            else:
+                # OpenAI-compatible
+                url = settings.llm_base_url
+                headers = {
+                    "Authorization": f"Bearer {settings.llm_api_key}",
+                    "Content-Type": "application/json",
+                }
+                body = {
+                    "model": settings.llm_model,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                }
+
+            resp = requests.post(url, headers=headers, json=body, timeout=timeout)
             resp.raise_for_status()
             text = _extract_llm_text(resp.json())
             if text:

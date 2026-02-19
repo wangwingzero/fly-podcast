@@ -25,6 +25,16 @@ class OpenAICompatibleClient:
         self.api_key = api_key.strip()
         self.base_url = base_url.strip()
         self.model = model.strip()
+        self._is_anthropic = self._detect_anthropic()
+
+    def _detect_anthropic(self) -> bool:
+        """Auto-detect Anthropic native API by key prefix or URL pattern."""
+        if self.api_key.startswith("sk-ant-"):
+            return True
+        base = self.base_url.lower()
+        if "/messages" in base or "anthropic" in base:
+            return True
+        return False
 
     @staticmethod
     def is_configured() -> bool:
@@ -32,6 +42,12 @@ class OpenAICompatibleClient:
 
     def _chat_url(self) -> str:
         base = self.base_url.rstrip("/")
+        if self._is_anthropic:
+            if base.endswith("/messages"):
+                return base
+            if base.endswith("/v1"):
+                return f"{base}/messages"
+            return f"{base}/v1/messages"
         if base.endswith("/chat/completions"):
             return base
         return f"{base}/chat/completions"
@@ -57,7 +73,7 @@ class OpenAICompatibleClient:
                 return parsed
         raise LLMError("llm_non_object_json")
 
-    def _request_once(self, headers: dict[str, str], body: dict[str, Any], timeout: int) -> tuple[dict[str, Any], str]:
+    def _request_once_openai(self, headers: dict[str, str], body: dict[str, Any], timeout: int) -> tuple[dict[str, Any], str]:
         resp = requests.post(self._chat_url(), headers=headers, json=body, timeout=timeout)
         if not resp.ok:
             raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
@@ -93,6 +109,41 @@ class OpenAICompatibleClient:
             raise LLMError("llm_empty_content")
         return self._extract_json_object(str(content)), str(content)
 
+    def _request_once_anthropic(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float, timeout: int) -> tuple[dict[str, Any], str]:
+        """Send request using Anthropic native Messages API format."""
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        body: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [{"role": "user", "content": user_prompt}],
+        }
+        if system_prompt:
+            body["system"] = system_prompt
+
+        resp = requests.post(self._chat_url(), headers=headers, json=body, timeout=timeout)
+        if not resp.ok:
+            raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
+        data = resp.json()
+
+        # Anthropic response: {"content": [{"type": "text", "text": "..."}], ...}
+        content_blocks = data.get("content") or []
+        text_parts: list[str] = []
+        for block in content_blocks:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text_parts.append(block.get("text", ""))
+            elif isinstance(block, str):
+                text_parts.append(block)
+        content = "\n".join([x for x in text_parts if x.strip()])
+
+        if not content.strip():
+            raise LLMError("llm_empty_content")
+        return self._extract_json_object(content), content
+
     def complete_json(
         self,
         *,
@@ -103,36 +154,45 @@ class OpenAICompatibleClient:
         retries: int = 3,
         timeout: int = 45,
     ) -> LLMResponse:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        base_body = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
         last_error = "unknown"
         for attempt in range(1, retries + 1):
             try:
-                body = dict(base_body)
-                body["response_format"] = {"type": "json_object"}
-                try:
-                    parsed, content = self._request_once(headers, body, timeout)
+                if self._is_anthropic:
+                    # Anthropic native Messages API
+                    prompt = system_prompt + "\n请仅输出JSON对象，不要Markdown。"
+                    parsed, content = self._request_once_anthropic(
+                        prompt, user_prompt, max_tokens, temperature, timeout,
+                    )
                     return LLMResponse(payload=parsed, raw_text=content)
-                except LLMError:
-                    # Some providers don't support response_format in OpenAI-compatible mode.
-                    fallback = dict(base_body)
-                    fallback["messages"] = [
-                        {"role": "system", "content": system_prompt + "\n请仅输出JSON对象，不要Markdown。"},
-                        {"role": "user", "content": user_prompt},
-                    ]
-                    parsed, content = self._request_once(headers, fallback, timeout)
-                    return LLMResponse(payload=parsed, raw_text=content)
+                else:
+                    # OpenAI-compatible API
+                    headers = {
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    }
+                    base_body = {
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    }
+                    body = dict(base_body)
+                    body["response_format"] = {"type": "json_object"}
+                    try:
+                        parsed, content = self._request_once_openai(headers, body, timeout)
+                        return LLMResponse(payload=parsed, raw_text=content)
+                    except LLMError:
+                        # Some providers don't support response_format in OpenAI-compatible mode.
+                        fallback = dict(base_body)
+                        fallback["messages"] = [
+                            {"role": "system", "content": system_prompt + "\n请仅输出JSON对象，不要Markdown。"},
+                            {"role": "user", "content": user_prompt},
+                        ]
+                        parsed, content = self._request_once_openai(headers, fallback, timeout)
+                        return LLMResponse(payload=parsed, raw_text=content)
             except Exception as exc:  # noqa: BLE001
                 last_error = str(exc)
                 if attempt < retries:
