@@ -796,7 +796,7 @@ def _build_entries_with_rules(selected: list[dict]) -> list[DigestEntry]:
 # ---------------------------------------------------------------------------
 
 _COMPOSE_RAW_TEXT_LIMIT = 2000
-_COMPOSE_MAX_WORKERS = 4
+_COMPOSE_MAX_WORKERS = 1
 
 
 def _build_selection_prompt(
