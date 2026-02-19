@@ -162,6 +162,11 @@ def _is_recent_duplicate(
 
 
 def _prioritize_non_recent_candidates(candidates: list[dict], recent_index: dict[str, set[str]]) -> list[dict]:
+    """Remove candidates that match recently published entries.
+
+    Hard-filters duplicates when enough fresh candidates exist (>= target count).
+    Falls back to appending duplicates at the end only when the fresh pool is too small.
+    """
     if not candidates:
         return []
     if not any(recent_index.values()):
@@ -182,11 +187,19 @@ def _prioritize_non_recent_candidates(candidates: list[dict], recent_index: dict
             fresh.append(row)
     if repeated:
         logger.info(
-            "Cross-day dedup: de-prioritized %d repeated candidates (fresh=%d total=%d)",
+            "Cross-day dedup: removed %d repeated candidates (fresh=%d total=%d)",
             len(repeated),
             len(fresh),
             len(candidates),
         )
+    # Only fall back to repeated entries when fresh pool is critically small
+    min_needed = settings.target_article_count
+    if len(fresh) >= min_needed:
+        return fresh
+    logger.warning(
+        "Cross-day dedup: fresh pool (%d) < target (%d), adding %d repeated as fallback",
+        len(fresh), min_needed, len(repeated),
+    )
     return fresh + repeated
 
 _GLOSSARY_PATH = Path(__file__).resolve().parents[3] / "AirbusTermbase.js"
@@ -581,6 +594,8 @@ def _build_impact() -> str:
 
 
 def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
+    if domestic_ratio <= 0.0:
+        candidates = [c for c in candidates if c.get("region") != "domestic"]
     return candidates[:total]
 
 
@@ -675,8 +690,9 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
     dedup_instruction = ""
     if recent_published:
         dedup_instruction = (
-            "\n\n【去重】请参考recently_published列表中最近已发布的标题，"
-            "避免选择与已发布内容相同或主题高度相似的文章。"
+            "\n\n【去重 - 最高优先级】recently_published列表包含最近已发布的文章标题。"
+            "绝对不能选择与已发布内容相同或主题高度相似的文章。"
+            "宁可少选几条，也不要选重复的。"
         )
 
     system_prompt = (
@@ -809,8 +825,11 @@ def _build_selection_prompt(
     dedup_instruction = ""
     if recent_published:
         dedup_instruction = (
-            "\n\n【去重】请参考recently_published列表中最近已发布的标题，"
-            "避免选择与已发布内容相同或主题高度相似的文章。"
+            "\n\n【去重 - 最高优先级】recently_published列表包含最近已发布的文章标题。"
+            "绝对不能选择与已发布内容相同或主题高度相似的文章，即使它看起来很有价值。"
+            "判断相似的标准：同一事件的不同报道、同一主题的更新报道、"
+            "标题换了措辞但讲的是同一件事——这些都算重复，必须跳过。"
+            "宁可少选几条，也不要选重复的。"
         )
 
     system_prompt = (
@@ -930,6 +949,10 @@ def _build_composition_prompt(
         "你的任务是将下面这一条英文航空新闻改写为中文摘要。\n\n"
         "【核心原则】必须且只能基于提供的原文内容改写，不得引入外部事实，不得编造任何信息。\n"
         "如果原文信息不足以支撑某个细节，宁可不写也不要猜测或补充。\n\n"
+        "【术语要求】航空专业术语必须使用ICAO/民航标准中文译法。\n"
+        "如果下方提供了术语对照表，必须严格按照对照表翻译，不得自行发挥。\n"
+        "例如：Rejected Takeoff=中断起飞，Diversion=备降，Go-Around=复飞，"
+        "Turbulence=颠簸，NOTAM=航行通告，METAR=例行天气报告。\n\n"
         "【输出要求】\n"
         "- title: 中文标题，简洁准确，忠实于原文\n"
         "- conclusion: 一句话中文结论概括\n"
@@ -1056,10 +1079,16 @@ def _enforce_constraints(
     # with untranslated English entries from the rules-based pool).
     pool = [p for p in pool if _has_chinese(p.title)]
 
+    # Filter domestic entries from pool when domestic_ratio is 0
+    if domestic_ratio <= 0.0:
+        pool = [p for p in pool if p.region != "domestic"]
+
     uniq: list[DigestEntry] = []
     used_ids: set[str] = set()
     for e in entries:
         if e.id in used_ids:
+            continue
+        if domestic_ratio <= 0.0 and e.region == "domestic":
             continue
         uniq.append(e)
         used_ids.add(e.id)
@@ -1152,14 +1181,21 @@ def _replace_recent_duplicates(
     pool: list[DigestEntry],
     recent_index: dict[str, set[str]],
 ) -> list[DigestEntry]:
+    """Replace or remove entries that duplicate recently published content.
+
+    Tries to replace each duplicate with a fresh entry from the pool.
+    If no replacement is available, the duplicate is dropped entirely
+    (better to have fewer articles than repeat yesterday's content).
+    """
     if not entries:
         return entries
     if not any(recent_index.values()):
         return entries
 
-    out = list(entries)
-    used_ids = {e.id for e in out}
+    out: list[DigestEntry] = []
+    used_ids = {e.id for e in entries}
     replaced = 0
+    dropped = 0
 
     def _entry_is_recent(e: DigestEntry) -> bool:
         return _is_recent_duplicate(
@@ -1170,8 +1206,9 @@ def _replace_recent_duplicates(
             recent_index=recent_index,
         )
 
-    for idx, current in enumerate(out):
+    for current in entries:
         if not _entry_is_recent(current):
+            out.append(current)
             continue
         replacement = next(
             (
@@ -1182,15 +1219,15 @@ def _replace_recent_duplicates(
             ),
             None,
         )
-        if replacement is None:
-            continue
-        used_ids.discard(current.id)
-        used_ids.add(replacement.id)
-        out[idx] = replacement
-        replaced += 1
+        if replacement is not None:
+            used_ids.add(replacement.id)
+            out.append(replacement)
+            replaced += 1
+        else:
+            dropped += 1
 
-    if replaced:
-        logger.info("Cross-day dedup: replaced %d repeated final entries", replaced)
+    if replaced or dropped:
+        logger.info("Cross-day dedup final: replaced %d, dropped %d (output=%d)", replaced, dropped, len(out))
     return out
 
 

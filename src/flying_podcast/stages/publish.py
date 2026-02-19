@@ -260,7 +260,6 @@ def _render_html(digest: dict) -> str:
     """
     date = digest["date"]
     notice_url = str(digest.get("copyright_notice_url", "")).strip()
-    ac = digest.get("article_count", len(digest.get("entries", [])))
     entries = digest.get("entries", [])
     date_long = _format_date_cn(date)
 
@@ -428,16 +427,6 @@ def _render_html(digest: dict) -> str:
         f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">国际航空日报</p>'
         f'<p style="margin:8px 0 0 0;font-size:13px;'
         f'color:#6E6E73;font-weight:400;">{date_long}</p>'
-        f'<section style="margin:16px auto 0 auto;display:flex;'
-        f'justify-content:center;">'
-        f'<span style="display:inline-flex;align-items:center;'
-        f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
-        f"padding:4px 12px;border-radius:20px;"
-        f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
-        f'<span style="display:inline-block;width:6px;height:6px;'
-        f'border-radius:50%;background:#0A84FF;margin-right:5px;"></span>'
-        f"{ac} Articles</span>"
-        f"</section>"
         f"</section>"
         # TOC
         f"{toc_html}"
@@ -449,10 +438,10 @@ def _render_html(digest: dict) -> str:
         f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
-        f'line-height:1.6;font-weight:500;">Global Aviation Digest · Auto-aggregated from public sources</p>'
+        f'line-height:1.6;font-weight:500;">国际航空日报</p>'
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
-        f'line-height:1.6;">Copyright belongs to original authors and organizations · For industry information exchange only'
-        f"<br/>Contact us for any copyright concerns</p>"
+        f'line-height:1.6;">版权归原作者及原发机构所有 · 仅供行业信息交流'
+        f"<br/>如有版权疑问请联系我</p>"
         f"</section>"
         f"</section>"
     )
@@ -534,7 +523,9 @@ def _web_summary_block(summary: str, intro: str) -> str:
 
 _TRANSLATE_PROMPT = (
     "将以下英文航空新闻标题翻译成简洁的中文标题。"
-    "要求：外国航空公司名称必须保留英文原名（如 Delta、United、Lufthansa、Emirates 等），"
+    "要求：航空专业术语必须使用ICAO/民航标准中文译法"
+    "（如Rejected Takeoff=中断起飞，Diversion=备降，Go-Around=复飞，Turbulence=颠簸）。"
+    "外国航空公司名称必须保留英文原名（如 Delta、United、Lufthansa、Emirates 等），"
     "其他专有名词（机型等）也保留英文，简洁通顺，不超过40字。"
     "只输出翻译结果，不要任何其他内容。\n\n"
     "英文标题：{title}"
@@ -621,7 +612,6 @@ def _render_web_html(
     - Optional LLM-generated summary and intro paragraph
     """
     date = digest["date"]
-    ac = digest.get("article_count", len(digest.get("entries", [])))
     entries = digest.get("entries", [])
     date_long = _format_date_cn(date)
 
@@ -815,14 +805,14 @@ def _render_web_html(
             f'style="color:#AEAEB2;text-decoration:none;">沪公网安备31011502405233号</a>'
         )
 
-    notice_line = "Contact us for any copyright concerns"
+    notice_line = "如有版权疑问请联系我"
     notice_url = str(copyright_notice_url).strip()
     if notice_url:
         safe_notice = escape(notice_url, quote=True)
         notice_line = (
-            f'Contact us for any copyright concerns'
+            f'如有版权疑问请联系我'
             f' · <a href="{safe_notice}" target="_blank" rel="noopener" '
-            f'style="color:#AEAEB2;text-decoration:underline;">Copyright Notice</a>'
+            f'style="color:#AEAEB2;text-decoration:underline;">版权声明</a>'
         )
 
     body = (
@@ -843,16 +833,6 @@ def _render_web_html(
         f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">国际航空日报</p>'
         f'<p style="margin:8px 0 0 0;font-size:13px;'
         f'color:#6E6E73;font-weight:400;">{date_long}</p>'
-        f'<section style="margin:16px auto 0 auto;display:flex;'
-        f'justify-content:center;">'
-        f'<span style="display:inline-flex;align-items:center;'
-        f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
-        f"padding:4px 12px;border-radius:20px;"
-        f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
-        f'<span style="display:inline-block;width:6px;height:6px;'
-        f'border-radius:50%;background:#0A84FF;margin-right:5px;"></span>'
-        f"{ac} Articles</span>"
-        f"</section>"
         f"</section>"
         # Summary + Intro block
         f"{_web_summary_block(summary, intro)}"
@@ -866,9 +846,9 @@ def _render_web_html(
         f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
-        f'line-height:1.6;font-weight:500;">Global Aviation Digest · Auto-aggregated from public sources</p>'
+        f'line-height:1.6;font-weight:500;">国际航空日报</p>'
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
-        f'line-height:1.6;">Copyright belongs to original authors and organizations · For industry information exchange only'
+        f'line-height:1.6;">版权归原作者及原发机构所有 · 仅供行业信息交流'
         f"<br/>{notice_line}</p>"
         f"</section>"
         f"</section>"
@@ -880,7 +860,7 @@ def _render_web_html(
         f'<meta charset="UTF-8">\n'
         f'<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
         f'<meta name="referrer" content="no-referrer">\n'
-        f"<title>Global Aviation Digest | {escape(date)}</title>\n"
+        f"<title>国际航空日报 | {escape(date)}</title>\n"
         f"<style>body{{margin:0;padding:0;background:#F2F2F7;}}"
         f"a:hover{{opacity:0.7;}}</style>\n"
         f"</head>\n<body>\n{body}\n</body>\n</html>"
@@ -1219,6 +1199,15 @@ def run(target_date: str | None = None) -> Path:
     quality = load_json(settings.processed_dir / f"quality_{day}.json")
     copyright_notice_url = _load_saved_copyright_notice_url() or _copyright_web_fallback_url()
     digest["copyright_notice_url"] = copyright_notice_url
+
+    # Translate any remaining English titles before rendering
+    for entry in digest.get("entries", []):
+        title = entry.get("title", "")
+        if title:
+            translated = _translate_title(title)
+            if translated != title:
+                entry["title"] = translated
+                entry["original_title"] = title
 
     md = _render_markdown(digest)
     html = _render_html(digest)

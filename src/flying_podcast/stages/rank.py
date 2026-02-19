@@ -186,6 +186,8 @@ def _is_too_old(value: str, max_age_hours: int) -> bool:
 
 
 def _pick_by_quota(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
+    if domestic_ratio <= 0.0:
+        candidates = [c for c in candidates if c.get("region") != "domestic"]
     return candidates[:total]
 
 
