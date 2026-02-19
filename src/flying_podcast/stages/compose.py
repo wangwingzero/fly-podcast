@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit
@@ -646,6 +647,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
     )
 
 
+# DEPRECATED: replaced by _build_selection_prompt + _build_composition_prompt (two-phase flow)
 def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: int, intl_quota: int, recent_published: list[dict] | None = None) -> tuple[str, str]:
     payload = []
     for row in candidates_pool:
@@ -770,6 +772,235 @@ def _build_entries_with_rules(selected: list[dict]) -> list[DigestEntry]:
         if not entry.citations:
             continue
         entries.append(entry)
+    return entries
+
+
+# ---------------------------------------------------------------------------
+# Two-phase LLM compose: Phase 1 (selection) + Phase 2 (per-article composition)
+# ---------------------------------------------------------------------------
+
+_COMPOSE_RAW_TEXT_LIMIT = 2000
+_COMPOSE_MAX_WORKERS = 4
+
+
+def _build_selection_prompt(
+    candidates_pool: list[dict],
+    total: int,
+    recent_published: list[dict] | None = None,
+) -> tuple[str, str]:
+    """Build prompts for Phase 1: article selection only (no content generation)."""
+    payload = []
+    for row in candidates_pool:
+        snippet = _strip_html(row.get("raw_text", ""))[:200]
+        payload.append(
+            {
+                "ref_id": row["id"],
+                "title": row.get("title", ""),
+                "snippet": snippet,
+                "source_tier": row.get("source_tier", "C"),
+                "source_name": row.get("source_name", ""),
+            }
+        )
+
+    system_prompt = (
+        "你是国际航空新闻编辑，服务于飞行员、签派和运行控制人员。\n"
+        "你的唯一任务是从候选新闻中选择最有价值的文章，不需要翻译、改写或生成任何内容。\n\n"
+        "【选稿原则】\n"
+        "- 优先选择有真正信息增量的内容——新事实、新数据、新政策、新事件\n"
+        "- 坚决过滤：股价财报、明星娱乐、旅游生活方式、泛科技八卦、"
+        "政治宣传/政绩报道、企业软文/广告、空洞口号式报道、领导视察/会议通稿\n"
+        "- 判断标准：读完这条新闻，飞行员/签派能获得什么具体的、可操作的信息？\n"
+        "- 优先选择Tier A源的稿件\n"
+        "- 确保话题多样性，避免多条新闻讲同一件事\n\n"
+        f"输出JSON：{{\"selected_ids\": [\"ref_id_1\", \"ref_id_2\", ...]}}，按推荐优先级排序，选{total}条。"
+    )
+    user_data: dict[str, Any] = {
+        "task": "select",
+        "total": total,
+        "hard_reject_topics": [
+            "股价/财报/融资", "明星娱乐", "旅游生活方式", "泛科技八卦",
+            "与飞行运行无关的社会新闻", "政治宣传/政绩报道/领导视察",
+            "企业软文/品牌广告/营销推广", "空洞的会议通稿/表态式报道",
+        ],
+        "prefer_topics": [
+            "运行安全（事故/事件/安全通报）", "适航与监管（新规/适航指令/罚单）",
+            "空域与航班运行（流控/航路/NOTAM）", "机队与机务维护（故障/AD/SB）",
+            "航司运行网络变化（新航线/停航/换季）", "气象与运行影响（极端天气/火山灰）",
+            "有具体数据或事实的行业动态",
+        ],
+        "candidates": payload,
+    }
+    if recent_published:
+        user_data["recently_published"] = [
+            {"title": r.get("title", ""), "date": r.get("date", "")}
+            for r in recent_published[:30]
+        ]
+        user_data["avoid_recent_duplicates"] = "避免选择与recently_published中标题相同或主题高度相似的文章"
+    return system_prompt, json.dumps(user_data, ensure_ascii=False)
+
+
+def _llm_select_articles(
+    client: "OpenAICompatibleClient",
+    candidates_pool: list[dict],
+    total: int,
+    recent_published: list[dict] | None = None,
+) -> list[str]:
+    """Phase 1: Use LLM to select which articles to include.
+
+    Returns ordered list of ref_ids.  Raises on failure.
+    """
+    system_prompt, user_prompt = _build_selection_prompt(
+        candidates_pool, total, recent_published,
+    )
+    response = client.complete_json(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        max_tokens=500,
+        temperature=0.1,
+        retries=3,
+        timeout=45,
+    )
+    raw_ids = response.payload.get("selected_ids")
+    if not isinstance(raw_ids, list):
+        raise ValueError("selection_missing_selected_ids")
+
+    valid_ids = {c["id"] for c in candidates_pool}
+    selected = [str(rid).strip() for rid in raw_ids if str(rid).strip() in valid_ids]
+
+    if len(selected) < total // 2:
+        raise ValueError(
+            f"selection_insufficient: got {len(selected)}, need >= {total // 2}"
+        )
+    logger.info("Phase 1 selection: %d ids returned, %d valid", len(raw_ids), len(selected))
+    return selected
+
+
+def _match_glossary_for_single(candidate: dict, glossary: dict[str, str]) -> str:
+    """Match glossary terms for a single candidate article."""
+    return _match_glossary_for_candidates([candidate], glossary)
+
+
+def _build_composition_prompt(
+    candidate: dict,
+    glossary_terms: str,
+) -> tuple[str, str]:
+    """Build prompts for Phase 2: compose ONE article in isolation."""
+    raw_text = _strip_html(candidate.get("raw_text", ""))[:_COMPOSE_RAW_TEXT_LIMIT]
+
+    glossary_block = ""
+    if glossary_terms:
+        glossary_block = f"\n\n航空专业术语对照表（翻译时必须使用标准译法）：\n{glossary_terms}"
+
+    system_prompt = (
+        "你是服务于飞行员、签派和运行控制人员的国际航空新闻编辑。\n"
+        "你的任务是将下面这一条英文航空新闻改写为中文摘要。\n\n"
+        "【核心原则】必须且只能基于提供的原文内容改写，不得引入外部事实，不得编造任何信息。\n"
+        "如果原文信息不足以支撑某个细节，宁可不写也不要猜测或补充。\n\n"
+        "【输出要求】\n"
+        "- title: 中文标题，简洁准确，忠实于原文\n"
+        "- conclusion: 一句话中文结论概括\n"
+        "- body: 正文，记者叙述体，2-4句话讲清核心事实，适合朗读收听，"
+        "不要用项目符号或编号列表\n"
+        "- 外国航空公司名称保留英文原名（如Delta、United、Lufthansa、Emirates等）\n"
+        "- 飞机型号保留英文（如Boeing 737 MAX、Airbus A350等）\n"
+        "- 正文简洁，不写空话套话，不加「总之」「综上」等总结语"
+        + glossary_block
+        + "\n\n输出JSON：{\"title\": \"...\", \"conclusion\": \"...\", \"body\": \"...\"}"
+    )
+    user_data = {
+        "source_title": candidate.get("title", ""),
+        "source_name": candidate.get("source_name", ""),
+        "source_tier": candidate.get("source_tier", "C"),
+        "publisher_domain": candidate.get("publisher_domain", ""),
+        "raw_text": raw_text,
+    }
+    return system_prompt, json.dumps(user_data, ensure_ascii=False)
+
+
+def _llm_compose_single(
+    client: "OpenAICompatibleClient",
+    candidate: dict,
+    glossary: dict[str, str],
+) -> dict[str, str] | None:
+    """Phase 2: Compose ONE article using an isolated LLM call.
+
+    Returns {title, conclusion, body} on success, or None on failure.
+    """
+    try:
+        glossary_terms = _match_glossary_for_single(candidate, glossary)
+        system_prompt, user_prompt = _build_composition_prompt(candidate, glossary_terms)
+        response = client.complete_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=800,
+            temperature=0.1,
+            retries=2,
+            timeout=45,
+        )
+        result = response.payload
+        title = str(result.get("title", "")).strip()
+        conclusion = str(result.get("conclusion", "")).strip()
+        body = str(result.get("body", "")).strip()
+        if not title or not body:
+            logger.warning("Phase 2 empty response for %s", candidate.get("id", "")[:12])
+            return None
+        return {"title": title, "conclusion": conclusion, "body": body}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Phase 2 compose failed for %s: %s", candidate.get("id", "")[:12], exc)
+        return None
+
+
+def _llm_compose_entries(
+    client: "OpenAICompatibleClient",
+    selected_ids: list[str],
+    candidates_pool: list[dict],
+    glossary: dict[str, str],
+    max_workers: int = _COMPOSE_MAX_WORKERS,
+) -> list[DigestEntry]:
+    """Phase 2: Compose all selected articles in parallel, isolated LLM calls.
+
+    Falls back to rules-based for individual failures.
+    """
+    by_id = {c["id"]: c for c in candidates_pool}
+    candidates_ordered = [by_id[rid] for rid in selected_ids if rid in by_id]
+
+    results: dict[str, dict | None] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_id = {
+            executor.submit(_llm_compose_single, client, cand, glossary): cand["id"]
+            for cand in candidates_ordered
+        }
+        for future in as_completed(future_to_id):
+            cand_id = future_to_id[future]
+            try:
+                results[cand_id] = future.result()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Phase 2 thread error for %s: %s", cand_id[:12], exc)
+                results[cand_id] = None
+
+    entries: list[DigestEntry] = []
+    n_llm_ok = 0
+    n_fallback = 0
+    for cand in candidates_ordered:
+        llm_result = results.get(cand["id"])
+        if llm_result is not None:
+            entry = _to_digest_entry(
+                cand,
+                llm_result["title"],
+                llm_result["conclusion"],
+                [],
+                "",
+                body=llm_result["body"],
+            )
+            n_llm_ok += 1
+        else:
+            fallback = _build_entries_with_rules([cand])
+            entry = fallback[0] if fallback else None
+            n_fallback += 1
+        if entry and entry.citations:
+            entries.append(entry)
+
+    logger.info("Phase 2 compose: %d LLM ok, %d rules-fallback", n_llm_ok, n_fallback)
     return entries
 
 
@@ -929,6 +1160,7 @@ def _replace_recent_duplicates(
     return out
 
 
+# DEPRECATED: replaced by inline validation in _llm_compose_single (two-phase flow)
 def _validate_llm_entries(llm_payload: dict[str, Any], selected: list[dict], total: int) -> list[DigestEntry]:
     raw_entries = llm_payload.get("entries")
     if not isinstance(raw_entries, list):
@@ -989,43 +1221,33 @@ def run(target_date: str | None = None) -> Path:
     entries: list[DigestEntry] = []
     compose_mode = "rules"
     compose_reason = "llm_not_configured"
+    compose_meta_extra: dict[str, Any] = {}
     if OpenAICompatibleClient.is_configured():
         # Request extra entries from LLM as buffer for enforce_constraints
         llm_total = settings.target_article_count + 4
-        domestic_quota = round(settings.target_article_count * settings.domestic_ratio)
-        intl_quota = settings.target_article_count - domestic_quota
-        system_prompt, user_prompt = _build_llm_prompts(
-            ai_candidates_pool or selected,
-            llm_total,
-            domestic_quota + 2,
-            intl_quota + 2,
-            recent_published=recent_published,
-        )
+        glossary = _load_aviation_glossary()
         client = OpenAICompatibleClient(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             model=settings.llm_model,
         )
         try:
-            response = client.complete_json(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                max_tokens=settings.llm_max_tokens,
-                temperature=settings.llm_temperature,
-                retries=3,
-                timeout=120,
+            # Phase 1: Selection (1 LLM call — lightweight)
+            selected_ids = _llm_select_articles(
+                client, ai_candidates_pool or selected, llm_total, recent_published,
             )
-            entries = _validate_llm_entries(
-                response.payload,
-                ai_candidates_pool or selected,
-                llm_total,
+            compose_meta_extra["phase1_ids"] = selected_ids
+
+            # Phase 2: Composition (N parallel isolated LLM calls)
+            entries = _llm_compose_entries(
+                client, selected_ids, ai_candidates_pool or selected, glossary,
             )
-            compose_mode = "llm"
+            compose_mode = "llm_two_phase"
             compose_reason = "ok"
         except (LLMError, ValueError, KeyError) as exc:
             compose_mode = "rules_fallback"
             compose_reason = str(exc)
-            logger.warning("LLM compose failed, fallback to rules: %s", exc)
+            logger.warning("LLM two-phase failed, fallback to rules: %s", exc)
             entries = _build_entries_with_rules(selected)
     else:
         entries = _build_entries_with_rules(selected)
@@ -1049,6 +1271,7 @@ def run(target_date: str | None = None) -> Path:
         "compose_mode": compose_mode,
         "compose_reason": compose_reason,
         "model": settings.llm_model if OpenAICompatibleClient.is_configured() else "",
+        **compose_meta_extra,
     }
     dump_json(out, payload)
     logger.info("Compose done. entries=%s", len(entries))
