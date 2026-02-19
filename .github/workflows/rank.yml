@@ -6,9 +6,10 @@ on:
   workflow_dispatch:
 
 env:
+  TZ: Asia/Shanghai
   DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
   TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
-  DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.6' }}
+  DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.0' }}
   QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '80' }}
   ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
 
@@ -26,9 +27,9 @@ jobs:
           python-version: "3.11"
       - run: pip install -r requirements.txt
       - name: Ensure ingest data exists
-        run: python run.py ingest --date "$(date -u +%F)"
+        run: python run.py ingest --date "$(date +%F)"
       - name: Run rank
-        run: python run.py rank --date "$(date -u +%F)"
+        run: python run.py rank --date "$(date +%F)"
       - name: Upload ranked artifacts
         uses: actions/upload-artifact@v4
         with:

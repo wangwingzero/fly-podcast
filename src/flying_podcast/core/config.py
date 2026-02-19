@@ -32,13 +32,14 @@ class Settings:
     dry_run: bool = _env_bool("DRY_RUN", True)
 
     target_article_count: int = _env_int("TARGET_ARTICLE_COUNT", 10)
-    domestic_ratio: float = _env_float("DOMESTIC_RATIO", 0.6)
+    domestic_ratio: float = _env_float("DOMESTIC_RATIO", 0.0)
     min_tier_a_ratio: float = _env_float("MIN_TIER_A_RATIO", 0.7)
     quality_threshold: float = _env_float("QUALITY_THRESHOLD", 80.0)
     allow_google_redirect_citation: bool = _env_bool("ALLOW_GOOGLE_REDIRECT_CITATION", False)
     strict_web_published_at: bool = _env_bool("STRICT_WEB_PUBLISHED_AT", True)
     max_entries_per_source: int = _env_int("MAX_ENTRIES_PER_SOURCE", 3)
     max_article_age_hours: int = _env_int("MAX_ARTICLE_AGE_HOURS", 72)
+    recent_published_days: int = _env_int("RECENT_PUBLISHED_DAYS", 7)
 
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_base_url: str = os.getenv("LLM_BASE_URL", "")
@@ -49,7 +50,7 @@ class Settings:
     wechat_enable_publish: bool = _env_bool("WECHAT_ENABLE_PUBLISH", False)
     wechat_app_id: str = os.getenv("WECHAT_APP_ID", "")
     wechat_app_secret: str = os.getenv("WECHAT_APP_SECRET", "")
-    wechat_author: str = os.getenv("WECHAT_AUTHOR", "飞行播客")
+    wechat_author: str = os.getenv("WECHAT_AUTHOR", "Global Aviation Digest")
     wechat_thumb_media_id: str = os.getenv("WECHAT_THUMB_MEDIA_ID", "")
     wechat_proxy: str = os.getenv("WECHAT_PROXY", "")
     web_digest_base_url: str = os.getenv("WEB_DIGEST_BASE_URL", "")
@@ -60,7 +61,7 @@ class Settings:
     email_user: str = os.getenv("EMAIL_USER", "")
     email_pass: str = os.getenv("EMAIL_PASS", "")
     email_to: str = os.getenv("EMAIL_TO", "")
-    email_sender: str = os.getenv("EMAIL_SENDER", "飞行播客")
+    email_sender: str = os.getenv("EMAIL_SENDER", "Global Aviation Digest")
     email_smtp_server: str = os.getenv("EMAIL_SMTP_SERVER", "")
 
     unsplash_access_key: str = os.getenv("UNSPLASH_ACCESS_KEY", "")

@@ -10,6 +10,7 @@ from flying_podcast.core.config import settings
 from flying_podcast.core.io_utils import dump_json, load_json, load_yaml
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.scoring import recency_score, relevance_score, tier_score
+from flying_podcast.core.time_utils import beijing_today_str
 
 logger = get_logger("rank")
 
@@ -36,22 +37,6 @@ _DEFAULT_PILOT_SIGNAL_KEYWORDS = [
     "turbulence",
     "diversion",
     "go-around",
-    "民航",
-    "航空",
-    "航司",
-    "航线",
-    "航班",
-    "飞机",
-    "机场",
-    "空管",
-    "适航",
-    "通告",
-    "飞行",
-    "机组",
-    "跑道",
-    "复飞",
-    "备降",
-    "返航",
 ]
 
 _DEFAULT_PILOT_ENTITY_KEYWORDS = [
@@ -67,12 +52,12 @@ _DEFAULT_PILOT_ENTITY_KEYWORDS = [
     "american airlines",
     "lufthansa",
     "emirates",
-    "民航局",
-    "中国民航网",
-    "caac",
-    "c919",
-    "arj21",
-    "商飞",
+    "singapore airlines",
+    "qatar airways",
+    "british airways",
+    "cathay pacific",
+    "ryanair",
+    "southwest",
 ]
 
 _DEFAULT_HARD_REJECT_KEYWORDS = [
@@ -88,25 +73,6 @@ _DEFAULT_HARD_REJECT_KEYWORDS = [
     "frequent flyer",
     "meal service",
     "celebrity",
-    "旅游",
-    "游客",
-    "酒店",
-    "餐饮",
-    "娱乐",
-    "明星",
-    "春晚",
-    "网红",
-    "股价",
-    "市值",
-    "融资",
-    "财报",
-    "分红",
-    "营销",
-    "赞助",
-    "开业",
-    "积分",
-    "里程计划",
-    "会员福利",
 ]
 
 
@@ -220,19 +186,7 @@ def _is_too_old(value: str, max_age_hours: int) -> bool:
 
 
 def _pick_by_quota(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
-    domestic_quota = round(total * domestic_ratio)
-    intl_quota = total - domestic_quota
-
-    domestic = [x for x in candidates if x["region"] == "domestic"]
-    intl = [x for x in candidates if x["region"] != "domestic"]
-
-    chosen = domestic[:domestic_quota] + intl[:intl_quota]
-
-    if len(chosen) < total:
-        remain = [x for x in candidates if x not in chosen]
-        chosen.extend(remain[: total - len(chosen)])
-
-    return chosen[:total]
+    return candidates[:total]
 
 
 def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per_source: int) -> tuple[list[dict], bool]:
@@ -272,21 +226,9 @@ def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per
                 if x.get("id") not in used_ids
                 and str(x.get("source_id") or x.get("source_name") or "") != over_key
                 and counts.get(str(x.get("source_id") or x.get("source_name") or ""), 0) < max_per_source
-                and x.get("region") == victim.get("region")
             ),
             None,
         )
-        if replacement is None:
-            replacement = next(
-                (
-                    x
-                    for x in ranked_pool
-                    if x.get("id") not in used_ids
-                    and str(x.get("source_id") or x.get("source_name") or "") != over_key
-                    and counts.get(str(x.get("source_id") or x.get("source_name") or ""), 0) < max_per_source
-                ),
-                None,
-            )
         if replacement is None:
             break
 
@@ -299,7 +241,7 @@ def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per
 
 
 def run(target_date: str | None = None) -> Path:
-    day = target_date or datetime.now().strftime("%Y-%m-%d")
+    day = target_date or beijing_today_str()
     rows = _load_raw(day)
     kw = load_yaml(settings.keywords_config)
     section_map = kw.get("sections", {})

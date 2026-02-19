@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 import requests
 
 from flying_podcast.core.config import settings
 from flying_podcast.core.email_notify import send_pipeline_report
 from flying_podcast.core.io_utils import load_json
 from flying_podcast.core.logging_utils import get_logger
+from flying_podcast.core.time_utils import beijing_today_str
 
 logger = get_logger("notify")
 
@@ -15,7 +14,7 @@ logger = get_logger("notify")
 def _build_message(day: str, quality: dict, publish: dict) -> str:
     compose_mode = publish.get("compose_mode", "-")
     lines = [
-        f"飞行播客日报 {day}",
+        f"Global Aviation Digest {day}",
         f"质量分: {quality.get('total_score', '-')}",
         f"决策: {quality.get('decision', '-')}",
         f"成稿模式: {compose_mode}",
@@ -27,7 +26,7 @@ def _build_message(day: str, quality: dict, publish: dict) -> str:
 
 
 def run(target_date: str | None = None) -> None:
-    day = target_date or datetime.now().strftime("%Y-%m-%d")
+    day = target_date or beijing_today_str()
     quality = load_json(settings.processed_dir / f"quality_{day}.json")
     publish = load_json(settings.output_dir / f"publish_{day}.json")
     composed = load_json(settings.processed_dir / f"composed_{day}.json")
@@ -41,8 +40,7 @@ def run(target_date: str | None = None) -> None:
     rank_meta = ranked.get("meta", {}) if isinstance(ranked, dict) else {}
 
     compose_meta = {
-        "domestic_count": composed.get("domestic_count", 0),
-        "international_count": composed.get("international_count", 0),
+        "article_count": composed.get("article_count", 0),
         "entry_count": len(composed.get("entries", [])),
     }
 

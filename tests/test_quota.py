@@ -9,10 +9,19 @@ def _item(idx: int, region: str):
     }
 
 
-def test_quota_distribution_10_items():
-    candidates = [_item(i, "domestic") for i in range(10)] + [_item(i + 100, "international") for i in range(10)]
-    result = _pick_final_entries(candidates, total=10, domestic_ratio=0.6)
-    domestic = sum(1 for x in result if x["region"] == "domestic")
-    intl = len(result) - domestic
-    assert domestic == 6
-    assert intl == 4
+def test_pick_returns_requested_total():
+    candidates = [_item(i, "international") for i in range(20)]
+    result = _pick_final_entries(candidates, total=10, domestic_ratio=0.0)
+    assert len(result) == 10
+
+
+def test_pick_returns_all_when_fewer_than_total():
+    candidates = [_item(i, "international") for i in range(5)]
+    result = _pick_final_entries(candidates, total=10, domestic_ratio=0.0)
+    assert len(result) == 5
+
+
+def test_pick_preserves_order():
+    candidates = [_item(i, "international") for i in range(20)]
+    result = _pick_final_entries(candidates, total=10, domestic_ratio=0.0)
+    assert [x["id"] for x in result] == [str(i) for i in range(10)]

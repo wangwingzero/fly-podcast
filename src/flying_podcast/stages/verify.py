@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -9,12 +8,13 @@ from flying_podcast.core.io_utils import dump_json, load_json, load_yaml
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.models import QualityReport
 from flying_podcast.core.scoring import has_source_conflict
+from flying_podcast.core.time_utils import beijing_today_str
 
 logger = get_logger("verify")
 
 
 def run(target_date: str | None = None) -> Path:
-    day = target_date or datetime.now().strftime("%Y-%m-%d")
+    day = target_date or beijing_today_str()
     composed_path = settings.processed_dir / f"composed_{day}.json"
     digest = load_json(composed_path)
 
@@ -29,12 +29,8 @@ def run(target_date: str | None = None) -> Path:
     if len(entries) == 0:
         reasons.append("no_entries")
 
-    domestic_expected = round(settings.target_article_count * settings.domestic_ratio)
-    if len(entries) >= settings.target_article_count:
-        if digest.get("domestic_count", 0) != domestic_expected:
-            reasons.append("domestic_quota_mismatch")
-        if digest.get("international_count", 0) != (settings.target_article_count - domestic_expected):
-            reasons.append("international_quota_mismatch")
+    if len(entries) < settings.target_article_count:
+        reasons.append("insufficient_articles")
 
     tier_a_ratio = sum(1 for x in entries if x.get("source_tier") == "A") / max(len(entries), 1)
     if tier_a_ratio < settings.min_tier_a_ratio:

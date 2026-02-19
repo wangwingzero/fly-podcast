@@ -21,6 +21,7 @@ from flying_podcast.core.config import ensure_dirs, settings
 from flying_podcast.core.io_utils import append_lines, dump_json, load_json, load_yaml, read_lines
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.models import NewsItem
+from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.stages.web_parser_registry import parse_web_source_entries
 
 logger = get_logger("ingest")
@@ -443,7 +444,7 @@ def _collect_web_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
 
 def run(target_date: str | None = None) -> Path:
     ensure_dirs()
-    day = target_date or datetime.now().strftime("%Y-%m-%d")
+    day = target_date or beijing_today_str()
     out = settings.raw_dir / f"{day}.json"
 
     config = load_yaml(settings.sources_config)

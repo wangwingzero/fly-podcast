@@ -8,35 +8,11 @@ relevance_keywords:
   - operation
   - notam
   - compliance
-  - 安全
-  - 事故
-  - 延误
-  - 天气
-  - 颠簸
-  - 空管
-  - 运行
-  - 适航
-  - 备降
-  - 返航
-  - 故障
-  - 应急
-  - 着陆
   - route
   - network
   - schedule
   - demand
   - expansion
-  - 航线
-  - 航班
-  - 旅客
-  - 客运
-  - 货运
-  - 开通
-  - 复航
-  - 票价
-  - 载客
-  - 周转量
-  - 运力
   - fleet
   - delivery
   - boeing
@@ -46,57 +22,26 @@ relevance_keywords:
   - aircraft
   - retrofit
   - order
-  - 机队
-  - 交付
-  - 波音
-  - 空客
-  - 发动机
-  - 维修
-  - 飞机
-  - 订单
-  - 宽体
-  - 窄体
-  - 国产
-  - C919
-  - ARJ21
-  - 商飞
   - regulator
   - policy
-  - caac
   - faa
   - easa
   - iata
   - rule
   - standard
   - certification
-  - 民航局
-  - 政策
-  - 规章
-  - 标准
-  - 适航证
-  - 通知
-  - 监管
-  - 审批
-  - 法规
 
 sensitive_keywords:
   - crash
   - fatal
   - dead
   - black box
-  - 坠机
-  - 空难
-  - 死亡
-  - 伤亡
 
 sensational_words:
-  - 突发
-  - 震惊
-  - 炸裂
-  - 重磅
-  - 必看
-  - 惊呆
-  - 曝光
+  - breaking
+  - shocking
+  - bombshell
+  - must-see
 
 blocked_domains:
   - freeportjournalstandard.com
@@ -122,21 +67,6 @@ pilot_signal_keywords:
   - turbulence
   - diversion
   - go-around
-  - 民航
-  - 航空
-  - 航司
-  - 航线
-  - 航班
-  - 飞机
-  - 机场
-  - 空管
-  - 适航
-  - 飞行
-  - 机组
-  - 跑道
-  - 复飞
-  - 备降
-  - 返航
 
 pilot_entity_keywords:
   - faa
@@ -146,18 +76,17 @@ pilot_entity_keywords:
   - ntsb
   - boeing
   - airbus
-  - 民航局
-  - caac
-  - c919
-  - arj21
-  - 商飞
-  - 国航
-  - 东航
-  - 南航
-  - 海航
-  - 川航
-  - 深航
-  - 厦航
+  - delta
+  - united
+  - american airlines
+  - lufthansa
+  - emirates
+  - singapore airlines
+  - qatar airways
+  - british airways
+  - cathay pacific
+  - ryanair
+  - southwest
 
 hard_reject_keywords:
   - stock
@@ -172,28 +101,8 @@ hard_reject_keywords:
   - frequent flyer
   - meal service
   - tourism
-  - 股价
-  - 市值
-  - 融资
-  - 财报
-  - 分红
-  - 明星
-  - 综艺
-  - 娱乐
-  - 旅游
-  - 游客
-  - 酒店
-  - 餐饮
-  - 春晚
-  - 网红
-  - 营销
-  - 赞助
-  - 里程计划
-  - 会员福利
 
 pilot_allowed_source_ids:
-  - caacnews_web_list
-  - caac_gov_web_mhyw
   - iata_press_web
   - faa_newsroom_web
   - airbus_newsroom_web
@@ -208,9 +117,6 @@ pilot_allowed_source_ids:
   - simple_flying
   - view_from_wing
   - onemileatatime
-  - carnoc_web_list
-  - carnoc_news
-  - caac_news
   - iata_press
   - faa_news
   - easa_news
@@ -222,9 +128,6 @@ pilot_allowed_source_ids:
   - easa_newsroom_web
 
 pilot_allowed_domains:
-  - caac.gov.cn
-  - caacnews.com.cn
-  - carnoc.com
   - iata.org
   - faa.gov
   - airbus.com

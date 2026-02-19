@@ -4,7 +4,6 @@ import json
 import base64
 import re
 import time
-from datetime import datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -17,6 +16,7 @@ from flying_podcast.core.config import ensure_dirs, settings
 from flying_podcast.core.image_gen import generate_article_image, search_public_image_url
 from flying_podcast.core.io_utils import dump_json, load_json
 from flying_podcast.core.logging_utils import get_logger
+from flying_podcast.core.time_utils import beijing_now, beijing_today_str
 from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
 
 logger = get_logger("publish")
@@ -97,10 +97,8 @@ def _llm_chat(messages: list[dict], max_tokens: int = 200,
     return ""
 
 
-_TIER_LABEL = {"A": "核心来源", "B": "媒体来源", "C": "参考来源"}
-_REGION_COLOR = {"domestic": "#30D158", "international": "#0A84FF"}
-_REGION_LABEL = {"domestic": "国内", "international": "国际"}
-_REGION_SECTION = {"domestic": "国内动态", "international": "国际动态"}
+_TIER_LABEL = {"A": "Core", "B": "Media", "C": "Reference"}
+_ACCENT_COLOR = "#0A84FF"
 _WEEKDAY_CN = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
 _GOOGLE_NEWS_HOSTS = {"news.google.com"}
 _WECHAT_IMAGE_HOST_SUFFIXES = (
@@ -223,14 +221,13 @@ def _format_date_cn(date_str: str) -> str:
 def _render_markdown(digest: dict) -> str:
     """Generate clean markdown for audit/preview purposes."""
     lines: list[str] = []
-    lines.append(f"# 飞行播客日报 | {digest['date']}")
+    lines.append(f"# Global Aviation Digest | {digest['date']}")
     lines.append("")
-    lines.append(f"国内 {digest['domestic_count']} 条 | 国际 {digest['international_count']} 条")
+    lines.append(f"{digest.get('article_count', len(digest.get('entries', [])))} articles")
     lines.append("")
 
     for idx, entry in enumerate(digest.get("entries", []), 1):
         title = entry["title"]
-        region = "国内" if entry.get("region") == "domestic" else "国际"
         citation = _pick_click_url(entry)
         has_link = bool(citation)
 
@@ -246,7 +243,7 @@ def _render_markdown(digest: dict) -> str:
             if facts:
                 for f in facts:
                     lines.append(f"- {f}")
-        lines.append(f"- 来源：{region}")
+        lines.append(f"- Source: international")
         lines.append("")
     return "\n".join(lines)
 
@@ -262,28 +259,16 @@ def _render_html(digest: dict) -> str:
     """
     date = digest["date"]
     notice_url = str(digest.get("copyright_notice_url", "")).strip()
-    dc = digest["domestic_count"]
-    ic = digest["international_count"]
+    ac = digest.get("article_count", len(digest.get("entries", [])))
     entries = digest.get("entries", [])
     date_long = _format_date_cn(date)
 
-    # Split entries by region, preserving order.
-    domestic: list[tuple[int, dict]] = []
-    international: list[tuple[int, dict]] = []
-    for idx, entry in enumerate(entries, 1):
-        region = entry.get("region", "international")
-        if region == "domestic":
-            domestic.append((idx, entry))
-        else:
-            international.append((idx, entry))
+    all_entries = [(idx, entry) for idx, entry in enumerate(entries, 1)]
 
     # Build TOC (plain list, no anchor links — WeChat doesn't support them)
     toc_rows: list[str] = []
-    all_entries = sorted(domestic + international, key=lambda x: x[0])
     for idx, entry in all_entries:
         t = escape(entry["title"])
-        region = entry.get("region", "international")
-        region_color = _REGION_COLOR.get(region, "#0A84FF")
         toc_rows.append(
             f'<section style="display:flex;align-items:center;'
             f"gap:8px;padding:7px 0;"
@@ -292,8 +277,6 @@ def _render_html(digest: dict) -> str:
             f"justify-content:center;min-width:20px;height:20px;"
             f"border-radius:5px;background:#F2F2F7;"
             f'color:#6E6E73;font-size:10px;font-weight:700;">{idx}</span>'
-            f'<span style="display:inline-block;width:4px;height:4px;'
-            f'border-radius:50%;background:{region_color};"></span>'
             f'<span style="font-size:13px;line-height:1.4;'
             f'font-weight:500;color:#1D1D1F;flex:1;">{t}</span>'
             f"</section>"
@@ -316,9 +299,7 @@ def _render_html(digest: dict) -> str:
 
     def _build_card(idx: int, entry: dict, is_hero: bool = False) -> str:
         title = escape(entry["title"])
-        region = entry.get("region", "international")
-        region_label = _REGION_LABEL.get(region, "国际")
-        region_color = _REGION_COLOR.get(region, "#0A84FF")
+        color = _ACCENT_COLOR
         citation = _pick_click_url(entry)
         safe_href = escape(citation, quote=True)
 
@@ -373,7 +354,7 @@ def _render_html(digest: dict) -> str:
             num_badge = (
                 f'<span style="display:inline-flex;align-items:center;'
                 f"justify-content:center;width:22px;height:22px;"
-                f"border-radius:6px;background:{region_color};"
+                f"border-radius:6px;background:{color};"
                 f'color:#FFF;font-size:11px;font-weight:700;">{idx}</span>'
             )
         else:
@@ -385,20 +366,17 @@ def _render_html(digest: dict) -> str:
             )
 
         # Top border accent for hero card
-        border_top = f"border-top:3px solid {region_color};" if is_hero else ""
+        border_top = f"border-top:3px solid {color};" if is_hero else ""
 
         card = (
             f'<section style="background:#FFFFFF;border-radius:14px;'
             f"padding:18px;margin-bottom:10px;"
             f"box-shadow:0 1px 3px rgba(0,0,0,0.06);"
             f'{border_top}">'
-            # Meta row: number badge + region pill
+            # Meta row: number badge
             f'<section style="display:flex;align-items:center;'
             f'gap:6px;margin:0 0 8px 0;">'
             f"{num_badge}"
-            f'<span style="margin-left:auto;font-size:10px;color:#FFFFFF;'
-            f"background:{region_color};padding:2px 7px;"
-            f'border-radius:4px;font-weight:500;">{region_label}</span>'
             f"</section>"
             # Title
             f'<p style="margin:0;font-size:{title_size};font-weight:600;'
@@ -422,26 +400,11 @@ def _render_html(digest: dict) -> str:
             f"</section>"
         )
 
-    # Build sections
+    # Build cards section
     parts: list[str] = []
-
-    if domestic:
-        parts.append(
-            f'<section style="padding:0 12px;">'
-            f'{_section_header(_REGION_SECTION["domestic"], _REGION_COLOR["domestic"])}'
-        )
-        for i, (idx, entry) in enumerate(domestic):
-            parts.append(_build_card(idx, entry, is_hero=(i == 0)))
-        parts.append("</section>")
-
-    if international:
-        top_pad = "14px" if domestic else "0"
-        parts.append(
-            f'<section style="padding:0 12px;">'
-            f'<section style="padding:{top_pad} 0 0 0;"></section>'
-            f'{_section_header(_REGION_SECTION["international"], _REGION_COLOR["international"])}'
-        )
-        for i, (idx, entry) in enumerate(international):
+    if all_entries:
+        parts.append(f'<section style="padding:0 12px;">')
+        for i, (idx, entry) in enumerate(all_entries):
             parts.append(_build_card(idx, entry, is_hero=(i == 0)))
         parts.append("</section>")
 
@@ -455,33 +418,24 @@ def _render_html(digest: dict) -> str:
         # Header
         f'<section style="padding:36px 20px 24px 20px;text-align:center;">'
         f'<section style="width:40px;height:3px;'
-        f"background:linear-gradient(90deg,#0A84FF,#30D158);"
+        f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 18px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:10px;font-weight:600;'
         f"color:#6E6E73;letter-spacing:4px;"
-        f'text-transform:uppercase;">FLYING PODCAST</p>'
-        f'<p style="margin:6px 0 0 0;font-size:26px;font-weight:700;'
-        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">每日航空简报</p>'
+        f'text-transform:uppercase;">GLOBAL AVIATION DIGEST</p>'
+        f'<p style="margin:6px 0 0 0;font-size:22px;font-weight:700;'
+        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">国际航空日报</p>'
         f'<p style="margin:8px 0 0 0;font-size:13px;'
         f'color:#6E6E73;font-weight:400;">{date_long}</p>'
         f'<section style="margin:16px auto 0 auto;display:flex;'
-        f'justify-content:center;gap:20px;">'
-        # Domestic pill
+        f'justify-content:center;">'
         f'<span style="display:inline-flex;align-items:center;'
         f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
-        f"padding:4px 10px;border-radius:20px;"
-        f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
-        f'<span style="display:inline-block;width:6px;height:6px;'
-        f'border-radius:50%;background:#30D158;margin-right:5px;"></span>'
-        f"国内 {dc}</span>"
-        # International pill
-        f'<span style="display:inline-flex;align-items:center;'
-        f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
-        f"padding:4px 10px;border-radius:20px;"
+        f"padding:4px 12px;border-radius:20px;"
         f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
         f'<span style="display:inline-block;width:6px;height:6px;'
         f'border-radius:50%;background:#0A84FF;margin-right:5px;"></span>'
-        f"国际 {ic}</span>"
+        f"{ac} Articles</span>"
         f"</section>"
         f"</section>"
         # TOC
@@ -491,17 +445,13 @@ def _render_html(digest: dict) -> str:
         # Footer
         f'<section style="padding:24px 20px 36px 20px;text-align:center;">'
         f'<section style="width:40px;height:3px;'
-        f"background:linear-gradient(90deg,#0A84FF,#30D158);"
+        f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
-        f'line-height:1.6;font-weight:500;">飞行播客 · 自动聚合公开渠道信息</p>'
+        f'line-height:1.6;font-weight:500;">Global Aviation Digest · Auto-aggregated from public sources</p>'
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
-        f'line-height:1.6;">版权归原作者及原机构所有 · 仅供行业信息交流'
-        f"<br/>如有侵权请联系后台，核实后立即删除</p>"
-        f'<p style="margin:10px 0 0 0;font-size:10px;color:#AEAEB2;'
-        f'line-height:1.8;">'
-        f"沪ICP备2025125704号-3"
-        f"<br/>沪公网安备31011502405233号</p>"
+        f'line-height:1.6;">Copyright belongs to original authors and organizations · For industry information exchange only'
+        f"<br/>Contact us for any copyright concerns</p>"
         f"</section>"
         f"</section>"
     )
@@ -509,13 +459,14 @@ def _render_html(digest: dict) -> str:
 
 
 _WEB_INTRO_PROMPT = (
-    "你是资深航空新闻编辑。根据以下今日航空新闻列表，写一段3-5句话的导读概述。"
+    "你是资深国际航空新闻编辑。根据以下今日国际航空新闻列表，写一段3-5句话的导读概述。"
     "要求：\n"
     "1. 专业、简洁、有信息量\n"
     "2. 概括今日最重要的2-3条核心要点\n"
-    "3. 语气类似新闻联播导语，客观中立\n"
+    "3. 语气客观中立，适合专业航空从业者阅读\n"
     "4. 不要用'本期'、'本日'开头，直接说内容\n"
-    "5. 不超过150字\n"
+    "5. 外国航空公司名称保留英文原名\n"
+    "6. 不超过150字\n"
     "只输出这段导读，不要任何其他内容。\n\n今日新闻：\n{entries}"
 )
 
@@ -582,7 +533,8 @@ def _web_summary_block(summary: str, intro: str) -> str:
 
 _TRANSLATE_PROMPT = (
     "将以下英文航空新闻标题翻译成简洁的中文标题。"
-    "要求：保留专有名词（航司名、机型等），简洁通顺，不超过40字。"
+    "要求：外国航空公司名称必须保留英文原名（如 Delta、United、Lufthansa、Emirates 等），"
+    "其他专有名词（机型等）也保留英文，简洁通顺，不超过40字。"
     "只输出翻译结果，不要任何其他内容。\n\n"
     "英文标题：{title}"
 )
@@ -647,7 +599,7 @@ def _enhance_web_entries(digest: dict) -> dict:
 
         # Translate English titles for international entries
         title = entry.get("title", "")
-        if title and entry.get("region") == "international":
+        if title:
             translated = _translate_title(title)
             if translated != title:
                 entry["title"] = translated
@@ -668,25 +620,15 @@ def _render_web_html(
     - Optional LLM-generated summary and intro paragraph
     """
     date = digest["date"]
-    dc = digest["domestic_count"]
-    ic = digest["international_count"]
+    ac = digest.get("article_count", len(digest.get("entries", [])))
     entries = digest.get("entries", [])
     date_long = _format_date_cn(date)
 
-    domestic: list[tuple[int, dict]] = []
-    international: list[tuple[int, dict]] = []
-    for idx, entry in enumerate(entries, 1):
-        region = entry.get("region", "international")
-        if region == "domestic":
-            domestic.append((idx, entry))
-        else:
-            international.append((idx, entry))
+    all_entries_indexed = [(idx, entry) for idx, entry in enumerate(entries, 1)]
 
     def _build_web_card(idx: int, entry: dict, is_hero: bool = False) -> str:
         title = escape(entry["title"])
-        region = entry.get("region", "international")
-        region_label = _REGION_LABEL.get(region, "国际")
-        region_color = _REGION_COLOR.get(region, "#0A84FF")
+        color = _ACCENT_COLOR
         citation = _pick_click_url(entry)
         domain = _publisher_domain(entry)
 
@@ -765,7 +707,7 @@ def _render_web_html(
             num_badge = (
                 f'<span style="display:inline-flex;align-items:center;'
                 f"justify-content:center;width:22px;height:22px;"
-                f"border-radius:6px;background:{region_color};"
+                f"border-radius:6px;background:{color};"
                 f'color:#FFF;font-size:11px;font-weight:700;">{idx}</span>'
             )
         else:
@@ -776,7 +718,7 @@ def _render_web_html(
                 f'color:#6E6E73;font-size:11px;font-weight:700;">{idx}</span>'
             )
 
-        border_top = f"border-top:3px solid {region_color};" if is_hero else ""
+        border_top = f"border-top:3px solid {color};" if is_hero else ""
 
         card = (
             f'<section id="article-{idx}" style="background:#FFFFFF;border-radius:14px;'
@@ -786,9 +728,6 @@ def _render_web_html(
             f'<section style="display:flex;align-items:center;'
             f'gap:6px;margin:0 0 8px 0;">'
             f"{num_badge}"
-            f'<span style="margin-left:auto;font-size:10px;color:#FFFFFF;'
-            f"background:{region_color};padding:2px 7px;"
-            f'border-radius:4px;font-weight:500;">{region_label}</span>'
             f"</section>"
             f'<p style="margin:0;font-size:{title_size};font-weight:600;'
             f'color:#1D1D1F;line-height:1.5;">{title_html}</p>'
@@ -807,8 +746,6 @@ def _render_web_html(
         rows: list[str] = []
         for idx, entry in all_entries:
             title = escape(entry["title"])
-            region = entry.get("region", "international")
-            region_color = _REGION_COLOR.get(region, "#0A84FF")
             rows.append(
                 f'<a href="#article-{idx}" style="display:flex;align-items:center;'
                 f"gap:8px;padding:8px 0;"
@@ -818,8 +755,6 @@ def _render_web_html(
                 f"justify-content:center;min-width:20px;height:20px;"
                 f"border-radius:5px;background:#F2F2F7;"
                 f'color:#6E6E73;font-size:10px;font-weight:700;">{idx}</span>'
-                f'<span style="display:inline-block;width:4px;height:4px;'
-                f'border-radius:50%;background:{region_color};"></span>'
                 f'<span style="font-size:13px;line-height:1.4;'
                 f'font-weight:500;flex:1;">{title}</span>'
                 f"</a>"
@@ -853,32 +788,16 @@ def _render_web_html(
             f"</section>"
         )
 
-    # Build sections
+    # Build cards section
     parts: list[str] = []
-
-    if domestic:
-        parts.append(
-            f'<section style="padding:0 12px;">'
-            f'{_web_section_header(_REGION_SECTION["domestic"], _REGION_COLOR["domestic"])}'
-        )
-        for i, (idx, entry) in enumerate(domestic):
-            parts.append(_build_web_card(idx, entry, is_hero=(i == 0)))
-        parts.append("</section>")
-
-    if international:
-        top_pad = "14px" if domestic else "0"
-        parts.append(
-            f'<section style="padding:0 12px;">'
-            f'<section style="padding:{top_pad} 0 0 0;"></section>'
-            f'{_web_section_header(_REGION_SECTION["international"], _REGION_COLOR["international"])}'
-        )
-        for i, (idx, entry) in enumerate(international):
+    if all_entries_indexed:
+        parts.append(f'<section style="padding:0 12px;">')
+        for i, (idx, entry) in enumerate(all_entries_indexed):
             parts.append(_build_web_card(idx, entry, is_hero=(i == 0)))
         parts.append("</section>")
 
     # Build TOC from all entries in order
-    all_entries = [(idx, entry) for idx, entry in enumerate(entries, 1)]
-    toc_html = _build_toc(all_entries)
+    toc_html = _build_toc(all_entries_indexed)
     beian_icon_src = _load_beian_icon_data_uri()
     if beian_icon_src:
         beian_line = (
@@ -895,14 +814,14 @@ def _render_web_html(
             f'style="color:#AEAEB2;text-decoration:none;">沪公网安备31011502405233号</a>'
         )
 
-    notice_line = "如有侵权请联系后台，核实后立即删除"
+    notice_line = "Contact us for any copyright concerns"
     notice_url = str(copyright_notice_url).strip()
     if notice_url:
         safe_notice = escape(notice_url, quote=True)
         notice_line = (
-            f'如有侵权请联系后台，核实后立即删除'
+            f'Contact us for any copyright concerns'
             f' · <a href="{safe_notice}" target="_blank" rel="noopener" '
-            f'style="color:#AEAEB2;text-decoration:underline;">版权声明</a>'
+            f'style="color:#AEAEB2;text-decoration:underline;">Copyright Notice</a>'
         )
 
     body = (
@@ -914,31 +833,24 @@ def _render_web_html(
         # Header
         f'<section style="padding:36px 20px 24px 20px;text-align:center;">'
         f'<section style="width:40px;height:3px;'
-        f"background:linear-gradient(90deg,#0A84FF,#30D158);"
+        f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 18px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:10px;font-weight:600;'
         f"color:#6E6E73;letter-spacing:4px;"
-        f'text-transform:uppercase;">FLYING PODCAST</p>'
-        f'<p style="margin:6px 0 0 0;font-size:26px;font-weight:700;'
-        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">每日航空简报</p>'
+        f'text-transform:uppercase;">GLOBAL AVIATION DIGEST</p>'
+        f'<p style="margin:6px 0 0 0;font-size:22px;font-weight:700;'
+        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">国际航空日报</p>'
         f'<p style="margin:8px 0 0 0;font-size:13px;'
         f'color:#6E6E73;font-weight:400;">{date_long}</p>'
         f'<section style="margin:16px auto 0 auto;display:flex;'
-        f'justify-content:center;gap:20px;">'
+        f'justify-content:center;">'
         f'<span style="display:inline-flex;align-items:center;'
         f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
-        f"padding:4px 10px;border-radius:20px;"
-        f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
-        f'<span style="display:inline-block;width:6px;height:6px;'
-        f'border-radius:50%;background:#30D158;margin-right:5px;"></span>'
-        f"国内 {dc}</span>"
-        f'<span style="display:inline-flex;align-items:center;'
-        f"font-size:12px;color:#1D1D1F;background:#FFFFFF;"
-        f"padding:4px 10px;border-radius:20px;"
+        f"padding:4px 12px;border-radius:20px;"
         f'box-shadow:0 1px 2px rgba(0,0,0,0.06);">'
         f'<span style="display:inline-block;width:6px;height:6px;'
         f'border-radius:50%;background:#0A84FF;margin-right:5px;"></span>'
-        f"国际 {ic}</span>"
+        f"{ac} Articles</span>"
         f"</section>"
         f"</section>"
         # Summary + Intro block
@@ -950,19 +862,13 @@ def _render_web_html(
         # Footer
         f'<section style="padding:24px 20px 36px 20px;text-align:center;">'
         f'<section style="width:40px;height:3px;'
-        f"background:linear-gradient(90deg,#0A84FF,#30D158);"
+        f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
-        f'line-height:1.6;font-weight:500;">飞行播客 · 自动聚合公开渠道信息</p>'
+        f'line-height:1.6;font-weight:500;">Global Aviation Digest · Auto-aggregated from public sources</p>'
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
-        f'line-height:1.6;">版权归原作者及原机构所有 · 仅供行业信息交流'
+        f'line-height:1.6;">Copyright belongs to original authors and organizations · For industry information exchange only'
         f"<br/>{notice_line}</p>"
-        f'<p style="margin:10px 0 0 0;font-size:10px;color:#AEAEB2;'
-        f'line-height:1.8;">'
-        f'<a href="https://beian.miit.gov.cn" target="_blank" rel="noopener" '
-        f'style="color:#AEAEB2;text-decoration:none;">沪ICP备2025125704号-3</a>'
-        f"<br/>"
-        f"{beian_line}</p>"
         f"</section>"
         f"</section>"
     )
@@ -973,7 +879,7 @@ def _render_web_html(
         f'<meta charset="UTF-8">\n'
         f'<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
         f'<meta name="referrer" content="no-referrer">\n'
-        f"<title>飞行播客日报 | {escape(date)}</title>\n"
+        f"<title>Global Aviation Digest | {escape(date)}</title>\n"
         f"<style>body{{margin:0;padding:0;background:#F2F2F7;}}"
         f"a:hover{{opacity:0.7;}}</style>\n"
         f"</head>\n<body>\n{body}\n</body>\n</html>"
@@ -1015,15 +921,16 @@ def _fill_missing_images(digest: dict, client: WeChatClient) -> dict:
 
 
 _DIGEST_SUMMARY_PROMPT = (
-    "你是航空新闻编辑。根据以下新闻标题列表，用一句话（不超过30个字）概括今天的播报要点。"
+    "你是国际航空新闻编辑。根据以下新闻标题列表，用一句话（不超过30个字）概括今天的播报要点。"
     "要求：简洁有信息量，像新闻导语，不要用'本期'、'今日'等开头，直接说内容。"
+    "外国航空公司名称保留英文原名。"
     "只输出这一句话，不要任何其他内容。\n\n标题列表：\n{titles}"
 )
 
 
 def _generate_digest_summary(digest: dict) -> str:
     """Use LLM to generate a one-line summary of today's digest."""
-    fallback = "今日热点精选速读"
+    fallback = "国际航空要闻速览"
 
     titles = "\n".join(
         f"- {e.get('title', '')}" for e in digest.get("entries", []) if e.get("title")
@@ -1127,7 +1034,7 @@ def _upload_cover_image(image_data: bytes, client: WeChatClient) -> str:
 def _save_recent_published(digest: dict, day: str) -> None:
     """Save today's published titles to history for cross-day dedup.
 
-    Keeps the last 3 days of published titles in data/history/recent_published.json.
+    Keeps the last N days of published titles in data/history/recent_published.json.
     """
     history_dir = settings.history_dir
     history_dir.mkdir(parents=True, exist_ok=True)
@@ -1149,19 +1056,32 @@ def _save_recent_published(digest: dict, day: str) -> None:
     # Add today's entries
     today_entries = []
     for entry in digest.get("entries", []):
-        title = entry.get("title", "")
+        title = str(entry.get("title", "")).strip()
+        item_id = str(entry.get("id", "")).strip()
+        event_fp = str(entry.get("event_fingerprint", "")).strip()
         url = ""
         citations = entry.get("citations", [])
         if citations:
             url = citations[0] if isinstance(citations[0], str) else str(citations[0])
         elif entry.get("canonical_url"):
             url = entry["canonical_url"]
-        if title:
-            today_entries.append({"title": title, "url": url})
+        elif entry.get("url"):
+            url = entry["url"]
+        url = str(url).strip()
+        if title or url or item_id or event_fp:
+            today_entries.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "id": item_id,
+                    "event_fingerprint": event_fp,
+                }
+            )
     days[day] = today_entries
 
-    # Keep only the last 3 days
-    sorted_days = sorted(days.keys(), reverse=True)[:3]
+    # Keep only the last N days
+    keep_days = max(1, int(settings.recent_published_days))
+    sorted_days = sorted(days.keys(), reverse=True)[:keep_days]
     days = {k: days[k] for k in sorted_days}
 
     payload = {"days": days, "updated_at": day}
@@ -1198,7 +1118,7 @@ def _save_copyright_notice_url(url: str, publish_id: str = "", article_id: str =
         "url": url,
         "publish_id": publish_id,
         "article_id": article_id,
-        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "updated_at": beijing_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -1293,7 +1213,7 @@ def _ensure_wechat_copyright_notice_url(client: WeChatClient) -> str:
 
 def run(target_date: str | None = None) -> Path:
     ensure_dirs()
-    day = target_date or datetime.now().strftime("%Y-%m-%d")
+    day = target_date or beijing_today_str()
     digest = load_json(settings.processed_dir / f"composed_{day}.json")
     quality = load_json(settings.processed_dir / f"quality_{day}.json")
     copyright_notice_url = _load_saved_copyright_notice_url() or _copyright_web_fallback_url()
@@ -1372,7 +1292,7 @@ def run(target_date: str | None = None) -> Path:
             if cover_image_data:
                 cover_thumb_id = _upload_cover_image(cover_image_data, client)
             media_id = client.create_draft(
-                title=f"飞行播客日报 | {day}",
+                title=f"Global Aviation Digest | {day}",
                 author=settings.wechat_author,
                 content_html=html,
                 digest=summary,

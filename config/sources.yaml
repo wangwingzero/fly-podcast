@@ -1,99 +1,6 @@
 sources:
   # ============================================================
-  # 一、国内航空 — Google News 聚合（A 级，内容来自新华网/CARNOC 等权威源）
-  # ============================================================
-  # --- 三大航 + 海航春秋 ---
-  - id: google_cn_big5
-    name: Google 新闻·三大航+海航春秋
-    url: "https://news.google.com/rss/search?q=%E4%B8%AD%E5%9B%BD%E5%9B%BD%E8%88%AA+OR+%E4%B8%9C%E6%96%B9%E8%88%AA%E7%A9%BA+OR+%E5%8D%97%E6%96%B9%E8%88%AA%E7%A9%BA+OR+%E6%B5%B7%E5%8D%97%E8%88%AA%E7%A9%BA+OR+%E6%98%A5%E7%A7%8B%E8%88%AA%E7%A9%BA&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  # --- 二线航司 A 组：吉祥/四川/深圳/厦门/山东/天津/西部 ---
-  - id: google_cn_regional_a
-    name: Google 新闻·地方航司A组
-    url: "https://news.google.com/rss/search?q=%E5%90%89%E7%A5%A5%E8%88%AA%E7%A9%BA+OR+%E5%9B%9B%E5%B7%9D%E8%88%AA%E7%A9%BA+OR+%E6%B7%B1%E5%9C%B3%E8%88%AA%E7%A9%BA+OR+%E5%8E%A6%E9%97%A8%E8%88%AA%E7%A9%BA+OR+%E5%B1%B1%E4%B8%9C%E8%88%AA%E7%A9%BA+OR+%E5%A4%A9%E6%B4%A5%E8%88%AA%E7%A9%BA+OR+%E8%A5%BF%E9%83%A8%E8%88%AA%E7%A9%BA&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  # --- 二线航司 B 组：成都/华夏/长龙/九元/西藏/青岛/祥鹏 ---
-  - id: google_cn_regional_b
-    name: Google 新闻·地方航司B组
-    url: "https://news.google.com/rss/search?q=%E6%88%90%E9%83%BD%E8%88%AA%E7%A9%BA+OR+%E5%8D%8E%E5%A4%8F%E8%88%AA%E7%A9%BA+OR+%E9%95%BF%E9%BE%99%E8%88%AA%E7%A9%BA+OR+%E4%B9%9D%E5%85%83%E8%88%AA%E7%A9%BA+OR+%E8%A5%BF%E8%97%8F%E8%88%AA%E7%A9%BA+OR+%E9%9D%92%E5%B2%9B%E8%88%AA%E7%A9%BA+OR+%E7%A5%A5%E9%B9%8F%E8%88%AA%E7%A9%BA&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  # --- 三线航司：联合/河北/昆明/重庆/瑞丽/北部湾/湖南/乌鲁木齐 ---
-  - id: google_cn_regional_c
-    name: Google 新闻·地方航司C组
-    url: "https://news.google.com/rss/search?q=%E8%81%94%E5%90%88%E8%88%AA%E7%A9%BA+OR+%E6%B2%B3%E5%8C%97%E8%88%AA%E7%A9%BA+OR+%E6%98%86%E6%98%8E%E8%88%AA%E7%A9%BA+OR+%E9%87%8D%E5%BA%86%E8%88%AA%E7%A9%BA+OR+%E7%91%9E%E4%B8%BD%E8%88%AA%E7%A9%BA+OR+%E5%8C%97%E9%83%A8%E6%B9%BE%E8%88%AA%E7%A9%BA+OR+%E6%B9%96%E5%8D%97%E8%88%AA%E7%A9%BA+OR+%E4%B9%8C%E9%B2%81%E6%9C%A8%E9%BD%90%E8%88%AA%E7%A9%BA&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  # --- 货运+小众航司：顺丰/圆通/货运航空/贵州/东海/福州/桂林/江西/奥凯 ---
-  - id: google_cn_cargo_others
-    name: Google 新闻·货运及其他航司
-    url: "https://news.google.com/rss/search?q=%E9%A1%BA%E4%B8%B0%E8%88%AA%E7%A9%BA+OR+%E5%9C%86%E9%80%9A%E8%88%AA%E7%A9%BA+OR+%E4%B8%AD%E5%9B%BD%E8%B4%A7%E8%BF%90%E8%88%AA%E7%A9%BA+OR+%E5%A4%9A%E5%BD%A9%E8%B4%B5%E5%B7%9E%E8%88%AA%E7%A9%BA+OR+%E4%B8%9C%E6%B5%B7%E8%88%AA%E7%A9%BA+OR+%E7%A6%8F%E5%B7%9E%E8%88%AA%E7%A9%BA+OR+%E6%A1%82%E6%9E%97%E8%88%AA%E7%A9%BA+OR+%E6%B1%9F%E8%A5%BF%E8%88%AA%E7%A9%BA+OR+%E5%A5%A5%E5%87%AF%E8%88%AA%E7%A9%BA&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  # --- 民航局/机场/航线/安全 ---
-  - id: google_cn_caac
-    name: Google 新闻·民航局与航空公司
-    url: "https://news.google.com/rss/search?q=%E6%B0%91%E8%88%AA%E5%B1%80+%E8%88%AA%E7%A9%BA%E5%85%AC%E5%8F%B8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  - id: google_cn_airport
-    name: Google 新闻·机场与航线
-    url: "https://news.google.com/rss/search?q=%E6%9C%BA%E5%9C%BA+%E8%88%AA%E7%BA%BF+%E6%B0%91%E8%88%AA&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  - id: google_cn_aviation_safety
-    name: Google 新闻·航空安全
-    url: "https://news.google.com/rss/search?q=%E8%88%AA%E7%A9%BA%E5%AE%89%E5%85%A8+OR+%E9%A3%9E%E8%A1%8C%E5%AE%89%E5%85%A8+OR+%E6%B0%91%E8%88%AA%E5%AE%89%E5%85%A8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  # --- 国产大飞机 ---
-  - id: google_cn_comac
-    name: Google 新闻·C919与商飞
-    url: "https://news.google.com/rss/search?q=C919+OR+ARJ21+OR+%E5%95%86%E9%A3%9E+OR+%E5%9B%BD%E4%BA%A7%E5%A4%A7%E9%A3%9E%E6%9C%BA&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: true
-
-  # ============================================================
-  # 二、国内航空 — 直接 RSS（B 级）
-  # ============================================================
-  - id: 36kr_aviation
-    name: 36氪
-    url: https://36kr.com/feed
-    type: rss
-    source_tier: B
-    region: domestic
-    enabled: false
-
-  # ============================================================
-  # 三、国际航空 — Google News 聚合（A 级）
+  # 一、国际航空 — Google News 聚合（A 级）
   # ============================================================
   - id: google_intl_aviation
     name: Google News · Aviation & Airlines
@@ -208,83 +115,6 @@ sources:
   # ============================================================
   # 六、网站列表页爬虫（支持 requests/playwright/nodriver）
   # ============================================================
-  - id: carnoc_web_list
-    name: 中国民航资源网-新闻列表页
-    url: https://www.carnoc.com/
-    type: web
-    fetch_mode: auto   # requests | playwright | nodriver | auto
-    source_tier: A
-    region: domestic
-    lang: zh-cn
-    fallback_order: [playwright, nodriver]
-    xvfb: true
-    link_patterns:
-      - "news\\.carnoc\\.com/list/\\d+/\\d+\\.html"
-    published_at_patterns:
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-      - "(20\\d{2})/(0[1-9]|1[0-2])/(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/search"
-      - "/tag/"
-      - "/topic/"
-      - "javascript:"
-      - "#"
-    article_include_keywords:
-      - 航空
-      - 民航
-      - 机场
-      - 航线
-      - 飞机
-      - 航司
-    max_items: 40
-    enabled: true
-
-  - id: caacnews_web_list
-    name: 中国民航网-新闻列表页
-    url: http://www.caacnews.com.cn/1/2/index.html
-    type: web
-    fetch_mode: requests
-    source_tier: A
-    region: domestic
-    lang: zh-cn
-    fallback_order: [playwright, nodriver]
-    xvfb: true
-    link_patterns:
-      - "caacnews\\.com\\.cn/1/2/20\\d{4}/t\\d+_\\d+\\.html"
-    published_at_patterns:
-      - "t(20\\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])_"
-    exclude_patterns:
-      - "/zt/"
-      - "/video/"
-      - "javascript:"
-      - "#"
-    article_include_keywords: []
-    max_items: 60
-    enabled: true
-
-  - id: caac_gov_web_mhyw
-    name: 中国民航局-民航要闻
-    url: http://www.caac.gov.cn/XWZX/MHYW/
-    type: web
-    fetch_mode: auto
-    source_tier: A
-    region: domestic
-    lang: zh-cn
-    fallback_order: [playwright, nodriver]
-    xvfb: true
-    link_patterns:
-      - "caac\\.gov\\.cn/.+\\.s?html?"
-    published_at_patterns:
-      - "t(20\\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])_"
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "javascript:"
-      - "#"
-      - "/XXGK/"
-    article_include_keywords: []
-    max_items: 60
-    enabled: true
-
   - id: iata_press_web
     name: IATA Pressroom Web
     url: https://www.iata.org/en/pressroom/
@@ -526,14 +356,6 @@ sources:
   # ============================================================
   # 七、已失效源（保留备查，默认禁用）
   # ============================================================
-  - id: caac_news
-    name: CAAC 新闻中心
-    url: https://www.caac.gov.cn/XXGK/XXGK/index.rss
-    type: rss
-    source_tier: A
-    region: domestic
-    enabled: false
-
   - id: iata_press
     name: IATA Pressroom
     url: https://www.iata.org/en/pressroom/rss/
@@ -581,11 +403,3 @@ sources:
     source_tier: B
     region: international
     enabled: false
-
-  - id: carnoc_news
-    name: 中国民航网
-    url: https://www.caacnews.com.cn/rss/index.xml
-    type: rss
-    source_tier: B
-    region: domestic
-    enabled: true

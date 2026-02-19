@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -16,6 +15,7 @@ if str(SRC) not in sys.path:
 
 from flying_podcast.core.config import ensure_dirs
 from flying_podcast.core.logging_utils import get_logger
+from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.stages.compose import run as compose
 from flying_podcast.stages.ingest import run as ingest
 from flying_podcast.stages.notify import run as notify
@@ -39,7 +39,7 @@ STAGES = {
 def main() -> None:
     parser = argparse.ArgumentParser(description="Flying Podcast Daily News Pipeline")
     parser.add_argument("stage", choices=[*STAGES.keys(), "all"])
-    parser.add_argument("--date", dest="date", default=datetime.now().strftime("%Y-%m-%d"))
+    parser.add_argument("--date", dest="date", default=beijing_today_str())
     args = parser.parse_args()
 
     ensure_dirs()

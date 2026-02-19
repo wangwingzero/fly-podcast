@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import requests
 
@@ -14,14 +14,20 @@ from flying_podcast.core.io_utils import dump_json, load_json
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.models import DailyDigest, DigestEntry
 from flying_podcast.core.scoring import readability_score, weighted_quality
+from flying_podcast.core.time_utils import beijing_today_str
 
 logger = get_logger("compose")
 
 
 def _load_recent_published() -> list[dict]:
-    """Load recently published titles from history for cross-day dedup.
+    """Load recently published entries from history for cross-day dedup.
 
-    Returns a flat list of {"date": "...", "title": "..."} dicts.
+    Returns a flat list of dicts with fields:
+    - date
+    - title
+    - url
+    - id
+    - event_fingerprint
     Returns empty list if the file doesn't exist or is corrupted.
     """
     history_path = settings.processed_dir.parent / "history" / "recent_published.json"
@@ -36,13 +42,151 @@ def _load_recent_published() -> list[dict]:
             if not isinstance(entries, list):
                 continue
             for entry in entries:
-                if isinstance(entry, dict) and entry.get("title"):
-                    result.append({"date": date_str, "title": entry["title"]})
+                if not isinstance(entry, dict):
+                    continue
+                title = str(entry.get("title", "")).strip()
+                url = str(entry.get("url", "")).strip()
+                item_id = str(entry.get("id", "")).strip()
+                event_fp = str(entry.get("event_fingerprint", "")).strip()
+                if not any([title, url, item_id, event_fp]):
+                    continue
+                result.append(
+                    {
+                        "date": date_str,
+                        "title": title,
+                        "url": url,
+                        "id": item_id,
+                        "event_fingerprint": event_fp,
+                    }
+                )
         logger.info("Cross-day dedup: %d recent titles loaded", len(result))
         return result
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to load recent_published.json: %s", exc)
         return []
+
+
+def _normalize_title_for_recent_dedup(title: str) -> str:
+    text = str(title or "").strip().lower()
+    if not text:
+        return ""
+    text = re.sub(r"\s+", "", text)
+    text = re.sub(r"[^\w\u4e00-\u9fff]+", "", text)
+    return text
+
+
+def _normalize_url_for_recent_dedup(url: str) -> str:
+    raw = str(url or "").strip()
+    if not raw:
+        return ""
+    try:
+        parts = urlsplit(raw)
+    except Exception:  # noqa: BLE001
+        return raw.lower()
+    host = (parts.netloc or "").lower().strip()
+    path = (parts.path or "").rstrip("/").lower().strip()
+    if not host:
+        return path or raw.lower()
+
+    keep_query: list[tuple[str, str]] = []
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        lk = key.lower().strip()
+        if lk == "utm" or lk.startswith("utm_") or lk in {"spm", "from", "source", "gclid", "fbclid"}:
+            continue
+        keep_query.append((lk, value.strip()))
+    keep_query.sort()
+    query = urlencode(keep_query, doseq=True)
+    base = f"{host}{path}"
+    if query:
+        return f"{base}?{query}"
+    return base
+
+
+def _build_recent_dedup_index(recent_published: list[dict]) -> dict[str, set[str]]:
+    ids: set[str] = set()
+    event_fps: set[str] = set()
+    urls: set[str] = set()
+    titles: set[str] = set()
+    for row in recent_published:
+        if not isinstance(row, dict):
+            continue
+        item_id = str(row.get("id", "")).strip()
+        if item_id:
+            ids.add(item_id)
+        fp = str(row.get("event_fingerprint", "")).strip()
+        if fp:
+            event_fps.add(fp)
+        url_key = _normalize_url_for_recent_dedup(str(row.get("url", "")))
+        if url_key:
+            urls.add(url_key)
+        title_key = _normalize_title_for_recent_dedup(str(row.get("title", "")))
+        if title_key:
+            titles.add(title_key)
+    return {
+        "ids": ids,
+        "event_fps": event_fps,
+        "urls": urls,
+        "titles": titles,
+    }
+
+
+def _is_recent_duplicate(
+    *,
+    item_id: str,
+    event_fingerprint: str,
+    title: str,
+    canonical_url: str,
+    recent_index: dict[str, set[str]],
+) -> bool:
+    if not recent_index:
+        return False
+    ids = recent_index.get("ids", set())
+    event_fps = recent_index.get("event_fps", set())
+    urls = recent_index.get("urls", set())
+    titles = recent_index.get("titles", set())
+
+    row_id = str(item_id or "").strip()
+    if row_id and row_id in ids:
+        return True
+    row_fp = str(event_fingerprint or "").strip()
+    if row_fp and row_fp in event_fps:
+        return True
+    row_url = _normalize_url_for_recent_dedup(canonical_url)
+    if row_url and row_url in urls:
+        return True
+    row_title = _normalize_title_for_recent_dedup(title)
+    if row_title and row_title in titles:
+        return True
+    return False
+
+
+def _prioritize_non_recent_candidates(candidates: list[dict], recent_index: dict[str, set[str]]) -> list[dict]:
+    if not candidates:
+        return []
+    if not any(recent_index.values()):
+        return list(candidates)
+
+    fresh: list[dict] = []
+    repeated: list[dict] = []
+    for row in candidates:
+        if _is_recent_duplicate(
+            item_id=str(row.get("id", "")),
+            event_fingerprint=str(row.get("event_fingerprint", "")),
+            title=str(row.get("title", "")),
+            canonical_url=str(row.get("canonical_url") or row.get("url") or ""),
+            recent_index=recent_index,
+        ):
+            repeated.append(row)
+        else:
+            fresh.append(row)
+    if repeated:
+        logger.info(
+            "Cross-day dedup: de-prioritized %d repeated candidates (fresh=%d total=%d)",
+            len(repeated),
+            len(fresh),
+            len(candidates),
+        )
+    return fresh + repeated
 
 _GLOSSARY_PATH = Path(__file__).resolve().parents[3] / "AirbusTermbase.js"
 
@@ -420,9 +564,9 @@ def _ensure_min_facts(facts: list[str], raw_text: str, title: str, min_count: in
     if len(out) < min_count:
         # Avoid title repetition when source only has headline-level snippet.
         if len(out) == 0:
-            out.append("该条目为新闻摘要，建议点击原文查看完整运行细节。")
+            out.append("This is a news summary. Click the original link for full operational details.")
         if len(out) < min_count:
-            out.append("已附原文链接，供机组和签派进一步核对关键信息。")
+            out.append("Original source link is attached for crew and dispatch to verify key information.")
     return out[:3]
 
 
@@ -432,26 +576,11 @@ def _build_conclusion(title: str) -> str:
 
 
 def _build_impact() -> str:
-    return "详见原文。"
+    return "See original source for details."
 
 
 def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
-    domestic_quota = round(total * domestic_ratio)
-    intl_quota = total - domestic_quota
-
-    domestic = [x for x in candidates if x["region"] == "domestic"]
-    intl = [x for x in candidates if x["region"] != "domestic"]
-
-    picked = domestic[:domestic_quota] + intl[:intl_quota]
-
-    if len(picked) < total:
-        for item in candidates:
-            if len(picked) >= total:
-                break
-            if item not in picked:
-                picked.append(item)
-
-    return picked[:total]
+    return candidates[:total]
 
 
 def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: list[str], impact: str, body: str = "") -> DigestEntry:
@@ -549,7 +678,7 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
         )
 
     system_prompt = (
-        "你是服务于飞行员、签派和运行控制人员的民航新闻编辑。"
+        "你是服务于飞行员、签派和运行控制人员的国际航空新闻编辑。"
         "你的首要任务是筛掉与飞行运行无关的泛社会、娱乐、旅游、财经新闻。"
         "【选稿原则】优先选择有真正信息增量的内容——新事实、新数据、新政策、新事件。"
         "坚决过滤：政治宣传/政绩报道、企业软文/广告、空洞的口号式报道、"
@@ -559,6 +688,9 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
         "必须只基于输入内容改写，不得引入外部事实，不得编造链接或ID。"
         "【重要】所有输出内容（title、conclusion、body）必须是中文。"
         "英文新闻必须翻译成专业、准确的中文，航空专业术语使用标准译法。"
+        "【重要】外国航空公司名称必须保留英文原名，不要翻译。"
+        "例如：Delta、United、American Airlines、Lufthansa、Emirates、Singapore Airlines、"
+        "Qatar Airways、British Airways、Cathay Pacific、Ryanair 等保持英文。"
         "body 字段是正文：像一个记者一样，用2-4句话把核心事实讲清楚、讲明白。"
         "读者可能通过微信「听文章」功能收听，所以正文必须仅靠听就能听懂，"
         "不要用项目符号或编号列表，用自然的叙述语言连贯表达。"
@@ -568,7 +700,7 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
         + dedup_instruction
     )
     user_data: dict[str, Any] = {
-        "task": "从候选新闻中生成日报条目（全部中文输出）",
+        "task": "从候选国际航空新闻中生成日报条目（中文输出，航司名保留英文）",
         "audience": "飞行员、签派、运行控制",
         "rules": {
             "total": total,
@@ -577,8 +709,8 @@ def _build_llm_prompts(candidates_pool: list[dict], total: int, domestic_quota: 
             "must_keep_ref_id": True,
             "must_not_generate_links": True,
             "pilot_relevance_first": True,
-            "language": "zh-CN（全部中文，包括标题和正文）",
-            "body_style": "记者叙述体，2-4句话讲清核心事实，适合朗读收听",
+            "language": "zh-CN（中文输出，外国航司名保留英文原名）",
+            "body_style": "记者叙述体，2-4句话讲清核心事实，适合朗读收听，航司名用英文",
             "hard_reject_topics": [
                 "股价/财报/融资",
                 "明星娱乐",
@@ -675,8 +807,6 @@ def _enforce_constraints(
             out.append(p)
             used_ids.add(p.id)
     effective_total = len(out)
-    target_dom = round(effective_total * domestic_ratio)
-    target_intl = effective_total - target_dom
 
     def _section_counts(rows: list[DigestEntry]) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -712,45 +842,6 @@ def _enforce_constraints(
         out[replace_idx] = replacement
         used_ids.add(replacement.id)
 
-    # then region quota (scaled by effective total)
-    def _dom_count(rows: list[DigestEntry]) -> int:
-        return sum(1 for x in rows if x.region == "domestic")
-
-    loop_guard = 0
-    while loop_guard < 40:
-        loop_guard += 1
-        dom = _dom_count(out)
-        intl = len(out) - dom
-        if dom == target_dom and intl == target_intl:
-            break
-        need_domestic = dom < target_dom
-        section_counts = _section_counts(out)
-        if need_domestic:
-            candidate = next((p for p in pool if p.region == "domestic" and p.id not in used_ids), None)
-            if candidate is None:
-                break
-            replace_idx = None
-            for i in range(len(out) - 1, -1, -1):
-                if out[i].region != "domestic" and section_counts.get(out[i].section, 0) > 1:
-                    replace_idx = i
-                    break
-            if replace_idx is None:
-                break
-        else:
-            candidate = next((p for p in pool if p.region != "domestic" and p.id not in used_ids), None)
-            if candidate is None:
-                break
-            replace_idx = None
-            for i in range(len(out) - 1, -1, -1):
-                if out[i].region == "domestic" and section_counts.get(out[i].section, 0) > 1:
-                    replace_idx = i
-                    break
-            if replace_idx is None:
-                break
-        used_ids.discard(out[replace_idx].id)
-        out[replace_idx] = candidate
-        used_ids.add(candidate.id)
-
     # source concentration cap
     source_guard = 0
     while source_guard < 80:
@@ -777,21 +868,9 @@ def _enforce_constraints(
                 if p.id not in used_ids
                 and (p.source_id or p.source_name) != over
                 and s_counts.get((p.source_id or p.source_name), 0) < max_per_source
-                and p.region == victim.region
             ),
             None,
         )
-        if replacement is None:
-            replacement = next(
-                (
-                    p
-                    for p in pool
-                    if p.id not in used_ids
-                    and (p.source_id or p.source_name) != over
-                    and s_counts.get((p.source_id or p.source_name), 0) < max_per_source
-                ),
-                None,
-            )
         if replacement is not None and section_counts.get(victim.section, 0) <= 1 and replacement.section != victim.section:
             replacement = None
         if replacement is None:
@@ -801,6 +880,53 @@ def _enforce_constraints(
         used_ids.add(replacement.id)
 
     return out[:effective_total]
+
+
+def _replace_recent_duplicates(
+    entries: list[DigestEntry],
+    pool: list[DigestEntry],
+    recent_index: dict[str, set[str]],
+) -> list[DigestEntry]:
+    if not entries:
+        return entries
+    if not any(recent_index.values()):
+        return entries
+
+    out = list(entries)
+    used_ids = {e.id for e in out}
+    replaced = 0
+
+    def _entry_is_recent(e: DigestEntry) -> bool:
+        return _is_recent_duplicate(
+            item_id=e.id,
+            event_fingerprint=e.event_fingerprint,
+            title=e.title,
+            canonical_url=e.canonical_url or (e.citations[0] if e.citations else ""),
+            recent_index=recent_index,
+        )
+
+    for idx, current in enumerate(out):
+        if not _entry_is_recent(current):
+            continue
+        replacement = next(
+            (
+                p
+                for p in pool
+                if p.id not in used_ids
+                and not _entry_is_recent(p)
+            ),
+            None,
+        )
+        if replacement is None:
+            continue
+        used_ids.discard(current.id)
+        used_ids.add(replacement.id)
+        out[idx] = replacement
+        replaced += 1
+
+    if replaced:
+        logger.info("Cross-day dedup: replaced %d repeated final entries", replaced)
+    return out
 
 
 def _validate_llm_entries(llm_payload: dict[str, Any], selected: list[dict], total: int) -> list[DigestEntry]:
@@ -840,10 +966,13 @@ def _validate_llm_entries(llm_payload: dict[str, Any], selected: list[dict], tot
 
 
 def run(target_date: str | None = None) -> Path:
-    day = target_date or datetime.now().strftime("%Y-%m-%d")
+    day = target_date or beijing_today_str()
     ranked_path = settings.processed_dir / f"ranked_{day}.json"
     ranked_payload = load_json(ranked_path)
     candidates = ranked_payload.get("articles", [])
+    recent_published = _load_recent_published()
+    recent_index = _build_recent_dedup_index(recent_published)
+    candidates = _prioritize_non_recent_candidates(candidates, recent_index)
 
     ai_pool_size = max(settings.target_article_count * 4, 40)
     ai_candidates_pool = candidates[:ai_pool_size] if candidates else []
@@ -861,8 +990,6 @@ def run(target_date: str | None = None) -> Path:
     compose_mode = "rules"
     compose_reason = "llm_not_configured"
     if OpenAICompatibleClient.is_configured():
-        # Load recently published titles for cross-day dedup
-        recent_published = _load_recent_published()
         # Request extra entries from LLM as buffer for enforce_constraints
         llm_total = settings.target_article_count + 4
         domestic_quota = round(settings.target_article_count * settings.domestic_ratio)
@@ -904,16 +1031,14 @@ def run(target_date: str | None = None) -> Path:
         entries = _build_entries_with_rules(selected)
 
     entries = _enforce_constraints(entries, pool_entries, settings.target_article_count, settings.domestic_ratio)
+    entries = _replace_recent_duplicates(entries, pool_entries, recent_index)
 
     # Enrich missing images: resolve Google redirects + fetch og:image
     _resolve_google_urls_and_fetch_images(entries, ai_candidates_pool or candidates)
 
-    domestic_count = sum(1 for x in entries if x.region == "domestic")
-    intl_count = len(entries) - domestic_count
     digest = DailyDigest(
         date=day,
-        domestic_count=domestic_count,
-        international_count=intl_count,
+        article_count=len(entries),
         entries=entries,
         total_score=round(sum(e.score_breakdown["total"] for e in entries) / max(len(entries), 1), 2),
     )
@@ -926,7 +1051,7 @@ def run(target_date: str | None = None) -> Path:
         "model": settings.llm_model if OpenAICompatibleClient.is_configured() else "",
     }
     dump_json(out, payload)
-    logger.info("Compose done. entries=%s domestic=%s intl=%s", len(entries), domestic_count, intl_count)
+    logger.info("Compose done. entries=%s", len(entries))
     return out
 
 

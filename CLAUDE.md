@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Automated daily aviation news digest pipeline for airline staff. Runs on GitHub Actions, publishes 10 curated news items daily to a WeChat Official Account. Written in Python 3.11+.
+Automated daily international aviation news digest pipeline for airline staff. Runs on GitHub Actions, publishes 10 curated international news items daily to a WeChat Official Account. Written in Python 3.11+. Foreign airline names are kept in English (e.g., Delta, United, Lufthansa, Emirates).
 
 ## Commands
 
@@ -43,9 +43,9 @@ ingest → rank → compose → verify → publish → notify
 ```
 
 - **ingest** (`stages/ingest.py`): Collects news from RSS feeds and website scrapers. Outputs `data/raw/YYYY-MM-DD.json`.
-- **rank** (`stages/rank.py`): Filters (blocked domains, hard-reject keywords, relevance checks, pilot-relevance), scores, deduplicates, applies quotas (60% domestic, max 3 per source, section diversity). Outputs `data/processed/ranked_YYYY-MM-DD.json`.
+- **rank** (`stages/rank.py`): Filters (blocked domains, hard-reject keywords, relevance checks, pilot-relevance), scores, deduplicates, applies quotas (max 3 per source, tier A ratio). Outputs `data/processed/ranked_YYYY-MM-DD.json`.
 - **compose** (`stages/compose.py`): LLM-powered summarization into structured entries (conclusion, facts, impact, citations). Outputs `data/processed/composed_YYYY-MM-DD.json`.
-- **verify** (`stages/verify.py`): 12 quality gates (citation validity, sensational titles, sensitive content, source conflicts, duplicates). Produces quality report and sets decision to `auto_publish` or `hold`. Outputs `data/processed/quality_YYYY-MM-DD.json`.
+- **verify** (`stages/verify.py`): Quality gates (citation validity, sensational titles, sensitive content, source conflicts, duplicates). Produces quality report and sets decision to `auto_publish` or `hold`. Outputs `data/processed/quality_YYYY-MM-DD.json`.
 - **publish** (`stages/publish.py`): Renders HTML/Markdown, optionally publishes to WeChat. Outputs to `data/output/`.
 - **notify** (`stages/notify.py`): Sends webhook alert with results.
 
@@ -63,15 +63,14 @@ Each stage function signature: `run(target_date: str | None = None) -> Path`.
 
 ### Configuration Files (`config/`)
 
-- **sources.yaml**: 30+ news sources with tier (A/B/C), region (domestic/international), type (rss/web), fetch_mode, link_patterns
-- **keywords.yaml**: Section keywords, pilot-relevant terms, hard-reject words, sensitive keywords, blocked domains
+- **sources.yaml**: International news sources with tier (A/B/C), type (rss/web), fetch_mode, link_patterns
+- **keywords.yaml**: Relevance keywords, pilot-relevant terms, hard-reject words, sensitive keywords, blocked domains
 
 ### Key Constraints
 
 | Parameter | Default | Env Var |
 |-----------|---------|---------|
 | Article count | 10 | `TARGET_ARTICLE_COUNT` |
-| Domestic ratio | 60% | `DOMESTIC_RATIO` |
 | Min Tier A ratio | 70% | `MIN_TIER_A_RATIO` |
 | Quality threshold | 80 | `QUALITY_THRESHOLD` |
 | Max per source | 3 | `MAX_ENTRIES_PER_SOURCE` |
@@ -79,7 +78,7 @@ Each stage function signature: `run(target_date: str | None = None) -> Path`.
 
 ### Web Parser Registry (`stages/web_parser_registry.py`)
 
-Site-specific HTML parsers for non-RSS sources (CAAC, CARNOC, IATA, FAA, Airbus, Boeing, FlightGlobal). Each parser extracts `ParsedWebEntry` objects. Fetch modes: `requests` → `playwright` → `nodriver` with auto-fallback.
+Site-specific HTML parsers for non-RSS sources (IATA, FAA, Airbus, Boeing, FlightGlobal, Reuters, NTSB, EASA). Each parser extracts `ParsedWebEntry` objects. Fetch modes: `requests` → `playwright` → `nodriver` with auto-fallback.
 
 ### Data Flow
 
@@ -87,8 +86,11 @@ All inter-stage communication is via dated JSON files under `data/`. No database
 
 ### CI/CD
 
-Six GitHub Actions workflows in `.github/workflows/` run on UTC schedule (Beijing time: ingest every 2h, rank 06:00, compose 06:30, verify 07:00, publish 08:00, notify on publish completion). All support `workflow_dispatch` for manual runs.
+Six GitHub Actions workflows in `.github/workflows/` run on UTC schedule. All support `workflow_dispatch` for manual runs.
 
 ### Import Path
 
 `run.py` and `tests/conftest.py` both add `src/` to `sys.path`. The package is `flying_podcast` under `src/flying_podcast/`.
+
+# currentDate
+Today's date is 2026-02-19.

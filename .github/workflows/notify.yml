@@ -7,12 +7,13 @@ on:
   workflow_dispatch:
 
 env:
+  TZ: Asia/Shanghai
   ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
   EMAIL_USER: ${{ secrets.EMAIL_USER }}
   EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
   DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
   TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
-  DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.6' }}
+  DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.5' }}
   QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '80' }}
   ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
   LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -36,10 +37,10 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Ensure publish result exists
         run: |
-          python run.py ingest --date "$(date -u +%F)"
-          python run.py rank --date "$(date -u +%F)"
-          python run.py compose --date "$(date -u +%F)"
-          python run.py verify --date "$(date -u +%F)"
-          python run.py publish --date "$(date -u +%F)"
+          python run.py ingest --date "$(date +%F)"
+          python run.py rank --date "$(date +%F)"
+          python run.py compose --date "$(date +%F)"
+          python run.py verify --date "$(date +%F)"
+          python run.py publish --date "$(date +%F)"
       - name: Notify
-        run: python run.py notify --date "$(date -u +%F)"
+        run: python run.py notify --date "$(date +%F)"

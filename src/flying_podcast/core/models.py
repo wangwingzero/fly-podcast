@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from typing import Any
+
+from flying_podcast.core.time_utils import beijing_now_iso
 
 
 @dataclass
@@ -57,12 +58,11 @@ class DigestEntry:
 @dataclass
 class DailyDigest:
     date: str
-    domestic_count: int
-    international_count: int
+    article_count: int
     entries: list[DigestEntry] = field(default_factory=list)
     total_score: float = 0.0
     decision: str = "hold"
-    generated_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    generated_at: str = field(default_factory=beijing_now_iso)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
