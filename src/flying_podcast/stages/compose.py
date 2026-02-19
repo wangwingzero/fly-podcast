@@ -920,9 +920,9 @@ def _llm_select_articles(
         if rid and rid in valid_ids and rid not in selected:
             selected.append(rid)
 
-    if len(selected) < total // 2:
+    if len(selected) < 1:
         raise ValueError(
-            f"selection_insufficient: got {len(selected)}, need >= {total // 2}"
+            f"selection_insufficient: got {len(selected)}, need >= 1"
         )
     logger.info("Phase 1 selection: %d entries returned, %d valid", len(raw_entries), len(selected))
     return selected
