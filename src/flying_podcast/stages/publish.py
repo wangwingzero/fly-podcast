@@ -266,7 +266,7 @@ def _format_date_cn(date_str: str) -> str:
 def _render_markdown(digest: dict) -> str:
     """Generate clean markdown for audit/preview purposes."""
     lines: list[str] = []
-    lines.append(f"# 国际航空日报 | {digest['date']}")
+    lines.append(f"# 飞行播客日报 | {digest['date']}")
     lines.append("")
     lines.append(f"{digest.get('article_count', len(digest.get('entries', [])))} articles")
     lines.append("")
@@ -468,7 +468,7 @@ def _render_html(digest: dict) -> str:
         f"color:#6E6E73;letter-spacing:4px;"
         f'text-transform:uppercase;">GLOBAL AVIATION DIGEST</p>'
         f'<p style="margin:6px 0 0 0;font-size:22px;font-weight:700;'
-        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">国际航空日报</p>'
+        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">飞行播客日报</p>'
         f'<p style="margin:8px 0 0 0;font-size:13px;'
         f'color:#6E6E73;font-weight:400;">{date_long}</p>'
         f"</section>"
@@ -482,7 +482,7 @@ def _render_html(digest: dict) -> str:
         f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
-        f'line-height:1.6;font-weight:500;">国际航空日报</p>'
+        f'line-height:1.6;font-weight:500;">飞行播客日报</p>'
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
         f'line-height:1.6;">版权归原作者及原发机构所有 · 仅供行业信息交流'
         f"<br/>如有版权疑问请联系我</p>"
@@ -874,7 +874,7 @@ def _render_web_html(
         f"color:#6E6E73;letter-spacing:4px;"
         f'text-transform:uppercase;">GLOBAL AVIATION DIGEST</p>'
         f'<p style="margin:6px 0 0 0;font-size:22px;font-weight:700;'
-        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">国际航空日报</p>'
+        f'color:#1D1D1F;letter-spacing:-0.3px;line-height:1.2;">飞行播客日报</p>'
         f'<p style="margin:8px 0 0 0;font-size:13px;'
         f'color:#6E6E73;font-weight:400;">{date_long}</p>'
         f"</section>"
@@ -890,7 +890,7 @@ def _render_web_html(
         f"background:linear-gradient(90deg,#0A84FF,#5AC8FA);"
         f'margin:0 auto 14px auto;border-radius:2px;"></section>'
         f'<p style="margin:0;font-size:12px;color:#6E6E73;'
-        f'line-height:1.6;font-weight:500;">国际航空日报</p>'
+        f'line-height:1.6;font-weight:500;">飞行播客日报</p>'
         f'<p style="margin:6px 0 0 0;font-size:10px;color:#AEAEB2;'
         f'line-height:1.6;">版权归原作者及原发机构所有 · 仅供行业信息交流'
         f"<br/>{notice_line}</p>"
@@ -904,7 +904,7 @@ def _render_web_html(
         f'<meta charset="UTF-8">\n'
         f'<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
         f'<meta name="referrer" content="no-referrer">\n'
-        f"<title>国际航空日报 | {escape(date)}</title>\n"
+        f"<title>飞行播客日报 | {escape(date)}</title>\n"
         f"<style>body{{margin:0;padding:0;background:#F2F2F7;}}"
         f"a:hover{{opacity:0.7;}}</style>\n"
         f"</head>\n<body>\n{body}\n</body>\n</html>"
@@ -1326,7 +1326,7 @@ def run(target_date: str | None = None) -> Path:
             if cover_image_data:
                 cover_thumb_id = _upload_cover_image(cover_image_data, client)
             media_id = client.create_draft(
-                title=f"国际航空日报 | {day}",
+                title=f"飞行播客日报 | {day}",
                 author=settings.wechat_author,
                 content_html=html,
                 digest=summary,
