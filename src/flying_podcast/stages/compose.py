@@ -855,10 +855,10 @@ def _llm_select_articles(
     response = client.complete_json(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
-        max_tokens=500,
+        max_tokens=1500,
         temperature=0.1,
         retries=3,
-        timeout=45,
+        timeout=90,
     )
     raw_ids = response.payload.get("selected_ids")
     if not isinstance(raw_ids, list):
@@ -932,10 +932,10 @@ def _llm_compose_single(
         response = client.complete_json(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            max_tokens=800,
+            max_tokens=1500,
             temperature=0.1,
             retries=2,
-            timeout=45,
+            timeout=60,
         )
         result = response.payload
         title = str(result.get("title", "")).strip()
