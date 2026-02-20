@@ -33,6 +33,7 @@ env:
   IMAGE_GEN_BACKUP_MODEL: ${{ vars.IMAGE_GEN_BACKUP_MODEL || '' }}
   WEB_DIGEST_BASE_URL: ${{ vars.WEB_DIGEST_BASE_URL || '' }}
   WECHAT_PROXY: ${{ vars.WECHAT_PROXY || '' }}
+  COPYRIGHT_NOTICE_URL: ${{ vars.COPYRIGHT_NOTICE_URL || '' }}
 
 concurrency:
   group: flying-podcast-publish
