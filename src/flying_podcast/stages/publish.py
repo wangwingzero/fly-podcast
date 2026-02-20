@@ -1340,6 +1340,21 @@ def run(target_date: str | None = None) -> Path:
         "reasons": quality.get("reasons", []),
     }
 
+    def _cleanup_old_drafts(wc: WeChatClient, keep_media_id: str) -> None:
+        """Delete all drafts except the one just created."""
+        try:
+            drafts = wc.list_drafts(count=20)
+            deleted = 0
+            for item in drafts:
+                mid = item.get("media_id", "")
+                if mid and mid != keep_media_id:
+                    wc.delete_draft(mid)
+                    deleted += 1
+            if deleted:
+                logger.info("Cleaned up %d old draft(s)", deleted)
+        except Exception:
+            logger.warning("Draft cleanup failed, continuing")
+
     # Generate AI cover image (always, regardless of dry_run)
     cover_image_data = _generate_cover_image_bytes(digest)
     if cover_image_data:
@@ -1388,6 +1403,8 @@ def run(target_date: str | None = None) -> Path:
             result["status"] = "draft_created"
             result["publish_id"] = media_id
             result["url"] = f"https://mp.weixin.qq.com"
+            # Clean up old drafts, keep only the one just created
+            _cleanup_old_drafts(client, keep_media_id=media_id)
             try:
                 publish = client.publish_draft(media_id)
                 result["status"] = "published"

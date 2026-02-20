@@ -245,6 +245,39 @@ class WeChatClient:
             raise WeChatPublishError(f"Get publish status failed: {data}")
         return data
 
+    def list_drafts(self, count: int = 20) -> list[dict[str, Any]]:
+        """List drafts in the WeChat backend. Returns list of draft items."""
+        token = self._access_token()
+        resp = requests.post(
+            f"{self.base}/draft/batchget",
+            params={"access_token": token},
+            json={"offset": 0, "count": min(count, 20), "no_content": 1},
+            timeout=30,
+            proxies=self.proxies,
+        )
+        data = resp.json()
+        if data.get("errcode", 0) not in (0, None):
+            logger.warning("List drafts failed: %s", data)
+            return []
+        return data.get("item", [])
+
+    def delete_draft(self, media_id: str) -> bool:
+        """Delete a draft by media_id. Returns True on success."""
+        token = self._access_token()
+        resp = requests.post(
+            f"{self.base}/draft/delete",
+            params={"access_token": token},
+            json={"media_id": media_id},
+            timeout=30,
+            proxies=self.proxies,
+        )
+        data = resp.json()
+        if data.get("errcode", 0) in (0, None):
+            logger.info("Deleted draft: %s", media_id[:40])
+            return True
+        logger.warning("Delete draft failed: %s %s", media_id[:40], data)
+        return False
+
     def get_article_detail(self, article_id: str) -> dict[str, Any]:
         token = self._access_token()
         resp = requests.post(
