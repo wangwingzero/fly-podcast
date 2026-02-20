@@ -58,6 +58,14 @@ class Settings:
 
     alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")
 
+    dashscope_api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
+
+    # CCAR-workflow integration (podcast inbox)
+    ccar_data_path: str = os.getenv("CCAR_DATA_PATH", "D:/CCAR-workflow/data/regulations.json")
+    ccar_downloads_path: str = os.getenv("CCAR_DOWNLOADS_PATH", "D:/CCAR-workflow/downloads")
+    r2_domain: str = os.getenv("R2_DOMAIN", "ccar.hudawang.cn")
+    podcast_inbox_dir: Path = ROOT_DIR / "data" / "podcast_inbox"
+
     email_user: str = os.getenv("EMAIL_USER", "")
     email_pass: str = os.getenv("EMAIL_PASS", "")
     email_to: str = os.getenv("EMAIL_TO", "")

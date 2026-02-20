@@ -19,6 +19,8 @@ from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.stages.compose import run as compose
 from flying_podcast.stages.ingest import run as ingest
 from flying_podcast.stages.notify import run as notify
+from flying_podcast.stages.podcast import run as podcast
+from flying_podcast.stages.podcast_inbox import run as podcast_inbox
 from flying_podcast.stages.publish import run as publish
 from flying_podcast.stages.rank import run as rank
 from flying_podcast.stages.verify import run as verify
@@ -33,6 +35,8 @@ STAGES = {
     "verify": verify,
     "publish": publish,
     "notify": notify,
+    "podcast": podcast,
+    "podcast-inbox": podcast_inbox,
 }
 
 
@@ -40,6 +44,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Flying Podcast Daily News Pipeline")
     parser.add_argument("stage", choices=[*STAGES.keys(), "all"])
     parser.add_argument("--date", dest="date", default=beijing_today_str())
+    parser.add_argument("--pdf", dest="pdf", default=None, help="PDF file path (for podcast stage)")
+    parser.add_argument("--local-only", dest="local_only", action="store_true",
+                        help="Only process PDFs in inbox/pending/ (for podcast-inbox)")
+    parser.add_argument("--dry-run", dest="dry_run_flag", action="store_true",
+                        help="Show what would be processed without generating (for podcast-inbox)")
     args = parser.parse_args()
 
     ensure_dirs()
@@ -48,6 +57,14 @@ def main() -> None:
         for name in ["ingest", "rank", "compose", "verify", "publish", "notify"]:
             logger.info("Running stage: %s", name)
             STAGES[name](args.date)
+        return
+
+    if args.stage == "podcast":
+        podcast(args.date, pdf_path=args.pdf)
+        return
+
+    if args.stage == "podcast-inbox":
+        podcast_inbox(args.date, local_only=args.local_only, dry_run=args.dry_run_flag)
         return
 
     STAGES[args.stage](args.date)
