@@ -152,6 +152,42 @@ _WECHAT_IMAGE_HOST_SUFFIXES = (
     "mmbiz.qpic.cn.cn",
 )
 _MPS_BEIAN_URL = "https://beian.mps.gov.cn/#/query/webSearch?code=31011502405233"
+_COMMENT_PREFIX = "划重点："
+
+
+def _format_body_html(body_text: str) -> str:
+    """Format article body with styled editorial comment if present.
+
+    Splits on '划重点：' and renders the comment in a distinct accent style.
+    """
+    if not body_text:
+        return ""
+    if _COMMENT_PREFIX in body_text:
+        parts = body_text.split(_COMMENT_PREFIX, 1)
+        main_text = parts[0].strip()
+        comment_text = parts[1].strip()
+        html = ""
+        if main_text:
+            html += (
+                f'<p style="margin:12px 0 0 0;font-size:14px;'
+                f'color:#333333;line-height:1.75;">'
+                f"{escape(main_text)}</p>"
+            )
+        if comment_text:
+            html += (
+                f'<p style="margin:8px 0 0 0;font-size:13px;'
+                f"color:#6E6E73;line-height:1.7;padding:8px 12px;"
+                f"background:#F2F2F7;border-radius:8px;"
+                f'border-left:3px solid {_ACCENT_COLOR};">'
+                f'<span style="font-weight:600;color:{_ACCENT_COLOR};">划重点</span>'
+                f"｜{escape(comment_text)}</p>"
+            )
+        return html
+    return (
+        f'<p style="margin:12px 0 0 0;font-size:14px;'
+        f'color:#333333;line-height:1.75;">'
+        f"{escape(body_text)}</p>"
+    )
 
 
 def _is_google_news_url(url: str) -> bool:
@@ -381,13 +417,7 @@ def _render_html(digest: dict) -> str:
                     else f + "。"
                     for f in facts if f
                 )
-        body_html = ""
-        if body_text:
-            body_html = (
-                f'<p style="margin:12px 0 0 0;font-size:14px;'
-                f'color:#333333;line-height:1.75;">'
-                f"{escape(body_text)}</p>"
-            )
+        body_html = _format_body_html(body_text)
 
         # Title (plain text — WeChat personal accounts strip <a> tags)
         title_size = "17px" if is_hero else "16px"
@@ -738,13 +768,7 @@ def _render_web_html(
                     else f + "。"
                     for f in facts if f
                 )
-        body_html = ""
-        if body_text:
-            body_html = (
-                f'<p style="margin:12px 0 0 0;font-size:14px;'
-                f'color:#333333;line-height:1.75;">'
-                f"{escape(body_text)}</p>"
-            )
+        body_html = _format_body_html(body_text)
 
         # Title — clickable link if citation exists
         title_size = "17px" if is_hero else "16px"
