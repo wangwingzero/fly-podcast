@@ -28,11 +28,15 @@ class OpenAICompatibleClient:
         self._is_anthropic = self._detect_anthropic()
 
     def _detect_anthropic(self) -> bool:
-        """Auto-detect Anthropic native API by key prefix or URL pattern."""
+        """Auto-detect Anthropic native API by key prefix, URL pattern, or model name."""
         if self.api_key.startswith("sk-ant-"):
             return True
         base = self.base_url.lower()
         if "/messages" in base or "anthropic" in base:
+            return True
+        # Claude models accessed via proxy (e.g. code.newcli.com/claude/aws)
+        model = self.model.lower()
+        if model.startswith("claude") or "/claude" in base:
             return True
         return False
 
@@ -45,9 +49,14 @@ class OpenAICompatibleClient:
         if self._is_anthropic:
             if base.endswith("/messages"):
                 return base
-            if base.endswith("/v1"):
-                return f"{base}/messages"
-            return f"{base}/v1/messages"
+            # Proxies like code.newcli.com/claude/aws are complete endpoints;
+            # only append /v1/messages for bare Anthropic API URLs.
+            if "anthropic.com" in base:
+                if base.endswith("/v1"):
+                    return f"{base}/messages"
+                return f"{base}/v1/messages"
+            # For other proxies, use the URL as-is (it's already the full endpoint).
+            return base
         if base.endswith("/chat/completions"):
             return base
         return f"{base}/chat/completions"
