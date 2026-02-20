@@ -804,17 +804,38 @@ def _fetch_article_text(url: str, timeout: int = 12) -> str:
     """Fetch article page and extract main text content.
 
     Used to enrich articles that only have title/short snippet from RSS.
+    Chain: requests (fast) → nodriver+Xvfb (JS rendering fallback).
     Returns extracted text (up to 3000 chars) or empty string on failure.
     """
     if not url or not url.startswith(("http://", "https://")):
         return ""
-    # Skip Google News redirect URLs (need Playwright to resolve)
+    # Skip Google News redirect URLs (need special handling)
     if "news.google.com" in url:
         return ""
+
+    def _extract_paragraphs(html: str) -> str:
+        """Extract readable text from <p> tags, skip boilerplate."""
+        html = re.sub(r"<(script|style|nav|header|footer|aside)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+        paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.DOTALL | re.IGNORECASE)
+        text_parts = []
+        for p in paragraphs:
+            clean = _strip_html(p).strip()
+            if len(clean) < 30:
+                continue
+            if any(kw in clean.lower() for kw in [
+                "cookie", "subscribe", "newsletter", "sign up", "log in",
+                "privacy policy", "terms of", "copyright", "all rights reserved",
+                "advertisement", "read more about",
+            ]):
+                continue
+            text_parts.append(clean)
+        return " ".join(text_parts)
+
+    # Step 1: Try requests (fast, works for static pages)
+    text = ""
     try:
         resp = requests.get(
-            url,
-            timeout=timeout,
+            url, timeout=timeout,
             headers={
                 "User-Agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -824,35 +845,30 @@ def _fetch_article_text(url: str, timeout: int = 12) -> str:
             },
             allow_redirects=True,
         )
-        if not resp.ok:
-            return ""
-        html = resp.text[:100000]
-        # Remove script, style, nav, header, footer tags
-        html = re.sub(r"<(script|style|nav|header|footer|aside)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
-        # Extract text from <p> tags (main article body)
-        paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.DOTALL | re.IGNORECASE)
-        text_parts = []
-        for p in paragraphs:
-            clean = _strip_html(p).strip()
-            # Skip short fragments, nav items, ads
-            if len(clean) < 30:
-                continue
-            # Skip common boilerplate
-            if any(kw in clean.lower() for kw in [
-                "cookie", "subscribe", "newsletter", "sign up", "log in",
-                "privacy policy", "terms of", "copyright", "all rights reserved",
-                "advertisement", "read more about",
-            ]):
-                continue
-            text_parts.append(clean)
-        text = " ".join(text_parts)
-        if len(text) < 100:
-            return ""
-        logger.info("Fetched article text (%d chars) from %s", len(text[:3000]), url[:60])
-        return text[:3000]
+        if resp.ok:
+            text = _extract_paragraphs(resp.text[:100000])
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Article text fetch failed %s: %s", url[:60], exc)
-        return ""
+        logger.debug("Article requests fetch failed %s: %s", url[:60], exc)
+
+    if len(text) >= 200:
+        logger.info("Fetched article text (%d chars) via requests from %s", len(text[:3000]), url[:60])
+        return text[:3000]
+
+    # Step 2: Fallback to nodriver + Xvfb for JS-rendered pages
+    try:
+        from flying_podcast.stages.ingest import _fetch_html_nodriver
+        html = _fetch_html_nodriver(url, timeout_ms=20000, use_xvfb=True)
+        if html:
+            text = _extract_paragraphs(html[:100000])
+            if len(text) >= 100:
+                logger.info("Fetched article text (%d chars) via nodriver from %s", len(text[:3000]), url[:60])
+                return text[:3000]
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Article nodriver fetch failed %s: %s", url[:60], exc)
+
+    if len(text) >= 100:
+        return text[:3000]
+    return ""
 
 
 def _enrich_thin_candidates(candidates: list[dict]) -> None:
@@ -1099,7 +1115,14 @@ def _build_composition_prompt(
         "- score_reason: 一句话说明打分理由\n"
         "- 外国航空公司名称保留英文原名（如Delta、United、Lufthansa、Emirates等）\n"
         "- 飞机型号保留英文（如Boeing 737 MAX、Airbus A350等）\n"
-        "- 正文简洁，不写空话套话，不加「总之」「综上」等总结语"
+        "- 正文简洁，不写空话套话，不加「总之」「综上」等总结语\n"
+        "- 正文最后一句必须是编辑锐评：以一个飞了二十年的老机长在crew room跟同事聊天的口吻，"
+        "一句话点出这条新闻背后的门道——对航线运行的实际影响、行业里都知道但没人说的潜规则、"
+        "或者这事儿对咱飞行员意味着什么。要说人话，要有料，要让人觉得这是个懂行的人在说话。\n"
+        "  好的锐评：「PW1100G的可靠性问题远比官方承认的严重，等明年夏天换季航班排不出来就晚了。」\n"
+        "  好的锐评：「说白了，地面少拧一颗螺丝，空中就多一次ECAM警告——安全链条的底线在地面。」\n"
+        "  好的锐评：「模拟机先拿到批准，说明777X取证已进入倒计时，各家widebody机队规划该动了。」\n"
+        "  禁止的写法：「此事值得持续关注。」「让我们拭目以待。」「后续发展有待观察。」「这一趋势值得深思。」"
         + glossary_block
         + "\n\n输出JSON：{\"title\": \"...\", \"conclusion\": \"...\", \"body\": \"...\", \"score\": 8, \"score_reason\": \"...\"}"
     )
