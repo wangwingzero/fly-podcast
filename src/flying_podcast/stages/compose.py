@@ -797,6 +797,89 @@ def _build_entries_with_rules(selected: list[dict]) -> list[DigestEntry]:
 
 _COMPOSE_RAW_TEXT_LIMIT = 2000
 _COMPOSE_MAX_WORKERS = 1
+_THIN_CONTENT_THRESHOLD = 200  # chars — below this, try to fetch full article
+
+
+def _fetch_article_text(url: str, timeout: int = 12) -> str:
+    """Fetch article page and extract main text content.
+
+    Used to enrich articles that only have title/short snippet from RSS.
+    Returns extracted text (up to 3000 chars) or empty string on failure.
+    """
+    if not url or not url.startswith(("http://", "https://")):
+        return ""
+    # Skip Google News redirect URLs (need Playwright to resolve)
+    if "news.google.com" in url:
+        return ""
+    try:
+        resp = requests.get(
+            url,
+            timeout=timeout,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+            },
+            allow_redirects=True,
+        )
+        if not resp.ok:
+            return ""
+        html = resp.text[:100000]
+        # Remove script, style, nav, header, footer tags
+        html = re.sub(r"<(script|style|nav|header|footer|aside)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+        # Extract text from <p> tags (main article body)
+        paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.DOTALL | re.IGNORECASE)
+        text_parts = []
+        for p in paragraphs:
+            clean = _strip_html(p).strip()
+            # Skip short fragments, nav items, ads
+            if len(clean) < 30:
+                continue
+            # Skip common boilerplate
+            if any(kw in clean.lower() for kw in [
+                "cookie", "subscribe", "newsletter", "sign up", "log in",
+                "privacy policy", "terms of", "copyright", "all rights reserved",
+                "advertisement", "read more about",
+            ]):
+                continue
+            text_parts.append(clean)
+        text = " ".join(text_parts)
+        if len(text) < 100:
+            return ""
+        logger.info("Fetched article text (%d chars) from %s", len(text[:3000]), url[:60])
+        return text[:3000]
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Article text fetch failed %s: %s", url[:60], exc)
+        return ""
+
+
+def _enrich_thin_candidates(candidates: list[dict]) -> None:
+    """Enrich candidates with thin raw_text by fetching full article content.
+
+    Modifies candidates in place. Only fetches for articles that have
+    very short raw_text (likely RSS title-only or brief snippet).
+    """
+    enriched = 0
+    for cand in candidates:
+        raw_text = _strip_html(cand.get("raw_text", ""))
+        title = cand.get("title", "")
+        content_len = len(raw_text.strip())
+        title_len = len(title.strip())
+        # Only fetch if content is very thin
+        if content_len >= _THIN_CONTENT_THRESHOLD and content_len >= title_len * 2:
+            continue
+        # Try canonical_url first, then url
+        url = cand.get("canonical_url") or cand.get("url") or ""
+        if not url:
+            continue
+        fetched = _fetch_article_text(url)
+        if fetched and len(fetched) > content_len * 2:
+            cand["raw_text"] = fetched
+            enriched += 1
+    if enriched:
+        logger.info("Enriched %d thin articles with fetched content", enriched)
 
 
 def _build_selection_prompt(
@@ -966,8 +1049,11 @@ def _build_composition_prompt(
     if is_summary_only:
         mode_instruction = (
             "【内容类型：摘要/标题级】这条新闻只有简短的摘要或标题，没有完整原文。\n"
-            "处理方式：将这段简短内容翻译为中文，可适当调整语序使其通顺，但不要扩写或补充任何信息。\n"
-            "正文用1-2句话即可，忠实反映原文的全部信息量，不多不少。\n"
+            "处理方式：基于已有信息写出2-3句话的中文摘要。\n"
+            "- 第一句概括核心事实\n"
+            "- 后续句子可基于标题和摘要中的线索，补充相关背景（如涉及的机型特点、事件类型的行业意义等）\n"
+            "- 不得编造具体数据、日期、人名等不存在于原文中的细节\n"
+            "- 不要写「原文未提供更多细节」之类的元评论\n"
         )
     else:
         mode_instruction = (
@@ -1513,6 +1599,11 @@ def run(target_date: str | None = None) -> Path:
                 llm_client, ai_candidates_pool or selected, llm_total, recent_published,
             )
             compose_meta_extra["phase1_ids"] = selected_ids
+
+            # Enrich thin articles (selected only) before Phase 2 compose
+            by_id = {c["id"]: c for c in (ai_candidates_pool or selected)}
+            selected_cands = [by_id[rid] for rid in selected_ids if rid in by_id]
+            _enrich_thin_candidates(selected_cands)
 
             # Phase 2: Composition (N parallel isolated LLM calls)
             entries = _llm_compose_entries(
