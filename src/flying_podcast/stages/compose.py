@@ -1031,6 +1031,59 @@ def _build_composition_prompt(
 _MIN_PUBLISH_SCORE = 4
 
 
+_TRANSLATE_BODY_PROMPT = (
+    "你是航空新闻编辑。将下面的英文航空新闻翻译为简洁的中文。\n"
+    "要求：\n"
+    "1. 航空专业术语使用ICAO/民航标准中文译法\n"
+    "2. 外国航空公司名称保留英文原名（如Delta、United、Lufthansa等）\n"
+    "3. 飞机型号保留英文（如Boeing 737、Airbus A320等）\n"
+    "4. 用2-3句话概括核心内容，记者叙述体\n"
+    "5. 不要评论原文质量，不要写空话套话\n"
+    "只输出中文翻译结果，不要任何其他内容。\n\n"
+    "标题：{title}\n内容：{text}"
+)
+
+
+def _llm_translate_fallback(
+    client: "OpenAICompatibleClient",
+    candidate: dict,
+) -> dict[str, str] | None:
+    """Simplified LLM call to translate an article when Phase 2 compose fails.
+
+    Returns {title, conclusion, body, score, score_reason} or None.
+    """
+    try:
+        raw_title = candidate.get("title", "")
+        raw_text = _strip_html(candidate.get("raw_text", ""))[:1500]
+        if not raw_text or len(raw_text) < 20:
+            return None
+
+        prompt = _TRANSLATE_BODY_PROMPT.format(title=raw_title, text=raw_text)
+        response = client.complete_json(
+            system_prompt="你是航空新闻翻译。输出JSON：{\"title\": \"中文标题\", \"body\": \"中文正文\"}",
+            user_prompt=prompt,
+            max_tokens=800,
+            temperature=0.1,
+            retries=2,
+            timeout=45,
+        )
+        result = response.payload
+        title = str(result.get("title", "")).strip()
+        body = str(result.get("body", "")).strip()
+        if not title or not body:
+            return None
+        if not _has_chinese(body):
+            return None
+        logger.info("Phase 2 translate fallback ok for %s: %s", candidate.get("id", "")[:12], title[:30])
+        return {
+            "title": title, "conclusion": title[:80], "body": body,
+            "score": 3, "score_reason": "LLM compose failed, translated via fallback",
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Phase 2 translate fallback failed for %s: %s", candidate.get("id", "")[:12], exc)
+        return None
+
+
 def _llm_compose_single(
     client: "OpenAICompatibleClient",
     candidate: dict,
@@ -1082,7 +1135,7 @@ def _llm_compose_entries(
 ) -> list[DigestEntry]:
     """Phase 2: Compose all selected articles in parallel, isolated LLM calls.
 
-    Falls back to rules-based for individual failures.
+    Falls back to LLM translate (simplified) → rules-based for individual failures.
     """
     by_id = {c["id"]: c for c in candidates_pool}
     candidates_ordered = [by_id[rid] for rid in selected_ids if rid in by_id]
@@ -1105,6 +1158,7 @@ def _llm_compose_entries(
     filtered_entries: list[tuple[int, DigestEntry]] = []  # (score, entry) for backfill
     n_llm_ok = 0
     n_fallback = 0
+    n_translate_fallback = 0
     n_filtered = 0
     for cand in candidates_ordered:
         llm_result = results.get(cand["id"])
@@ -1130,9 +1184,23 @@ def _llm_compose_entries(
                 continue
             n_llm_ok += 1
         else:
-            fallback = _build_entries_with_rules([cand])
-            entry = fallback[0] if fallback else None
-            n_fallback += 1
+            # Phase 2 compose failed — try simplified LLM translation first
+            translate_result = _llm_translate_fallback(client, cand)
+            if translate_result is not None:
+                entry = _to_digest_entry(
+                    cand,
+                    translate_result["title"],
+                    translate_result["conclusion"],
+                    [],
+                    "",
+                    body=translate_result["body"],
+                )
+                n_translate_fallback += 1
+                logger.info("Phase 2 using translate fallback for %s", cand.get("id", "")[:12])
+            else:
+                fallback = _build_entries_with_rules([cand])
+                entry = fallback[0] if fallback else None
+                n_fallback += 1
         if entry and entry.citations:
             entries.append(entry)
 
@@ -1149,8 +1217,8 @@ def _llm_compose_entries(
             logger.info("Phase 2 backfill (score %d): %s", score, entry.title[:40])
 
     logger.info(
-        "Phase 2 compose: %d LLM ok, %d filtered (score<%d), %d rules-fallback",
-        n_llm_ok, n_filtered, _MIN_PUBLISH_SCORE, n_fallback,
+        "Phase 2 compose: %d LLM ok, %d filtered (score<%d), %d translate-fallback, %d rules-fallback",
+        n_llm_ok, n_filtered, _MIN_PUBLISH_SCORE, n_translate_fallback, n_fallback,
     )
     return entries
 
@@ -1158,6 +1226,48 @@ def _llm_compose_entries(
 def _has_chinese(text: str) -> bool:
     """Check if text contains at least one CJK character."""
     return bool(re.search(r"[\u4e00-\u9fff]", text))
+
+
+def _post_compose_review(
+    entries: list[DigestEntry],
+    client: "OpenAICompatibleClient | None",
+    candidates_pool: list[dict],
+) -> list[DigestEntry]:
+    """Final quality review: ensure all entries have Chinese content.
+
+    Catches untranslated entries that slipped through rules-fallback
+    and retries translation via LLM.
+    """
+    if not client:
+        return entries
+    by_id = {c["id"]: c for c in candidates_pool}
+    reviewed = []
+    n_fixed = 0
+    for entry in entries:
+        # Check if body has Chinese content
+        if entry.body and _has_chinese(entry.body):
+            reviewed.append(entry)
+            continue
+        # Body is missing or English — try to translate
+        cand = by_id.get(entry.id)
+        if not cand:
+            reviewed.append(entry)
+            continue
+        logger.warning(
+            "Post-compose review: entry %s has non-Chinese body, retrying translation",
+            entry.id[:12],
+        )
+        translate_result = _llm_translate_fallback(client, cand)
+        if translate_result and _has_chinese(translate_result.get("body", "")):
+            entry.title = translate_result["title"]
+            entry.conclusion = translate_result["conclusion"]
+            entry.body = translate_result["body"]
+            n_fixed += 1
+            logger.info("Post-compose review: fixed entry %s", entry.id[:12])
+        reviewed.append(entry)
+    if n_fixed:
+        logger.info("Post-compose review: fixed %d untranslated entries", n_fixed)
+    return reviewed
 
 
 def _enforce_constraints(
@@ -1387,11 +1497,12 @@ def run(target_date: str | None = None) -> Path:
     compose_mode = "rules"
     compose_reason = "llm_not_configured"
     compose_meta_extra: dict[str, Any] = {}
+    llm_client = None
     if OpenAICompatibleClient.is_configured():
         # Request extra entries from LLM as buffer for enforce_constraints
         llm_total = settings.target_article_count * 2
         glossary = _load_aviation_glossary()
-        client = OpenAICompatibleClient(
+        llm_client = OpenAICompatibleClient(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             model=settings.llm_model,
@@ -1399,13 +1510,13 @@ def run(target_date: str | None = None) -> Path:
         try:
             # Phase 1: Selection (1 LLM call — lightweight)
             selected_ids = _llm_select_articles(
-                client, ai_candidates_pool or selected, llm_total, recent_published,
+                llm_client, ai_candidates_pool or selected, llm_total, recent_published,
             )
             compose_meta_extra["phase1_ids"] = selected_ids
 
             # Phase 2: Composition (N parallel isolated LLM calls)
             entries = _llm_compose_entries(
-                client, selected_ids, ai_candidates_pool or selected, glossary,
+                llm_client, selected_ids, ai_candidates_pool or selected, glossary,
             )
             compose_mode = "llm_two_phase"
             compose_reason = "ok"
@@ -1419,6 +1530,9 @@ def run(target_date: str | None = None) -> Path:
 
     entries = _enforce_constraints(entries, pool_entries, settings.target_article_count, settings.domestic_ratio)
     entries = _replace_recent_duplicates(entries, pool_entries, recent_index)
+
+    # Final LLM review: ensure all entries have Chinese body content
+    entries = _post_compose_review(entries, llm_client, ai_candidates_pool or candidates)
 
     # Enrich missing images: resolve Google redirects + fetch og:image
     _resolve_google_urls_and_fetch_images(entries, ai_candidates_pool or candidates)

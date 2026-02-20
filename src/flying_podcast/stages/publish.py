@@ -575,6 +575,16 @@ _TRANSLATE_PROMPT = (
     "英文标题：{title}"
 )
 
+_TRANSLATE_BODY_PROMPT = (
+    "将以下英文航空新闻正文翻译成简洁的中文。"
+    "要求：航空专业术语使用ICAO/民航标准中文译法，"
+    "外国航空公司名称保留英文原名（如Delta、United等），"
+    "飞机型号保留英文（如Boeing 737、Airbus A320等）。"
+    "用2-3句叙述体中文概括核心内容，适合朗读收听。"
+    "只输出翻译结果，不要任何其他内容。\n\n"
+    "正文：{body}"
+)
+
 
 def _translate_title(title: str) -> str:
     """Translate an English title to Chinese via LLM."""
@@ -598,6 +608,33 @@ def _translate_title(title: str) -> str:
     if text:
         logger.warning("Translation too long (%d chars): %s", len(text), text[:80])
     return title
+
+
+def _translate_body(body: str) -> str:
+    """Translate an English body to Chinese via LLM. Last-resort safety net."""
+    if not body or not body.strip():
+        return body
+    # Skip if already mostly Chinese
+    cn_chars = sum(1 for c in body if '\u4e00' <= c <= '\u9fff')
+    if cn_chars > len(body) * 0.15:
+        return body
+
+    text = _llm_chat(
+        messages=[{"role": "user", "content": _TRANSLATE_BODY_PROMPT.format(body=body)}],
+        max_tokens=400,
+        temperature=0.3,
+        retries=2,
+        timeout=30,
+    )
+    if text:
+        text = text.strip("\"'""''")
+    cn_result = sum(1 for c in (text or "") if '\u4e00' <= c <= '\u9fff')
+    if text and cn_result > 5 and len(text) <= 500:
+        logger.info("Body translated: %s -> %s", body[:30], text[:30])
+        return text
+    if text:
+        logger.warning("Body translation failed quality check, keeping original")
+    return body
 
 
 def _enhance_web_entries(digest: dict) -> dict:
@@ -1229,7 +1266,7 @@ def run(target_date: str | None = None) -> Path:
     copyright_notice_url = _load_saved_copyright_notice_url() or _copyright_web_fallback_url()
     digest["copyright_notice_url"] = copyright_notice_url
 
-    # Translate any remaining English titles before rendering
+    # Translate any remaining English titles and bodies before rendering
     for entry in digest.get("entries", []):
         title = entry.get("title", "")
         if title:
@@ -1237,6 +1274,12 @@ def run(target_date: str | None = None) -> Path:
             if translated != title:
                 entry["title"] = translated
                 entry["original_title"] = title
+        # Safety net: translate English bodies that slipped through compose
+        body = entry.get("body", "")
+        if body:
+            translated_body = _translate_body(body)
+            if translated_body != body:
+                entry["body"] = translated_body
 
     md = _render_markdown(digest)
     html = _render_html(digest)
