@@ -1098,22 +1098,14 @@ def _llm_compose_entries(
                 results[cand_id] = None
 
     entries: list[DigestEntry] = []
+    filtered_entries: list[tuple[int, DigestEntry]] = []  # (score, entry) for backfill
     n_llm_ok = 0
     n_fallback = 0
     n_filtered = 0
     for cand in candidates_ordered:
         llm_result = results.get(cand["id"])
         if llm_result is not None:
-            # Filter by LLM score
             score = llm_result.get("score", 0)
-            if score < _MIN_PUBLISH_SCORE:
-                logger.info(
-                    "Phase 2 filtered (score %d < %d): %s — %s",
-                    score, _MIN_PUBLISH_SCORE, cand.get("id", "")[:12],
-                    llm_result.get("score_reason", ""),
-                )
-                n_filtered += 1
-                continue
             entry = _to_digest_entry(
                 cand,
                 llm_result["title"],
@@ -1122,6 +1114,16 @@ def _llm_compose_entries(
                 "",
                 body=llm_result["body"],
             )
+            if score < _MIN_PUBLISH_SCORE:
+                logger.info(
+                    "Phase 2 filtered (score %d < %d): %s — %s",
+                    score, _MIN_PUBLISH_SCORE, cand.get("id", "")[:12],
+                    llm_result.get("score_reason", ""),
+                )
+                n_filtered += 1
+                if entry and entry.citations:
+                    filtered_entries.append((score, entry))
+                continue
             n_llm_ok += 1
         else:
             fallback = _build_entries_with_rules([cand])
@@ -1129,6 +1131,18 @@ def _llm_compose_entries(
             n_fallback += 1
         if entry and entry.citations:
             entries.append(entry)
+
+    # Backfill from filtered articles if we don't have enough
+    target = settings.target_article_count
+    if len(entries) < target and filtered_entries:
+        filtered_entries.sort(key=lambda x: x[0], reverse=True)
+        for score, entry in filtered_entries:
+            if len(entries) >= target:
+                break
+            entries.append(entry)
+            n_llm_ok += 1
+            n_filtered -= 1
+            logger.info("Phase 2 backfill (score %d): %s", score, entry.title[:40])
 
     logger.info(
         "Phase 2 compose: %d LLM ok, %d filtered (score<%d), %d rules-fallback",
@@ -1371,7 +1385,7 @@ def run(target_date: str | None = None) -> Path:
     compose_meta_extra: dict[str, Any] = {}
     if OpenAICompatibleClient.is_configured():
         # Request extra entries from LLM as buffer for enforce_constraints
-        llm_total = settings.target_article_count + 4
+        llm_total = settings.target_article_count * 2
         glossary = _load_aviation_glossary()
         client = OpenAICompatibleClient(
             api_key=settings.llm_api_key,
