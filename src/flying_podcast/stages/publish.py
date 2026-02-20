@@ -981,7 +981,7 @@ def _generate_digest_summary(digest: dict) -> str:
 
 
 _COVER_PROMPT_TEMPLATE = (
-    "你是航空新闻视觉编辑。根据以下新闻摘要，写一段英文 Grok AI 画图提示词，"
+    "你是航空新闻视觉编辑。根据以下新闻摘要，写一段英文画图AI提示词，"
     "用于生成今天航空日报的封面图。要求：\n"
     "1. 宽屏构图(16:9)，高端大气的航空主题\n"
     "2. 摄影级画质，电影感光影，专业航空杂志风格\n"
@@ -992,7 +992,7 @@ _COVER_PROMPT_TEMPLATE = (
 
 
 def _generate_cover_image_bytes(digest: dict) -> bytes | None:
-    """Generate a cover image via LLM prompt + Grok.
+    """Generate a cover image via LLM prompt + AI (Gemini primary, Grok backup).
 
     Returns image bytes, or None on failure.
     """
@@ -1021,25 +1021,10 @@ def _generate_cover_image_bytes(digest: dict) -> bytes | None:
         return None
     logger.info("Cover prompt: %s", prompt[:120])
 
-    # Step 2: Call Grok to generate image (16:9 widescreen)
-    from flying_podcast.core.image_gen import _call_grok_api
+    # Step 2: Call AI to generate image (16:9 widescreen)
+    from flying_podcast.core.image_gen import generate_cover_image
 
-    image_data = _call_grok_api(
-        settings.image_gen_base_url,
-        settings.image_gen_api_key,
-        settings.image_gen_model,
-        prompt,
-        size="1792x1024",
-    )
-    if not image_data and settings.image_gen_backup_api_key:
-        logger.info("Cover: primary Grok failed, trying backup")
-        image_data = _call_grok_api(
-            settings.image_gen_backup_base_url,
-            settings.image_gen_backup_api_key,
-            settings.image_gen_backup_model,
-            prompt,
-            size="1792x1024",
-        )
+    image_data = generate_cover_image(prompt, size="1792x1024")
     if not image_data:
         logger.warning("Cover image generation failed")
     return image_data

@@ -1,6 +1,6 @@
 """Image sourcing for article illustrations.
 
-Priority: Unsplash -> Pixabay -> Grok AI generation.
+Priority: Unsplash -> Pixabay -> Gemini AI (primary) -> Grok AI (backup).
 """
 from __future__ import annotations
 
@@ -40,6 +40,12 @@ _AVIATION_KEYWORDS: dict[str, str] = {
     "机型": "aircraft",
     "罚款": "aviation regulation",
     "出售": "commercial aircraft",
+    "返航": "divert emergency",
+    "颠簸": "turbulence",
+    "模拟机": "flight simulator",
+    "订单": "aircraft order delivery",
+    "交付": "aircraft delivery",
+    "停飞": "grounded aircraft",
 }
 
 # Airline name mapping - searched FIRST, highest priority
@@ -87,35 +93,45 @@ _AIRLINE_NAMES: dict[str, str] = {
 
 
 def _extract_search_query(title: str) -> str:
-    """Extract English search keywords from a Chinese article title.
+    """Extract English search keywords from an article title.
 
-    If a specific airline is mentioned, use ONLY the airline name to avoid
-    noisy results.  Otherwise fall back to aircraft model + aviation terms.
+    Combines airline name (if found) with aircraft models and aviation terms
+    for more targeted stock photo results.
     """
-    # 1. Match airline names first (longest match wins) — return immediately
+    terms: list[str] = []
+
+    # 1. Match airline names (longest match wins)
     for cn, en in sorted(_AIRLINE_NAMES.items(), key=lambda x: len(x[0]), reverse=True):
         if cn in title:
-            return en
+            terms.append(en)
+            break
 
-    terms: list[str] = []
+    # Also match English airline names directly in title
+    for en_name in ["JetBlue", "Delta", "United", "Southwest", "American Airlines",
+                     "Ryanair", "easyJet", "Emirates", "Qatar", "Lufthansa",
+                     "Air France", "British Airways", "Boeing", "Airbus",
+                     "Porter", "Spirit", "Frontier", "Alaska Airlines",
+                     "TAP", "Wizz Air", "Volaris", "Avianca"]:
+        if en_name in title and en_name not in " ".join(terms):
+            terms.append(en_name)
+            break
 
     # 2. Extract aircraft models
     models = re.findall(r"(?:A\d{3}|[Bb]-?\d{3,4}|737|747|777|787|320|321|330|350|380)", title)
     for m in models[:1]:
         terms.append(m)
 
-    # 3. Fill with aviation terms if needed
-    if len(terms) < 2:
-        for cn, en in _AVIATION_KEYWORDS.items():
-            if cn in title:
-                terms.append(en)
-                if len(terms) >= 3:
-                    break
+    # 3. Fill with aviation terms for context
+    for cn, en in _AVIATION_KEYWORDS.items():
+        if cn in title:
+            terms.append(en.split()[0])  # take first word only
+            if len(terms) >= 3:
+                break
 
     if not terms:
         terms = ["aviation", "airplane"]
 
-    return " ".join(terms)
+    return " ".join(terms[:4])
 
 
 # ── Unsplash ──────────────────────────────────────────────
@@ -206,9 +222,54 @@ def _search_pixabay(query: str) -> bytes | None:
         return None
 
 
-# ── Grok AI ───────────────────────────────────────────────
+# ── Gemini AI (primary image generator) ──────────────────
 
-_PROMPT_TEMPLATE = (
+
+def _call_gemini_api(base_url: str, api_key: str, model: str, prompt: str,
+                     size: str = "1024x1024") -> bytes | None:
+    """Call Gemini image generation via chat completions endpoint.
+
+    Gemini returns images in message.images[].image_url.url as base64 data URIs.
+    """
+    try:
+        resp = requests.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": f"Generate an image: {prompt}"}],
+                "max_tokens": 4096,
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        msg = data.get("choices", [{}])[0].get("message", {})
+
+        # Extract from images array (Gemini format)
+        images = msg.get("images", [])
+        if images:
+            url = images[0].get("image_url", {}).get("url", "")
+            if url.startswith("data:image"):
+                b64_data = url.split(",", 1)[1]
+                return base64.b64decode(b64_data)
+
+        # Fallback: check if content itself is base64
+        content = msg.get("content", "") or ""
+        if content.startswith("data:image"):
+            b64_data = content.split(",", 1)[1]
+            return base64.b64decode(b64_data)
+
+        return None
+    except Exception as exc:
+        logger.warning("Gemini API failed (%s): %s", base_url[:40], exc)
+        return None
+
+
+# ── Grok AI (backup image generator) ─────────────────────
+
+
+_STATIC_PROMPT_TEMPLATE = (
     "Create a photorealistic, editorial-quality news illustration for this aviation article. "
     "Title: {title}. Context: {context}. "
     "Style: wide-angle cinematic shot, professional photography, no text or watermarks, "
@@ -217,8 +278,9 @@ _PROMPT_TEMPLATE = (
 
 
 def _build_prompt(title: str, body: str) -> str:
+    """Build a static fallback prompt (used when LLM prompt design fails)."""
     context = body[:150].rstrip() if body else title
-    return _PROMPT_TEMPLATE.format(title=title, context=context)
+    return _STATIC_PROMPT_TEMPLATE.format(title=title, context=context)
 
 
 def _call_grok_api(base_url: str, api_key: str, model: str, prompt: str,
@@ -249,30 +311,96 @@ def _call_grok_api(base_url: str, api_key: str, model: str, prompt: str,
         return None
 
 
-def _generate_with_grok(title: str, body: str) -> bytes | None:
+# ── LLM-designed image prompts ────────────────────────────
+
+
+_LLM_IMAGE_PROMPT_TEMPLATE = (
+    "你是航空新闻视觉编辑。根据以下航空新闻，写一段英文画图AI提示词，用于生成文章配图。\n"
+    "要求：\n"
+    "1. 摄影级画质，电影感光影，专业航空杂志风格\n"
+    "2. 不要文字、水印、UI元素\n"
+    "3. 根据新闻内容选择最合适的具体场景\n"
+    "只输出英文提示词，不要任何其他内容。\n\n"
+    "标题：{title}\n内容：{body}"
+)
+
+
+def _build_llm_image_prompt(title: str, body: str) -> str:
+    """Use the main LLM to design a tailored image generation prompt.
+
+    Falls back to the static template if LLM is not configured or fails.
+    """
+    if not settings.llm_api_key:
+        return _build_prompt(title, body)
+
+    from .llm_client import OpenAICompatibleClient
+
+    try:
+        client = OpenAICompatibleClient(
+            api_key=settings.llm_api_key,
+            base_url=settings.llm_base_url,
+            model=settings.llm_model,
+        )
+        user_content = _LLM_IMAGE_PROMPT_TEMPLATE.format(
+            title=title, body=body[:200],
+        )
+        result = client.complete_json(
+            system_prompt="You are a visual editor. Output only the English prompt text.",
+            user_prompt=user_content,
+            max_tokens=300,
+            temperature=0.7,
+            retries=1,
+            timeout=30,
+        )
+        # complete_json returns a JSONResponse; extract raw text
+        text = result.raw_text.strip() if result and result.raw_text else ""
+        if text and len(text) > 20:
+            logger.info("LLM image prompt: %s", text[:80])
+            return text
+    except Exception as exc:
+        logger.debug("LLM image prompt failed: %s", exc)
+
+    return _build_prompt(title, body)
+
+
+# ── AI image generation (Gemini primary, Grok backup) ────
+
+
+def _generate_with_ai(title: str, body: str) -> bytes | None:
+    """Generate an article image using AI.
+
+    Chain: Gemini (primary) -> Grok (backup).
+    Uses LLM-designed prompt when available, static fallback otherwise.
+    """
     if not settings.image_gen_api_key:
         return None
 
-    prompt = _build_prompt(title, body)
-    logger.info("Grok: generating image for '%s'", title[:40])
+    prompt = _build_llm_image_prompt(title, body)
+    logger.info("AI image: generating for '%s'", title[:40])
 
-    result = _call_grok_api(
+    # Primary: Gemini (chat completions format)
+    result = _call_gemini_api(
         settings.image_gen_base_url,
         settings.image_gen_api_key,
         settings.image_gen_model,
         prompt,
     )
     if result:
+        logger.info("Gemini: image generated for '%s'", title[:40])
         return result
 
+    # Backup: Grok (images/generations format)
     if settings.image_gen_backup_api_key:
-        logger.info("Grok primary failed, trying backup")
-        return _call_grok_api(
+        logger.info("Gemini failed, trying Grok backup")
+        result = _call_grok_api(
             settings.image_gen_backup_base_url,
             settings.image_gen_backup_api_key,
             settings.image_gen_backup_model,
             prompt,
         )
+        if result:
+            return result
+
     return None
 
 
@@ -282,7 +410,7 @@ def _generate_with_grok(title: str, body: str) -> bytes | None:
 def generate_article_image(title: str, body: str = "") -> bytes | None:
     """Find or generate an illustration for an article.
 
-    Chain: Unsplash -> Pixabay -> Grok AI.
+    Chain: Unsplash -> Pixabay -> Gemini AI (primary) -> Grok AI (backup).
     Returns image bytes or None.
     """
     query = _extract_search_query(title)
@@ -298,8 +426,44 @@ def generate_article_image(title: str, body: str = "") -> bytes | None:
     if data:
         return data
 
-    # 3. Grok AI generation (fallback)
-    return _generate_with_grok(title, body)
+    # 3. AI generation (Gemini primary, Grok backup)
+    return _generate_with_ai(title, body)
+
+
+def generate_cover_image(prompt: str, size: str = "1792x1024") -> bytes | None:
+    """Generate a cover image from a pre-built prompt.
+
+    Chain: Gemini (primary) -> Grok (backup).
+    Called from publish.py with an LLM-designed prompt.
+    """
+    if not settings.image_gen_api_key:
+        return None
+
+    # Primary: Gemini
+    result = _call_gemini_api(
+        settings.image_gen_base_url,
+        settings.image_gen_api_key,
+        settings.image_gen_model,
+        prompt,
+        size=size,
+    )
+    if result:
+        return result
+
+    # Backup: Grok
+    if settings.image_gen_backup_api_key:
+        logger.info("Cover: Gemini failed, trying Grok backup")
+        result = _call_grok_api(
+            settings.image_gen_backup_base_url,
+            settings.image_gen_backup_api_key,
+            settings.image_gen_backup_model,
+            prompt,
+            size=size,
+        )
+        if result:
+            return result
+
+    return None
 
 
 def search_public_image_url(title: str) -> str:
