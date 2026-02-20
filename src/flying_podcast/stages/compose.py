@@ -909,7 +909,7 @@ def _llm_select_articles(
         max_tokens=settings.llm_max_tokens,
         temperature=settings.llm_temperature,
         retries=3,
-        timeout=120,
+        timeout=180,
     )
     # Parse entries format: {"entries": [{"ref_id": "..."}, ...]}
     raw_entries = response.payload.get("entries")
