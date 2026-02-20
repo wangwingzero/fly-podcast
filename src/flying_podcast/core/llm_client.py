@@ -49,14 +49,9 @@ class OpenAICompatibleClient:
         if self._is_anthropic:
             if base.endswith("/messages"):
                 return base
-            # Proxies like code.newcli.com/claude/aws are complete endpoints;
-            # only append /v1/messages for bare Anthropic API URLs.
-            if "anthropic.com" in base:
-                if base.endswith("/v1"):
-                    return f"{base}/messages"
-                return f"{base}/v1/messages"
-            # For other proxies, use the URL as-is (it's already the full endpoint).
-            return base
+            if base.endswith("/v1"):
+                return f"{base}/messages"
+            return f"{base}/v1/messages"
         if base.endswith("/chat/completions"):
             return base
         return f"{base}/chat/completions"
