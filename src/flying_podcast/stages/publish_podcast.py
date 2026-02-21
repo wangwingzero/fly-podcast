@@ -16,25 +16,31 @@ from flying_podcast.core.wechat import WeChatClient
 logger = get_logger("publish_podcast")
 
 
-def _build_article_html(title: str, dialogue_html: str) -> str:
-    """Build complete article HTML for WeChat with intro + dialogue.
+def _build_article_html(title: str, dialogue_html: str,
+                        mp3_url: str = "") -> str:
+    """Build complete article HTML for WeChat with dialogue only.
 
-    Audio is added manually in the WeChat editor above the intro section.
+    Audio is added manually in the WeChat editor above the dialogue.
+    An MP3 download link is placed at the top for convenience.
 
     Args:
         title: Podcast episode title
         dialogue_html: Pre-rendered scrollable dialogue HTML fragment
+        mp3_url: CDN URL for the MP3 file (shown as download link at top)
     """
-    intro = (
-        '<section style="margin:15px auto;max-width:420px;padding:0 8px;">'
-        '<section style="font-size:14px;color:#666;line-height:1.8;'
-        'margin-bottom:12px;">'
-        '虎机长和千羽带你用最轻松的方式，读懂民航局最新通告。'
-        '</section>'
-        '</section>'
-    )
+    parts: list[str] = []
 
-    return intro + dialogue_html
+    if mp3_url:
+        parts.append(
+            '<section style="text-align:center;margin:10px auto 15px;'
+            'max-width:420px;padding:8px 16px;">'
+            f'<a href="{mp3_url}" style="color:#1e6fff;font-size:13px;'
+            'text-decoration:none;">下载音频：' + title + '</a>'
+            '</section>'
+        )
+
+    parts.append(dialogue_html)
+    return "".join(parts)
 
 
 def run(target_date: str | None = None, *,
@@ -74,6 +80,7 @@ def run(target_date: str | None = None, *,
         logger.info("Publishing: %s", ep_dir.name)
 
         # Load content
+        meta_path = ep_dir / "metadata.json"
         script_path = ep_dir / "script.json"
         html_path = ep_dir / "dialogue.html"
         cover_path = ep_dir / "cover.jpg"
@@ -84,6 +91,10 @@ def run(target_date: str | None = None, *,
 
         script = load_json(script_path)
         title = script.get("title", ep_dir.name)
+
+        # Load metadata for MP3 CDN URL
+        meta = load_json(meta_path) if meta_path.exists() else {}
+        mp3_url = meta.get("mp3_cdn_url", "")
 
         # Read dialogue HTML
         if html_path.exists():
@@ -103,7 +114,7 @@ def run(target_date: str | None = None, *,
                 logger.warning("Cover upload failed, using default thumb")
 
         # Build article HTML
-        article_html = _build_article_html(title, dialogue_html)
+        article_html = _build_article_html(title, dialogue_html, mp3_url=mp3_url)
 
         # Create digest summary
         lines = script.get("dialogue", [])
