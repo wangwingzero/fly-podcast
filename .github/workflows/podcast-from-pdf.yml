@@ -15,6 +15,7 @@ env:
   LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
   LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
   DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+  QWEN_TTS_URL: ${{ vars.QWEN_TTS_URL || 'http://localhost:8825' }}
   UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
   UNSPLASH_ACCESS_KEY_2: ${{ secrets.UNSPLASH_ACCESS_KEY_2 }}
   PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
