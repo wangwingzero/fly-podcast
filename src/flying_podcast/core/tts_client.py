@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import base64
+import json
 import subprocess
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +46,15 @@ VOICE_MAP = {
     "男": {"voice": VOICE_MALE, "instructions": INSTRUCTIONS_MALE},
 }
 
-# qwen-tts2api voice mapping (same voices as DashScope!)
+# Qwen direct API voice mapping (Cherry/Ethan original voices)
+QWEN_DIRECT_VOICE_MAP = {
+    "女": "Cherry / 芊悦",
+    "男": "Ethan / 晨煦",
+    "千羽": "Cherry / 芊悦",
+    "虎机长": "Ethan / 晨煦",
+}
+
+# qwen-tts2api voice mapping (same voices, self-hosted proxy)
 QWEN_FREE_VOICE_MAP = {
     "女": "cherry",
     "男": "ethan",
@@ -59,14 +68,6 @@ EDGE_VOICE_MAP = {
     "男": "zh-CN-YunjianNeural",
     "千羽": "zh-CN-XiaoxiaoNeural",
     "虎机长": "zh-CN-YunjianNeural",
-}
-
-# 火山 TTS voice mapping
-VOLCENGINE_VOICE_MAP = {
-    "女": "zh_female_zhubo",
-    "男": "zh_male_zhubo",
-    "千羽": "zh_female_zhubo",
-    "虎机长": "zh_male_zhubo",
 }
 
 # ── TTS client ─────────────────────────────────────────────────
@@ -89,27 +90,116 @@ def _wav_to_mp3(wav_bytes: bytes) -> bytes:
     return result.stdout
 
 
-# ── Tier 1: qwen-tts2api (free, self-hosted) ─────────────────
+# ── Tier 1: Qwen direct API (free, Cherry/Ethan original) ────
 
-def _synthesize_via_qwen_free(text: str, role: str) -> bytes:
-    """Synthesize via qwen-tts2api (Qwen Gradio demo proxy). Returns MP3 bytes."""
-    if not settings.qwen_tts_url:
-        raise TTSError("QWEN_TTS_URL is not set, skipping")
-    url = settings.qwen_tts_url.rstrip("/") + "/v1/audio/speech"
-    voice = QWEN_FREE_VOICE_MAP.get(role, "cherry")
+_QWEN_GRADIO_BASE = "https://qwen-qwen3-tts-demo.ms.show/gradio_api"
+_QWEN_GRADIO_HEADERS = {
+    "accept": "*/*",
+    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "content-type": "application/json",
+    "sec-ch-ua": '"Chromium";v="144", "Google Chrome";v="144"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Linux"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-studio-token": "",
+    "Referer": "https://qwen-qwen3-tts-demo.ms.show/",
+}
 
-    payload = {
-        "input": text[:MAX_CHARS_PER_REQUEST],
-        "voice": voice,
-    }
 
-    resp = requests.post(url, json=payload, timeout=180)
+def _synthesize_via_qwen_direct(text: str, role: str) -> bytes:
+    """Synthesize via Qwen Gradio API directly (no Gradio Client). Returns MP3."""
+    voice = QWEN_DIRECT_VOICE_MAP.get(role, "Cherry / 芊悦")
+    session_hash = uuid.uuid4().hex[:12]
+
+    # Step 1: Initialize predict
+    resp = requests.post(
+        f"{_QWEN_GRADIO_BASE}/run/predict",
+        headers=_QWEN_GRADIO_HEADERS,
+        json={
+            "data": [0],
+            "event_data": None,
+            "fn_index": 0,
+            "trigger_id": 11,
+            "dataType": ["dataset"],
+            "session_hash": session_hash,
+        },
+        timeout=30,
+    )
     resp.raise_for_status()
 
-    if len(resp.content) < 100:
-        raise TTSError(f"qwen-tts2api returned too little data ({len(resp.content)} bytes)")
+    # Step 2: Join queue
+    resp = requests.post(
+        f"{_QWEN_GRADIO_BASE}/queue/join",
+        headers=_QWEN_GRADIO_HEADERS,
+        json={
+            "data": [text[:MAX_CHARS_PER_REQUEST], voice, "Chinese / 中文"],
+            "event_data": None,
+            "fn_index": 1,
+            "trigger_id": 7,
+            "dataType": ["textbox", "dropdown", "dropdown"],
+            "session_hash": session_hash,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
 
-    return _wav_to_mp3(resp.content)
+    # Step 3: Stream queue data (SSE) and wait for audio URL
+    sse_headers = {**_QWEN_GRADIO_HEADERS, "accept": "text/event-stream"}
+    resp = requests.get(
+        f"{_QWEN_GRADIO_BASE}/queue/data",
+        headers=sse_headers,
+        params={"session_hash": session_hash, "studio_token": ""},
+        stream=True,
+        timeout=180,
+    )
+    resp.raise_for_status()
+
+    audio_url = None
+    for line in resp.iter_lines():
+        if not line:
+            continue
+        line_str = line.decode("utf-8")
+        if not line_str.startswith("data: "):
+            continue
+        try:
+            event = json.loads(line_str[6:])
+        except json.JSONDecodeError:
+            continue
+
+        msg = event.get("msg")
+        if msg == "estimation":
+            rank = event.get("rank", 0)
+            eta = event.get("rank_eta", 0)
+            logger.debug("[Qwen] queue position %d, eta %.0fs", rank + 1, eta)
+        elif msg == "process_starts":
+            logger.debug("[Qwen] processing started")
+        elif msg == "process_completed":
+            output = event.get("output", {})
+            data = output.get("data", [])
+            if data:
+                audio_url = data[0].get("url")
+            break
+        elif msg == "close_stream":
+            break
+
+    if not audio_url:
+        raise TTSError("Qwen direct API returned no audio URL")
+
+    # Step 4: Download audio (WAV) and convert to MP3
+    audio_resp = requests.get(
+        audio_url,
+        headers={k: v for k, v in _QWEN_GRADIO_HEADERS.items()
+                 if k != "content-type"},
+        timeout=60,
+    )
+    audio_resp.raise_for_status()
+
+    if len(audio_resp.content) < 100:
+        raise TTSError(f"Qwen returned too little audio ({len(audio_resp.content)} bytes)")
+
+    return _wav_to_mp3(audio_resp.content)
 
 
 # ── Tier 2: Edge TTS (free, Microsoft Edge API) ──────────────
@@ -141,65 +231,7 @@ def _synthesize_via_edge_tts(text: str, role: str) -> bytes:
     return mp3_data
 
 
-# ── Tier 3: 火山 TTS (free, Volcengine translate API) ────────
-
-_VOLCENGINE_HEADERS = {
-    "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
-    "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
-    "Origin": "chrome-extension://klgfhbiooeogdfodpopgppeadghjjemk",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "accept": "application/json, text/plain, */*",
-    "content-type": "application/json",
-}
-
-
-def _synthesize_via_volcengine(text: str, role: str) -> bytes:
-    """Synthesize via Volcengine translate TTS API. Returns MP3 bytes."""
-    voice = VOLCENGINE_VOICE_MAP.get(role, "zh_female_zhubo")
-
-    # Detect language first
-    language = None
-    try:
-        resp = requests.post(
-            "https://translate.volcengine.com/web/langdetect/v1/",
-            headers=_VOLCENGINE_HEADERS,
-            json={"text": text[:100]},
-            timeout=10,
-        )
-        language = resp.json().get("language")
-    except Exception:
-        pass
-
-    payload: dict[str, Any] = {
-        "text": text[:MAX_CHARS_PER_REQUEST],
-        "speaker": voice,
-    }
-    if language:
-        payload["language"] = language
-
-    resp = requests.post(
-        "https://translate.volcengine.com/crx/tts/v1/",
-        headers=_VOLCENGINE_HEADERS,
-        json=payload,
-        timeout=60,
-    )
-    resp.raise_for_status()
-
-    data = resp.json()
-    audio = data.get("audio")
-    if not audio:
-        raise TTSError(f"Volcengine returned no audio: {data}")
-
-    audio_b64 = audio.get("data")
-    if not audio_b64:
-        raise TTSError("Volcengine returned empty audio data")
-
-    return base64.b64decode(audio_b64)
-
-
-# ── Tier 4: DashScope (paid, Alibaba Cloud) ──────────────────
+# ── Tier 3: DashScope (paid, Alibaba Cloud) ──────────────────
 
 def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes:
     """Synthesize via paid DashScope API. Returns MP3 bytes."""
@@ -230,7 +262,7 @@ def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes
     return audio_resp.content
 
 
-# ── Main synthesis with 4-tier fallback ────────────────────────
+# ── Main synthesis with 3-tier fallback ────────────────────────
 
 def synthesize_segment(
     text: str,
@@ -244,27 +276,25 @@ def synthesize_segment(
     Synthesize a single text segment to MP3 bytes.
 
     Fallback chain:
-      1. qwen-tts2api (free, self-hosted)
-      2. Edge TTS (free, Microsoft Edge API)
-      3. 火山 TTS (free, Volcengine API)
-      4. DashScope (paid, Alibaba Cloud)
+      1. Qwen direct API (free, Cherry/Ethan original voices)
+      2. Edge TTS (free, Microsoft neural voices)
+      3. DashScope (paid, Alibaba Cloud)
     """
     errors: dict[str, str] = {}
 
-    # ── Tier 1: qwen-tts2api ──
-    if settings.qwen_tts_url:
-        for attempt in range(1, retries + 1):
-            try:
-                mp3 = _synthesize_via_qwen_free(text, role)
-                logger.info("[TTS] using qwen-tts2api (free)")
-                return mp3
-            except Exception as exc:
-                errors["qwen"] = str(exc)
-                if attempt < retries:
-                    wait = min(3 * attempt, 10)
-                    logger.warning("[TTS] qwen attempt %d/%d failed: %s, retry in %ds", attempt, retries, exc, wait)
-                    time.sleep(wait)
-        logger.warning("[TTS] qwen-tts2api failed: %s, trying Edge TTS", errors["qwen"])
+    # ── Tier 1: Qwen direct API ──
+    for attempt in range(1, retries + 1):
+        try:
+            mp3 = _synthesize_via_qwen_direct(text, role)
+            logger.info("[TTS] using Qwen direct (free)")
+            return mp3
+        except Exception as exc:
+            errors["qwen"] = str(exc)
+            if attempt < retries:
+                wait = min(5 * attempt, 15)
+                logger.warning("[TTS] Qwen direct attempt %d/%d failed: %s, retry in %ds", attempt, retries, exc, wait)
+                time.sleep(wait)
+    logger.warning("[TTS] Qwen direct failed: %s, trying Edge TTS", errors.get("qwen"))
 
     # ── Tier 2: Edge TTS ──
     for attempt in range(1, retries + 1):
@@ -277,22 +307,9 @@ def synthesize_segment(
             if attempt < retries:
                 time.sleep(2)
                 logger.warning("[TTS] Edge TTS attempt %d/%d failed: %s", attempt, retries, exc)
-    logger.warning("[TTS] Edge TTS failed: %s, trying Volcengine", errors.get("edge"))
+    logger.warning("[TTS] Edge TTS failed: %s, trying DashScope", errors.get("edge"))
 
-    # ── Tier 3: 火山 TTS ──
-    for attempt in range(1, retries + 1):
-        try:
-            mp3 = _synthesize_via_volcengine(text, role)
-            logger.info("[TTS] using Volcengine (free)")
-            return mp3
-        except Exception as exc:
-            errors["volcengine"] = str(exc)
-            if attempt < retries:
-                time.sleep(2)
-                logger.warning("[TTS] Volcengine attempt %d/%d failed: %s", attempt, retries, exc)
-    logger.warning("[TTS] Volcengine failed: %s, trying DashScope", errors.get("volcengine"))
-
-    # ── Tier 4: DashScope (paid) ──
+    # ── Tier 3: DashScope (paid) ──
     for attempt in range(1, retries + 1):
         try:
             mp3 = _synthesize_via_dashscope(text, voice, instructions)
