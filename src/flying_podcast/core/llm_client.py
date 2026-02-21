@@ -28,10 +28,18 @@ class OpenAICompatibleClient:
         self._is_anthropic = self._detect_anthropic()
 
     def _detect_anthropic(self) -> bool:
-        """Auto-detect Anthropic native API by key prefix, URL pattern, or model name."""
+        """Auto-detect Anthropic native API by key prefix, URL pattern, or model name.
+
+        If the base URL explicitly contains '/chat/completions', always use
+        OpenAI-compatible mode regardless of key prefix — the user intentionally
+        chose an OpenAI-compatible endpoint.
+        """
+        base = self.base_url.lower()
+        # Explicit OpenAI-compatible path → never use Anthropic format
+        if "/chat/completions" in base:
+            return False
         if self.api_key.startswith("sk-ant-"):
             return True
-        base = self.base_url.lower()
         if "/messages" in base or "anthropic" in base:
             return True
         # Claude models accessed via proxy (e.g. code.newcli.com/claude/aws)
