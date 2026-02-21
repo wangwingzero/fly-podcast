@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "podcast_pdfs/pending/**"
+      - "podcast_pdfs/**.pdf"
   workflow_dispatch:
 
 env:
@@ -34,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-python@v5
         with:
@@ -44,16 +46,19 @@ jobs:
           pip install -r requirements.txt
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Find pending PDFs
+      - name: Find new PDFs from this push
         id: find-pdfs
         run: |
-          PDFS=$(find podcast_pdfs/pending -name "*.pdf" -type f 2>/dev/null || true)
-          if [ -z "$PDFS" ]; then
-            echo "No PDFs found in podcast_pdfs/pending/"
+          # Detect newly added PDFs via git diff
+          ADDED=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} -- 'podcast_pdfs/**.pdf' || true)
+          if [ -z "$ADDED" ]; then
+            echo "No new PDFs in this push"
             echo "has_pdfs=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Found PDFs:"
-            echo "$PDFS"
+            echo "New PDFs:"
+            echo "$ADDED"
+            # Save list to file for later steps
+            echo "$ADDED" > /tmp/new_pdfs.txt
             echo "has_pdfs=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -63,7 +68,7 @@ jobs:
           DATE=$(TZ=Asia/Shanghai date +%F)
           SUCCESS=0
           FAIL=0
-          for pdf in podcast_pdfs/pending/*.pdf; do
+          while IFS= read -r pdf; do
             [ -f "$pdf" ] || continue
             echo "=========================================="
             echo "Processing: $pdf"
@@ -74,7 +79,7 @@ jobs:
               echo "::warning::Failed to process: $pdf"
               FAIL=$((FAIL + 1))
             fi
-          done
+          done < /tmp/new_pdfs.txt
           echo "Done: $SUCCESS succeeded, $FAIL failed"
           if [ $SUCCESS -eq 0 ] && [ $FAIL -gt 0 ]; then
             echo "::error::All PDFs failed to process"
@@ -96,29 +101,6 @@ jobs:
             echo "Upload complete"
           else
             echo "No podcast output directory found"
-          fi
-
-      - name: Move processed PDFs to done
-        if: steps.find-pdfs.outputs.has_pdfs == 'true'
-        run: |
-          mkdir -p podcast_pdfs/done
-          for pdf in podcast_pdfs/pending/*.pdf; do
-            [ -f "$pdf" ] || continue
-            mv "$pdf" podcast_pdfs/done/
-            echo "Moved: $(basename "$pdf") → done/"
-          done
-
-      - name: Commit processed PDFs
-        if: steps.find-pdfs.outputs.has_pdfs == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add podcast_pdfs/
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "[skip ci] Move processed PDFs to done/"
-            git push
           fi
 
       - name: Upload artifacts
