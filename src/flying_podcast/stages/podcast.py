@@ -372,11 +372,19 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
     concatenate_audio(segment_files, mp3_path)
 
     # Save metadata
+    dir_name = work_dir.name  # e.g. "2026-02-21_全天候运行规定"
+    mp3_filename = mp3_path.name
+    from urllib.parse import quote
+    mp3_cdn_url = (
+        f"https://{settings.r2_domain}/podcast/"
+        f"{quote(dir_name)}/{quote(mp3_filename)}"
+    )
     meta = {
         "date": day,
         "pdf_source": str(pdf_file),
         "title": title,
         "mp3_path": str(mp3_path),
+        "mp3_cdn_url": mp3_cdn_url,
         "cover_path": str(cover_path),
         "dialogue_html_path": str(html_path),
         "dialogue_lines": len(lines),
