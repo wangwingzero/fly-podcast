@@ -484,11 +484,110 @@ def synthesize_dialogue(
     raise TTSError(f"All TTS backends failed. {len(failed)} segments ungenerated.")
 
 
-def concatenate_audio(segment_files: list[Path], output_path: Path) -> Path:
-    """Concatenate mp3 segments into a single mp3 file using ffmpeg."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+# ── Audio helpers for music + chapter support ─────────────────
 
-    # Build ffmpeg filter to concat with silence gaps
+_ASSETS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "assets" / "audio"
+
+
+def _get_duration(path: Path) -> float:
+    """Get audio file duration in seconds via ffprobe."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise TTSError(f"ffprobe failed on {path.name}: {result.stderr[-200:]}")
+    return float(result.stdout.strip())
+
+
+def _find_audio_assets() -> dict[str, Path]:
+    """Check for optional intro/transition/outro mp3 files in assets/audio/.
+
+    Returns dict with keys present only if the file exists.
+    """
+    assets: dict[str, Path] = {}
+    for name in ("intro", "transition", "outro"):
+        p = _ASSETS_DIR / f"{name}.mp3"
+        if p.exists():
+            assets[name] = p
+    if assets:
+        logger.info("[Audio] Found assets: %s", ", ".join(assets.keys()))
+    return assets
+
+
+def _build_line_segment_map(
+    segment_files: list[Path], num_lines: int,
+) -> list[list[Path]]:
+    """Map line indices to their segment file(s).
+
+    Parses filenames like seg_005.mp3, seg_005_0.mp3, seg_005_1.mp3
+    and groups them by line index.
+
+    Returns a list where result[line_idx] = [seg_file, ...].
+    """
+    import re
+
+    line_map: dict[int, list[tuple[int, Path]]] = {}
+    for seg in segment_files:
+        m = re.match(r"seg_(\d+)(?:_(\d+))?\.mp3", seg.name)
+        if not m:
+            continue
+        line_idx = int(m.group(1))
+        chunk_idx = int(m.group(2)) if m.group(2) else 0
+        line_map.setdefault(line_idx, []).append((chunk_idx, seg))
+
+    result: list[list[Path]] = []
+    for i in range(num_lines):
+        segs = line_map.get(i, [])
+        segs.sort(key=lambda x: x[0])
+        result.append([p for _, p in segs])
+    return result
+
+
+def concatenate_audio(
+    segment_files: list[Path],
+    output_path: Path,
+    *,
+    chapters: list[dict] | None = None,
+    num_lines: int = 0,
+) -> list[dict]:
+    """Concatenate mp3 segments into a single mp3 file using ffmpeg.
+
+    When audio assets (intro/transition/outro) exist in assets/audio/:
+    - Adds intro with fade-out before dialogue
+    - Inserts transition sounds between chapters
+    - Adds outro with fade-in after dialogue
+
+    When no assets exist, behaves exactly as before (simple concat + loudnorm).
+
+    Args:
+        segment_files: Ordered list of segment mp3 paths.
+        output_path: Final output mp3 path.
+        chapters: Optional chapter info from normalize_dialogue().
+        num_lines: Total number of dialogue lines (for segment mapping).
+
+    Returns:
+        List of chapter timestamps [{"title", "start", "end"}, ...].
+        Empty list if no chapters provided.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    assets = _find_audio_assets()
+
+    has_music = bool(assets)
+    has_chapters = bool(chapters and len(chapters) > 1 and num_lines > 0)
+
+    # ── Simple mode: no assets → original behavior ──
+    if not has_music or not has_chapters:
+        return _concatenate_simple(segment_files, output_path)
+
+    # ── Enhanced mode: music + chapter transitions ──
+    return _concatenate_with_music(segment_files, output_path, assets,
+                                   chapters, num_lines)
+
+
+def _concatenate_simple(segment_files: list[Path], output_path: Path) -> list[dict]:
+    """Original concatenation: simple concat + loudnorm."""
     inputs: list[str] = []
     filter_parts: list[str] = []
 
@@ -515,14 +614,203 @@ def concatenate_audio(segment_files: list[Path], output_path: Path) -> Path:
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode != 0:
-        # Extract actual error from stderr (skip ffmpeg banner)
         err_lines = [l for l in result.stderr.splitlines() if "Error" in l or "error" in l]
         err_msg = "\n".join(err_lines) if err_lines else result.stderr[-500:]
         raise TTSError(f"ffmpeg concat failed: {err_msg}")
 
     size_kb = output_path.stat().st_size / 1024
     logger.info("Combined audio: %s (%.1f KB)", output_path.name, size_kb)
-    return output_path
+    return []
+
+
+def _concatenate_with_music(
+    segment_files: list[Path],
+    output_path: Path,
+    assets: dict[str, Path],
+    chapters: list[dict],
+    num_lines: int,
+) -> list[dict]:
+    """Concatenate with intro/transition/outro music and chapter timestamps.
+
+    Audio structure:
+      [intro fade-out] [0.5s silence]
+      [chapter 1 segments with 0.1s gaps]
+      [0.5s silence] [transition fade-out] [0.5s silence]
+      [chapter 2 segments ...]
+      ...
+      [last chapter segments]
+      [0.5s silence] [outro fade-in]
+    """
+    line_map = _build_line_segment_map(segment_files, num_lines)
+
+    # Collect all inputs and build filter_complex
+    input_args: list[str] = []
+    input_idx = 0  # ffmpeg input index counter
+
+    # Track which input index corresponds to what
+    # We'll build a list of (label, role) for the filter
+    stream_labels: list[str] = []  # final ordered labels to concat
+
+    # ── Helper: add an input file and return its stream label ──
+    def add_input(path: Path, label_prefix: str) -> str:
+        nonlocal input_idx
+        input_args.extend(["-i", str(path)])
+        label = f"[i{input_idx}]"
+        input_idx += 1
+        return label
+
+    # ── Helper: silence generator via anullsrc ──
+    silence_filters: list[str] = []
+    silence_count = 0
+
+    def add_silence(duration: float) -> str:
+        nonlocal silence_count
+        label = f"sil{silence_count}"
+        silence_filters.append(
+            f"anullsrc=r=44100:cl=stereo,atrim=0:{duration},asetpts=PTS-STARTPTS[{label}]"
+        )
+        silence_count += 1
+        return f"[{label}]"
+
+    filter_lines: list[str] = []
+
+    # ── Intro ──
+    if "intro" in assets:
+        intro_label = add_input(assets["intro"], "intro")
+        intro_dur = _get_duration(assets["intro"])
+        fade_start = max(0, intro_dur - 1.5)
+        filter_lines.append(
+            f"{intro_label}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+            f"afade=t=out:st={fade_start:.1f}:d=1.5[intro_out]"
+        )
+        stream_labels.append("[intro_out]")
+        stream_labels.append(add_silence(0.5))
+
+    # ── Chapters ──
+    for ch_idx, chapter in enumerate(chapters):
+        start_line = chapter["start_line"]
+        end_line = chapter["end_line"]
+
+        # Insert transition between chapters (not before first)
+        if ch_idx > 0 and "transition" in assets:
+            stream_labels.append(add_silence(0.5))
+            trans_label = add_input(assets["transition"], f"trans{ch_idx}")
+            trans_dur = _get_duration(assets["transition"])
+            fade_start = max(0, trans_dur - 1.0)
+            filter_lines.append(
+                f"{trans_label}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+                f"afade=t=out:st={fade_start:.1f}:d=1.0[trans{ch_idx}_out]"
+            )
+            stream_labels.append(f"[trans{ch_idx}_out]")
+            stream_labels.append(add_silence(0.5))
+
+        # Add all segments for this chapter's lines
+        for line_idx in range(start_line, end_line):
+            segs = line_map[line_idx] if line_idx < len(line_map) else []
+            for seg_file in segs:
+                seg_label = add_input(seg_file, f"seg{line_idx}")
+                # Resample to uniform format
+                filter_lines.append(
+                    f"{seg_label}aresample=44100,aformat=sample_fmts=fltp"
+                    f":channel_layouts=stereo[seg{input_idx - 1}_out]"
+                )
+                stream_labels.append(f"[seg{input_idx - 1}_out]")
+
+            # 0.1s gap between lines (not after last line in chapter)
+            if line_idx < end_line - 1:
+                stream_labels.append(add_silence(0.1))
+
+    # ── Outro ──
+    if "outro" in assets:
+        stream_labels.append(add_silence(0.5))
+        outro_label = add_input(assets["outro"], "outro")
+        filter_lines.append(
+            f"{outro_label}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+            f"afade=t=in:st=0:d=1.5[outro_out]"
+        )
+        stream_labels.append("[outro_out]")
+
+    # ── Build final filter_complex ──
+    # Add silence generators
+    filter_lines.extend(silence_filters)
+
+    # Final concat of all streams → loudnorm
+    n_streams = len(stream_labels)
+    concat_str = "".join(stream_labels) + f"concat=n={n_streams}:v=0:a=1[raw]"
+    filter_lines.append(concat_str)
+    filter_lines.append("[raw]loudnorm=I=-16:TP=-1.5:LRA=11[out]")
+
+    filter_complex = ";\n".join(filter_lines)
+
+    cmd = [
+        "ffmpeg", "-y",
+        *input_args,
+        "-filter_complex", filter_complex,
+        "-map", "[out]",
+        "-b:a", "128k",
+        str(output_path),
+    ]
+
+    logger.debug("[Audio] ffmpeg cmd: %d inputs, %d streams", input_idx, n_streams)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        err_lines = [l for l in result.stderr.splitlines() if "Error" in l or "error" in l]
+        err_msg = "\n".join(err_lines) if err_lines else result.stderr[-500:]
+        raise TTSError(f"ffmpeg concat failed: {err_msg}")
+
+    size_kb = output_path.stat().st_size / 1024
+    logger.info("Combined audio: %s (%.1f KB)", output_path.name, size_kb)
+
+    # ── Calculate chapter timestamps ──
+    chapter_timestamps = _calculate_chapter_timestamps(
+        assets, chapters, line_map,
+    )
+    return chapter_timestamps
+
+
+def _calculate_chapter_timestamps(
+    assets: dict[str, Path],
+    chapters: list[dict],
+    line_map: list[list[Path]],
+) -> list[dict]:
+    """Calculate real start/end times for each chapter by measuring segment durations."""
+    pos = 0.0  # current position in seconds
+
+    # Intro
+    if "intro" in assets:
+        pos += _get_duration(assets["intro"])
+        pos += 0.5  # silence after intro
+
+    timestamps: list[dict] = []
+
+    for ch_idx, chapter in enumerate(chapters):
+        start_line = chapter["start_line"]
+        end_line = chapter["end_line"]
+
+        # Transition before chapter (not first)
+        if ch_idx > 0 and "transition" in assets:
+            pos += 0.5  # silence before transition
+            pos += _get_duration(assets["transition"])
+            pos += 0.5  # silence after transition
+
+        ch_start = pos
+
+        for line_idx in range(start_line, end_line):
+            segs = line_map[line_idx] if line_idx < len(line_map) else []
+            for seg_file in segs:
+                pos += _get_duration(seg_file)
+            # 0.1s gap between lines
+            if line_idx < end_line - 1:
+                pos += 0.1
+
+        timestamps.append({
+            "title": chapter.get("title", f"Chapter {ch_idx + 1}"),
+            "start": round(ch_start, 1),
+            "end": round(pos, 1),
+        })
+
+    return timestamps
 
 
 def _split_text(text: str, max_len: int) -> list[str]:

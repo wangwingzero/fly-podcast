@@ -60,19 +60,47 @@ SYSTEM_PROMPT = """\
 输出严格的JSON对象，格式如下：
 {
   "title": "本期播客标题（简短有吸引力，可以带点幽默感）",
-  "dialogue": [
-    {"role": "千羽", "text": "台词内容"},
-    {"role": "虎机长", "text": "台词内容"},
-    ...
+  "chapters": [
+    {
+      "title": "开场",
+      "dialogue": [
+        {"role": "千羽", "text": "台词内容", "emotion": "warm"},
+        {"role": "虎机长", "text": "台词内容", "emotion": "neutral"}
+      ]
+    },
+    {
+      "title": "第二章标题",
+      "dialogue": [
+        {"role": "千羽", "text": "台词内容", "emotion": "curious"},
+        {"role": "虎机长", "text": "台词内容", "emotion": "serious"}
+      ]
+    }
   ]
 }
 
-## 风格要求——幽默轻松
+## 情绪标注
+每句台词必须标注 emotion 字段，可选值：
+- neutral — 平静叙述、过渡衔接（默认）
+- curious — 提问、好奇、追问（千羽常用）
+- serious — 重要知识点、安全底线（虎机长讲关键内容时）
+- warm — 友好互动、鼓励、感谢、共鸣
+- humorous — 调侃、比喻、段子、轻松化解复杂概念
+
+整体风格是轻松幽默的氛围下，化繁为简、深入浅出地讲解专业内容。多用比喻和生活化的例子把复杂知识讲透，让听众一听就懂。
+
+## 章节划分
+将对话分为 3-6 个 chapters，每章有简短标题：
+- 第一章固定为"开场"（包含自我介绍、节日问候、话题引入）
+- 最后一章固定为"总结"（虎机长总结 + 千羽结束语）
+- 中间按文档主要话题分段，每段一个简短标题（如"起飞最低标准"、"进近着陆要求"）
+
+## 风格要求——轻松幽默、化繁为简
 - 像两个飞行员在驾驶舱里闲聊，轻松自然
-- 虎机长偶尔抖包袱、讲飞行段子，千羽负责接梗和吐槽
+- 虎机长偶尔抖包袱、讲飞行段子，千羽负责接梗和调侃
 - 可以互相调侃，但要有分寸、不低俗
-- 严肃知识点用轻松的方式讲出来，让人听着不累
-- 千羽可以问"傻问题"，虎机长用幽默方式解答
+- **化繁为简**：用比喻和类比把复杂概念讲透（如"这就好比开车时……"），让听众一听就懂
+- **深入浅出**：严肃知识点用轻松的方式讲出来，让人听着不累
+- 千羽可以问"傻问题"，虎机长用幽默又通俗的方式解答
 - 适当加入飞行圈内的梗和共鸣点
 
 ## 对话结构规则
@@ -142,11 +170,60 @@ def generate_dialogue(pdf_text: str) -> dict[str, Any]:
     )
 
     dialogue = resp.payload
-    lines = dialogue.get("dialogue", [])
     title = dialogue.get("title", "飞行播客")
-    logger.info("Generated dialogue: title='%s', lines=%d", title, len(lines))
+    # Count lines from either format
+    if "chapters" in dialogue:
+        n_lines = sum(len(ch.get("dialogue", [])) for ch in dialogue["chapters"])
+        n_chapters = len(dialogue["chapters"])
+        logger.info("Generated dialogue: title='%s', lines=%d, chapters=%d",
+                     title, n_lines, n_chapters)
+    else:
+        n_lines = len(dialogue.get("dialogue", []))
+        logger.info("Generated dialogue: title='%s', lines=%d", title, n_lines)
 
     return dialogue
+
+
+# ── Dialogue normalization (new chapters ↔ old flat format) ───
+
+def normalize_dialogue(data: dict) -> tuple[list[dict], list[dict]]:
+    """Normalize LLM output to (flat_lines, chapters_info).
+
+    Supports two formats:
+    - New: {"chapters": [{"title", "dialogue": [{"role","text","emotion"}]}]}
+    - Old: {"dialogue": [{"role","text"}]}
+
+    Returns:
+        flat_lines: [{"role", "text", "emotion"}, ...]
+        chapters_info: [{"title", "start_line", "end_line"}, ...]
+    """
+    if "chapters" in data and data["chapters"]:
+        flat_lines: list[dict] = []
+        chapters_info: list[dict] = []
+        for ch in data["chapters"]:
+            start = len(flat_lines)
+            for line in ch.get("dialogue", []):
+                flat_lines.append({
+                    "role": line["role"],
+                    "text": line["text"],
+                    "emotion": line.get("emotion", "neutral"),
+                })
+            chapters_info.append({
+                "title": ch.get("title", ""),
+                "start_line": start,
+                "end_line": len(flat_lines),
+            })
+        return flat_lines, chapters_info
+
+    # Old flat format — wrap as single chapter
+    lines = data.get("dialogue", [])
+    flat_lines = [
+        {"role": l["role"], "text": l["text"], "emotion": l.get("emotion", "neutral")}
+        for l in lines
+    ]
+    chapters_info = [{"title": data.get("title", ""), "start_line": 0,
+                      "end_line": len(flat_lines)}]
+    return flat_lines, chapters_info
 
 
 # ── Cover image generation ────────────────────────────────────
@@ -344,13 +421,15 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
     dump_json(script_path, dialogue_data)
     logger.info("Script saved: %s", script_path)
 
-    lines = dialogue_data.get("dialogue", [])
-    if not lines:
+    # Normalize to flat lines + chapter info (supports old and new format)
+    flat_lines, chapters_info = normalize_dialogue(dialogue_data)
+    if not flat_lines:
         raise RuntimeError("LLM returned empty dialogue")
+    logger.info("Dialogue: %d lines, %d chapters", len(flat_lines), len(chapters_info))
 
     # Generate scrollable dialogue HTML for WeChat
     title = dialogue_data.get("title", pdf_name)
-    dialogue_html = render_dialogue_html(title, lines, download_url=download_url)
+    dialogue_html = render_dialogue_html(title, flat_lines, download_url=download_url)
     html_path = work_dir / "dialogue.html"
     html_path.write_text(dialogue_html, encoding="utf-8")
     logger.info("Dialogue HTML saved: %s", html_path)
@@ -361,15 +440,19 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
     generate_cover_image(pdf_file, title, cover_path)
 
     # Step 4: TTS synthesis
-    logger.info("Step 4/5: Synthesizing %d dialogue segments...", len(lines))
+    logger.info("Step 4/5: Synthesizing %d dialogue segments...", len(flat_lines))
     segments_dir = work_dir / "segments"
-    segment_files = synthesize_dialogue(lines, segments_dir)
+    segment_files = synthesize_dialogue(flat_lines, segments_dir)
 
-    # Step 5: Concatenate
+    # Step 5: Concatenate (with music + chapters if assets available)
     logger.info("Step 5/5: Concatenating audio...")
     title = dialogue_data.get("title", pdf_name)
     mp3_path = work_dir / f"{title}.mp3"
-    concatenate_audio(segment_files, mp3_path)
+    chapter_timestamps = concatenate_audio(
+        segment_files, mp3_path,
+        chapters=chapters_info,
+        num_lines=len(flat_lines),
+    )
 
     # Save metadata
     dir_name = work_dir.name  # e.g. "2026-02-21_全天候运行规定"
@@ -387,8 +470,9 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
         "mp3_cdn_url": mp3_cdn_url,
         "cover_path": str(cover_path),
         "dialogue_html_path": str(html_path),
-        "dialogue_lines": len(lines),
-        "total_chars": sum(len(l["text"]) for l in lines),
+        "dialogue_lines": len(flat_lines),
+        "total_chars": sum(len(l["text"]) for l in flat_lines),
+        "chapters": chapter_timestamps,
     }
     dump_json(work_dir / "metadata.json", meta)
 
