@@ -17,13 +17,14 @@ from flying_podcast.core.wechat import WeChatClient
 logger = get_logger("publish_podcast")
 
 
-def _build_article_html(title: str, dialogue_html: str, mp3_note: bool = True) -> str:
+def _build_article_html(title: str, dialogue_html: str,
+                        has_audio: bool = False) -> str:
     """Build complete article HTML for WeChat with intro + dialogue.
 
     Args:
         title: Podcast episode title
         dialogue_html: Pre-rendered scrollable dialogue HTML fragment
-        mp3_note: Whether to show a note about audio being added separately
+        has_audio: Whether an audio player page is linked via "阅读原文"
     """
     # Intro section above the dialogue
     intro = (
@@ -34,12 +35,15 @@ def _build_article_html(title: str, dialogue_html: str, mp3_note: bool = True) -
         '</section>'
     )
 
-    if mp3_note:
+    if has_audio:
         intro += (
-            '<section style="background:#fff8e6;border-left:3px solid #ffb800;'
-            'padding:8px 12px;border-radius:4px;margin-bottom:12px;'
-            'font-size:13px;color:#996800;">'
-            '点击上方音频，可以边听边看对话文字稿'
+            '<section style="background:linear-gradient(135deg,#1e6fff,#4e95ff);'
+            'border-radius:8px;padding:12px 16px;margin-bottom:12px;'
+            'text-align:center;">'
+            '<section style="font-size:15px;color:#fff;font-weight:bold;'
+            'margin-bottom:4px;">点击底部「阅读原文」收听音频</section>'
+            '<section style="font-size:12px;color:rgba(255,255,255,0.8);">'
+            '边听边看文字稿，体验更佳</section>'
             '</section>'
         )
 
@@ -97,6 +101,10 @@ def run(target_date: str | None = None, *,
         script = load_json(script_path)
         title = script.get("title", ep_dir.name)
 
+        # Load metadata for player URL
+        meta = load_json(meta_path) if meta_path.exists() else {}
+        player_url = meta.get("player_url", "")
+
         # Read dialogue HTML
         if html_path.exists():
             dialogue_html = html_path.read_text("utf-8")
@@ -115,7 +123,9 @@ def run(target_date: str | None = None, *,
                 logger.warning("Cover upload failed, using default thumb")
 
         # Build article HTML
-        article_html = _build_article_html(title, dialogue_html)
+        article_html = _build_article_html(
+            title, dialogue_html, has_audio=bool(player_url)
+        )
 
         # Create digest summary
         lines = script.get("dialogue", [])
@@ -131,7 +141,7 @@ def run(target_date: str | None = None, *,
                 author="飞行播客",
                 content_html=article_html,
                 digest=digest,
-                source_url="",
+                source_url=player_url,
                 thumb_media_id=thumb_media_id,
             )
             logger.info("Draft created: %s (media_id: %s)", title, media_id[:30])
