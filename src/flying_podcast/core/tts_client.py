@@ -83,7 +83,7 @@ def _synthesize_via_qwen_free(text: str, role: str) -> bytes:
         "voice": voice,
     }
 
-    resp = requests.post(url, json=payload, timeout=120)
+    resp = requests.post(url, json=payload, timeout=180)
     resp.raise_for_status()
 
     if len(resp.content) < 100:
@@ -134,15 +134,29 @@ def synthesize_segment(
     """
     Synthesize a single text segment to MP3 bytes.
 
-    Fallback chain: qwen-tts2api (free) → DashScope (paid).
+    Fallback chain: qwen-tts2api (free, with retries) → DashScope (paid).
     """
     # ── Tier 1: qwen-tts2api (free, same Cherry/Ethan voices) ──
-    try:
-        mp3 = _synthesize_via_qwen_free(text, role)
-        logger.info("[TTS] using qwen-tts2api (free)")
-        return mp3
-    except Exception as exc:
-        logger.warning("[TTS] qwen-tts2api failed: %s, falling back to DashScope", exc)
+    qwen_error = ""
+    for attempt in range(1, retries + 1):
+        try:
+            mp3 = _synthesize_via_qwen_free(text, role)
+            logger.info("[TTS] using qwen-tts2api (free)")
+            return mp3
+        except Exception as exc:
+            qwen_error = str(exc)
+            if attempt < retries:
+                wait = min(3 * attempt, 15)
+                logger.warning(
+                    "[TTS] qwen-tts2api attempt %d/%d failed: %s, retrying in %ds",
+                    attempt, retries, qwen_error, wait,
+                )
+                time.sleep(wait)
+            else:
+                logger.warning(
+                    "[TTS] qwen-tts2api all %d attempts failed: %s, falling back to DashScope",
+                    retries, qwen_error,
+                )
 
     # ── Tier 2: DashScope (paid) ──
     last_error = ""
@@ -160,7 +174,7 @@ def synthesize_segment(
                 logger.warning("DashScope attempt %d failed: %s, retrying in %ds", attempt, last_error, wait)
                 time.sleep(wait)
 
-    raise TTSError(f"All TTS backends failed. Last error: {last_error}")
+    raise TTSError(f"All TTS backends failed. qwen-tts2api: {qwen_error}; DashScope: {last_error}")
 
 
 def synthesize_dialogue(
