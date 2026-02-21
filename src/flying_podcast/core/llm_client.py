@@ -163,9 +163,11 @@ class OpenAICompatibleClient:
         user_prompt: str,
         max_tokens: int = 2400,
         temperature: float = 0.2,
-        retries: int = 3,
+        retries: int = 5,
         timeout: int = 45,
     ) -> LLMResponse:
+        import logging
+        log = logging.getLogger("llm")
         last_error = "unknown"
         for attempt in range(1, retries + 1):
             try:
@@ -208,5 +210,10 @@ class OpenAICompatibleClient:
             except Exception as exc:  # noqa: BLE001
                 last_error = str(exc)
                 if attempt < retries:
-                    time.sleep(min(2**attempt, 6))
+                    # Longer backoff for server errors (5xx) — proxy may be overloaded
+                    is_server_error = "http_5" in last_error
+                    wait = min(30 * attempt, 120) if is_server_error else min(2**attempt, 6)
+                    log.warning("[LLM] attempt %d/%d failed: %s, retry in %ds",
+                                attempt, retries, last_error[:120], wait)
+                    time.sleep(wait)
         raise LLMError(last_error)

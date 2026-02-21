@@ -165,7 +165,7 @@ def generate_dialogue(pdf_text: str) -> dict[str, Any]:
         user_prompt=user_prompt,
         max_tokens=settings.llm_max_tokens,
         temperature=0.7,  # Higher for creative dialogue
-        retries=3,
+        retries=5,
         timeout=120,
     )
 
