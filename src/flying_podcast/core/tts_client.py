@@ -54,14 +54,6 @@ QWEN_DIRECT_VOICE_MAP = {
     "虎机长": "Ethan / 晨煦",
 }
 
-# qwen-tts2api voice mapping (same voices, self-hosted proxy)
-QWEN_FREE_VOICE_MAP = {
-    "女": "cherry",
-    "男": "ethan",
-    "千羽": "cherry",
-    "虎机长": "ethan",
-}
-
 # Edge TTS voice mapping
 EDGE_VOICE_MAP = {
     "女": "zh-CN-XiaoxiaoNeural",
@@ -262,7 +254,40 @@ def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes
     return audio_resp.content
 
 
-# ── Main synthesis with 3-tier fallback ────────────────────────
+# ── Backend chain (session-level: entire dialogue uses ONE backend) ──
+
+BACKEND_CHAIN = ["qwen", "edge", "dashscope"]
+
+
+def _synthesize_one(
+    text: str,
+    voice: str,
+    instructions: str,
+    *,
+    role: str,
+    backend: str,
+    retries: int = 2,
+) -> bytes:
+    """Synthesize a single segment using exactly ONE backend (with retries)."""
+    for attempt in range(1, retries + 1):
+        try:
+            if backend == "qwen":
+                return _synthesize_via_qwen_direct(text, role)
+            elif backend == "edge":
+                return _synthesize_via_edge_tts(text, role)
+            elif backend == "dashscope":
+                return _synthesize_via_dashscope(text, voice, instructions)
+            else:
+                raise TTSError(f"Unknown backend: {backend}")
+        except Exception as exc:
+            if attempt >= retries:
+                raise TTSError(f"{backend} failed after {retries} attempts: {exc}") from exc
+            wait = {"qwen": min(5 * attempt, 15), "dashscope": min(2 ** attempt, 8)}.get(backend, 2)
+            logger.warning("[TTS] %s attempt %d/%d failed: %s, retry in %ds",
+                           backend, attempt, retries, exc, wait)
+            time.sleep(wait)
+    raise TTSError(f"{backend} exhausted retries")  # unreachable
+
 
 def synthesize_segment(
     text: str,
@@ -275,70 +300,33 @@ def synthesize_segment(
     """
     Synthesize a single text segment to MP3 bytes.
 
-    Fallback chain:
-      1. Qwen direct API (free, Cherry/Ethan original voices)
-      2. Edge TTS (free, Microsoft neural voices)
-      3. DashScope (paid, Alibaba Cloud)
+    Tries each backend in order: Qwen → Edge → DashScope.
+    NOTE: For dialogue, use synthesize_dialogue() which locks the entire
+    conversation to one backend to avoid mixing different voices.
     """
     errors: dict[str, str] = {}
-
-    # ── Tier 1: Qwen direct API ──
-    for attempt in range(1, retries + 1):
+    for backend in BACKEND_CHAIN:
         try:
-            mp3 = _synthesize_via_qwen_direct(text, role)
-            logger.info("[TTS] using Qwen direct (free)")
+            mp3 = _synthesize_one(text, voice, instructions, role=role,
+                                  backend=backend, retries=retries)
+            logger.info("[TTS] segment OK via %s", backend)
             return mp3
-        except Exception as exc:
-            errors["qwen"] = str(exc)
-            if attempt < retries:
-                wait = min(5 * attempt, 15)
-                logger.warning("[TTS] Qwen direct attempt %d/%d failed: %s, retry in %ds", attempt, retries, exc, wait)
-                time.sleep(wait)
-    logger.warning("[TTS] Qwen direct failed: %s, trying Edge TTS", errors.get("qwen"))
-
-    # ── Tier 2: Edge TTS ──
-    for attempt in range(1, retries + 1):
-        try:
-            mp3 = _synthesize_via_edge_tts(text, role)
-            logger.info("[TTS] using Edge TTS (free)")
-            return mp3
-        except Exception as exc:
-            errors["edge"] = str(exc)
-            if attempt < retries:
-                time.sleep(2)
-                logger.warning("[TTS] Edge TTS attempt %d/%d failed: %s", attempt, retries, exc)
-    logger.warning("[TTS] Edge TTS failed: %s, trying DashScope", errors.get("edge"))
-
-    # ── Tier 3: DashScope (paid) ──
-    for attempt in range(1, retries + 1):
-        try:
-            mp3 = _synthesize_via_dashscope(text, voice, instructions)
-            logger.info("[TTS] using DashScope (paid)")
-            return mp3
-        except TTSError:
-            raise
-        except Exception as exc:
-            errors["dashscope"] = str(exc)
-            if attempt < retries:
-                wait = min(2 ** attempt, 8)
-                logger.warning("[TTS] DashScope attempt %d/%d failed: %s, retry in %ds", attempt, retries, exc, wait)
-                time.sleep(wait)
-
+        except TTSError as exc:
+            errors[backend] = str(exc)
+            logger.warning("[TTS] %s failed: %s", backend, exc)
     summary = "; ".join(f"{k}: {v}" for k, v in errors.items())
     raise TTSError(f"All TTS backends failed. {summary}")
 
 
-def synthesize_dialogue(
+# ── Dialogue-level synthesis (session-locked backend) ─────────
+
+def _synthesize_dialogue_with_backend(
     dialogue: list[dict[str, str]],
     output_dir: Path,
+    backend: str,
+    retries: int = 2,
 ) -> list[Path]:
-    """
-    Synthesize a list of dialogue lines to individual mp3 files.
-
-    Each item: {"role": "女"/"男", "text": "..."}
-    Returns list of mp3 file paths in order.
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
+    """Synthesize ALL segments using a single backend. Raises on any failure."""
     segment_files: list[Path] = []
 
     for i, line in enumerate(dialogue):
@@ -349,7 +337,6 @@ def synthesize_dialogue(
             logger.warning("Unknown role '%s' at line %d, defaulting to female", role, i)
             preset = VOICE_MAP["女"]
 
-        # Split long text into chunks
         chunks = _split_text(text, MAX_CHARS_PER_REQUEST)
 
         for j, chunk in enumerate(chunks):
@@ -361,22 +348,58 @@ def synthesize_dialogue(
                 segment_files.append(seg_path)
                 continue
 
-            logger.info("TTS [%s] seg %d%s: %s...", role, i, suffix, chunk[:30])
-            audio_bytes = synthesize_segment(
-                chunk,
-                preset["voice"],
-                preset["instructions"],
-                role=role,
+            logger.info("TTS [%s][%s] seg %d%s: %s...", backend, role, i, suffix, chunk[:30])
+            audio_bytes = _synthesize_one(
+                chunk, preset["voice"], preset["instructions"],
+                role=role, backend=backend, retries=retries,
             )
 
             with open(seg_path, "wb") as f:
                 f.write(audio_bytes)
             segment_files.append(seg_path)
 
-            # Rate limiting: respect QPS
             time.sleep(0.5)
 
     return segment_files
+
+
+def synthesize_dialogue(
+    dialogue: list[dict[str, str]],
+    output_dir: Path,
+) -> list[Path]:
+    """
+    Synthesize a list of dialogue lines to individual mp3 files.
+
+    IMPORTANT: The entire dialogue is locked to ONE TTS backend to ensure
+    voice consistency. If a backend fails mid-dialogue, all partial segments
+    are deleted and the entire dialogue is retried with the next backend.
+
+    Fallback chain: Qwen (Cherry/Ethan) → Edge (晓晓/云健) → DashScope (paid)
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    errors: dict[str, str] = {}
+
+    for backend in BACKEND_CHAIN:
+        logger.info("[TTS] Attempting full dialogue (%d lines) with '%s'",
+                     len(dialogue), backend)
+        try:
+            files = _synthesize_dialogue_with_backend(dialogue, output_dir, backend)
+            logger.info("[TTS] Dialogue complete via '%s' (%d segments)", backend, len(files))
+            return files
+        except TTSError as exc:
+            errors[backend] = str(exc)
+            logger.warning("[TTS] Backend '%s' failed mid-dialogue: %s", backend, exc)
+            # Clean ALL partial segments — mixing voices is unacceptable
+            cleaned = 0
+            for f in output_dir.glob("seg_*.mp3"):
+                f.unlink()
+                cleaned += 1
+            if cleaned:
+                logger.info("[TTS] Deleted %d partial segments from '%s' to avoid voice mixing",
+                            cleaned, backend)
+
+    summary = "; ".join(f"{k}: {v}" for k, v in errors.items())
+    raise TTSError(f"All TTS backends failed for dialogue. {summary}")
 
 
 def concatenate_audio(segment_files: list[Path], output_path: Path) -> Path:
