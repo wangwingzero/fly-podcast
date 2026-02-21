@@ -655,7 +655,7 @@ def _concatenate_with_music(
     def add_input(path: Path, label_prefix: str) -> str:
         nonlocal input_idx
         input_args.extend(["-i", str(path)])
-        label = f"[i{input_idx}]"
+        label = f"[{input_idx}:a]"
         input_idx += 1
         return label
 
