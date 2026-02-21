@@ -60,10 +60,7 @@ class Settings:
 
     dashscope_api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
 
-    # Free TTS services (fallback chain: zai → qwen → dashscope)
-    zai_tts_url: str = os.getenv("ZAI_TTS_URL", "http://localhost:8823")
-    zai_userid: str = os.getenv("ZAI_USERID", "")
-    zai_token: str = os.getenv("ZAI_TOKEN", "")
+    # Free TTS (fallback chain: qwen-tts2api free → DashScope paid)
     qwen_tts_url: str = os.getenv("QWEN_TTS_URL", "http://localhost:8825")
 
     # CCAR-workflow integration (podcast inbox)

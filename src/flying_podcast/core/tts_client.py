@@ -73,31 +73,6 @@ def _wav_to_mp3(wav_bytes: bytes) -> bytes:
 
 # ── Free TTS backend ──────────────────────────────────────────
 
-def _synthesize_via_zai(text: str, role: str) -> bytes:
-    """Synthesize via zai-tts2api (Zhipu GLM proxy). Returns MP3 bytes."""
-    url = settings.zai_tts_url.rstrip("/") + "/v1/audio/speech"
-    voice = QWEN_FREE_VOICE_MAP.get(role, "cherry")
-
-    headers = {}
-    if settings.zai_token:
-        headers["Authorization"] = f"Bearer {settings.zai_token}"
-    if settings.zai_userid:
-        headers["X-User-Id"] = settings.zai_userid
-
-    payload = {
-        "input": text[:MAX_CHARS_PER_REQUEST],
-        "voice": voice,
-    }
-
-    resp = requests.post(url, json=payload, headers=headers, timeout=120)
-    resp.raise_for_status()
-
-    if len(resp.content) < 100:
-        raise TTSError(f"zai-tts2api returned too little data ({len(resp.content)} bytes)")
-
-    return _wav_to_mp3(resp.content)
-
-
 def _synthesize_via_qwen_free(text: str, role: str) -> bytes:
     """Synthesize via qwen-tts2api (Qwen Gradio demo proxy). Returns MP3 bytes."""
     url = settings.qwen_tts_url.rstrip("/") + "/v1/audio/speech"
@@ -146,7 +121,7 @@ def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes
     return audio_resp.content
 
 
-# ── Main synthesis with 3-tier fallback ────────────────────────
+# ── Main synthesis with 2-tier fallback ────────────────────────
 
 def synthesize_segment(
     text: str,
@@ -159,17 +134,9 @@ def synthesize_segment(
     """
     Synthesize a single text segment to MP3 bytes.
 
-    Fallback chain: zai-tts2api → qwen-tts2api → DashScope (paid).
+    Fallback chain: qwen-tts2api (free) → DashScope (paid).
     """
-    # ── Tier 1: zai-tts2api (free, Zhipu GLM) ──
-    try:
-        mp3 = _synthesize_via_zai(text, role)
-        logger.info("[TTS] using zai-tts2api (free)")
-        return mp3
-    except Exception as exc:
-        logger.warning("[TTS] zai-tts2api failed: %s, trying qwen-tts2api", exc)
-
-    # ── Tier 2: qwen-tts2api (free, same Cherry/Ethan voices) ──
+    # ── Tier 1: qwen-tts2api (free, same Cherry/Ethan voices) ──
     try:
         mp3 = _synthesize_via_qwen_free(text, role)
         logger.info("[TTS] using qwen-tts2api (free)")
@@ -177,7 +144,7 @@ def synthesize_segment(
     except Exception as exc:
         logger.warning("[TTS] qwen-tts2api failed: %s, falling back to DashScope", exc)
 
-    # ── Tier 3: DashScope (paid) ──
+    # ── Tier 2: DashScope (paid) ──
     last_error = ""
     for attempt in range(1, retries + 1):
         try:
