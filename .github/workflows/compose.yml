@@ -1,8 +1,6 @@
 name: compose
 
 on:
-  schedule:
-    - cron: "30 19 * * *" # Beijing 03:30
   workflow_dispatch:
 
 env:

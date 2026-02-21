@@ -1,8 +1,6 @@
 name: rank
 
 on:
-  schedule:
-    - cron: "0 19 * * *" # Beijing 03:00
   workflow_dispatch:
 
 env:

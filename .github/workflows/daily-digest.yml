@@ -1,6 +1,8 @@
-name: publish
+name: daily-digest
 
 on:
+  schedule:
+    - cron: "0 19 * * *" # Beijing 03:00
   workflow_dispatch:
 
 env:
@@ -20,6 +22,7 @@ env:
   WECHAT_APP_SECRET: ${{ secrets.WECHAT_APP_SECRET }}
   WECHAT_AUTHOR: ${{ vars.WECHAT_AUTHOR || '' }}
   WECHAT_THUMB_MEDIA_ID: ${{ secrets.WECHAT_THUMB_MEDIA_ID }}
+  WECHAT_PROXY: ${{ vars.WECHAT_PROXY || '' }}
   UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
   UNSPLASH_ACCESS_KEY_2: ${{ secrets.UNSPLASH_ACCESS_KEY_2 }}
   PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
@@ -30,15 +33,17 @@ env:
   IMAGE_GEN_BACKUP_BASE_URL: ${{ vars.IMAGE_GEN_BACKUP_BASE_URL || '' }}
   IMAGE_GEN_BACKUP_MODEL: ${{ vars.IMAGE_GEN_BACKUP_MODEL || '' }}
   WEB_DIGEST_BASE_URL: ${{ vars.WEB_DIGEST_BASE_URL || '' }}
-  WECHAT_PROXY: ${{ vars.WECHAT_PROXY || '' }}
   COPYRIGHT_NOTICE_URL: ${{ vars.COPYRIGHT_NOTICE_URL || '' }}
+  ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+  EMAIL_USER: ${{ secrets.EMAIL_USER }}
+  EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
 
 concurrency:
-  group: flying-podcast-publish
+  group: flying-podcast-daily-digest
   cancel-in-progress: false
 
 jobs:
-  publish:
+  daily-digest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +51,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
+
       - name: Download recent published history from R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -56,14 +62,22 @@ jobs:
           mkdir -p data/history
           aws s3 cp "s3://${R2_BUCKET}/history/recent_published.json" data/history/recent_published.json \
             --endpoint-url "${R2_ENDPOINT}" || echo "No history file yet, first run"
-      - name: Build latest digest before publish
-        run: |
-          python run.py ingest --date "$(date +%F)"
-          python run.py rank --date "$(date +%F)"
-          python run.py compose --date "$(date +%F)"
-          python run.py verify --date "$(date +%F)"
-      - name: Publish
+
+      - name: "Stage 1/6: Ingest"
+        run: python run.py ingest --date "$(date +%F)"
+
+      - name: "Stage 2/6: Rank"
+        run: python run.py rank --date "$(date +%F)"
+
+      - name: "Stage 3/6: Compose"
+        run: python run.py compose --date "$(date +%F)"
+
+      - name: "Stage 4/6: Verify"
+        run: python run.py verify --date "$(date +%F)"
+
+      - name: "Stage 5/6: Publish"
         run: python run.py publish --date "$(date +%F)"
+
       - name: Upload web digest to R2
         if: hashFiles('data/output/web_*.html') != ''
         env:
@@ -86,6 +100,7 @@ jobs:
             --endpoint-url "${R2_ENDPOINT}" \
             --content-type "image/png" \
             --cache-control "public, max-age=2592000"
+
       - name: Upload recent published history to R2
         if: hashFiles('data/history/recent_published.json') != ''
         env:
@@ -97,8 +112,16 @@ jobs:
           aws s3 cp data/history/recent_published.json "s3://${R2_BUCKET}/history/recent_published.json" \
             --endpoint-url "${R2_ENDPOINT}" \
             --content-type "application/json"
-      - name: Upload publish result
+
+      - name: "Stage 6/6: Notify"
+        run: python run.py notify --date "$(date +%F)"
+
+      - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: publish-${{ github.run_id }}
-          path: data/output/publish_*.json
+          name: daily-digest-${{ github.run_id }}
+          path: |
+            data/raw/*.json
+            data/processed/*.json
+            data/output/publish_*.json
