@@ -183,7 +183,7 @@ class WeChatClient:
 
     def create_draft(
         self, title: str, author: str, content_html: str, digest: str,
-        source_url: str, thumb_media_id: str = "",
+        source_url: str = "", thumb_media_id: str = "",
     ) -> str:
         token = self._access_token()
         url = f"{self.base}/draft/add"
