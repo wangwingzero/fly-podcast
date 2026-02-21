@@ -16,13 +16,26 @@ from flying_podcast.core.wechat import WeChatClient
 logger = get_logger("publish_podcast")
 
 
-def _build_article_html(title: str, dialogue_html: str) -> str:
-    """Build complete article HTML for WeChat — dialogue card only.
+def _build_article_html(title: str, dialogue_html: str,
+                        mp3_url: str = "") -> str:
+    """Build complete article HTML for WeChat — MP3 URL + dialogue card.
 
     Audio is added manually in the WeChat editor.
-    MP3 download link is set via source_url ("阅读原文") for editor convenience.
+    MP3 URL shown as plain text at top for easy copy-paste.
     """
-    return dialogue_html
+    parts: list[str] = []
+
+    if mp3_url:
+        parts.append(
+            '<section style="text-align:center;margin:10px auto 15px;'
+            'max-width:420px;padding:8px 16px;font-size:12px;color:#999;'
+            'word-break:break-all;">'
+            f'{mp3_url}'
+            '</section>'
+        )
+
+    parts.append(dialogue_html)
+    return "".join(parts)
 
 
 def run(target_date: str | None = None, *,
@@ -96,23 +109,22 @@ def run(target_date: str | None = None, *,
                 logger.warning("Cover upload failed, using default thumb")
 
         # Build article HTML
-        article_html = _build_article_html(title, dialogue_html)
+        article_html = _build_article_html(title, dialogue_html, mp3_url=mp3_url)
 
-        # Create digest summary
+        # Create digest summary (just the title)
         lines = script.get("dialogue", [])
         total_chars = sum(len(l.get("text", "")) for l in lines)
-        digest = f"飞行播客 | 虎机长x千羽 | {len(lines)}段对话 | {title}"
+        digest = title
         if len(digest) > 120:
             digest = digest[:117] + "..."
 
         # Create draft
         try:
             media_id = client.create_draft(
-                title=f"飞行播客 | {title}",
+                title=title,
                 author="飞行播客",
                 content_html=article_html,
                 digest=digest,
-                source_url=mp3_url,
                 thumb_media_id=thumb_media_id,
             )
             logger.info("Draft created: %s (media_id: %s)", title, media_id[:30])
