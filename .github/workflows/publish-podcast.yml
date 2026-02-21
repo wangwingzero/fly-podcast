@@ -1,0 +1,58 @@
+name: publish-podcast
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Target date (YYYY-MM-DD)"
+        required: false
+        default: ""
+      episode_dirs:
+        description: "Comma-separated episode dir names (empty = all for date)"
+        required: false
+        default: ""
+
+env:
+  TZ: Asia/Shanghai
+  DRY_RUN: "false"
+  WECHAT_ENABLE_PUBLISH: "true"
+  WECHAT_APP_ID: ${{ secrets.WECHAT_APP_ID }}
+  WECHAT_APP_SECRET: ${{ secrets.WECHAT_APP_SECRET }}
+  WECHAT_THUMB_MEDIA_ID: ${{ secrets.WECHAT_THUMB_MEDIA_ID }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+
+      - name: Download podcast files from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'flying-podcast' }}
+        run: |
+          DATE="${{ github.event.inputs.date }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(TZ=Asia/Shanghai date +%F)
+          fi
+          echo "Downloading podcast files for date: $DATE"
+          mkdir -p data/output/podcast
+          aws s3 sync "s3://${R2_BUCKET}/podcast/" data/output/podcast/ \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --exclude "*" --include "${DATE}*/*"
+          echo "Downloaded files:"
+          find data/output/podcast -type f | head -50
+
+      - name: Publish podcast drafts
+        run: |
+          DATE="${{ github.event.inputs.date }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(TZ=Asia/Shanghai date +%F)
+          fi
+          python run.py publish-podcast --date "$DATE"

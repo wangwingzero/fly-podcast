@@ -22,6 +22,7 @@ from flying_podcast.stages.notify import run as notify
 from flying_podcast.stages.podcast import run as podcast
 from flying_podcast.stages.podcast_inbox import run as podcast_inbox
 from flying_podcast.stages.publish import run as publish
+from flying_podcast.stages.publish_podcast import run as publish_podcast
 from flying_podcast.stages.rank import run as rank
 from flying_podcast.stages.verify import run as verify
 
@@ -37,6 +38,7 @@ STAGES = {
     "notify": notify,
     "podcast": podcast,
     "podcast-inbox": podcast_inbox,
+    "publish-podcast": publish_podcast,
 }
 
 
@@ -49,6 +51,8 @@ def main() -> None:
                         help="Only process PDFs in inbox/pending/ (for podcast-inbox)")
     parser.add_argument("--dry-run", dest="dry_run_flag", action="store_true",
                         help="Show what would be processed without generating (for podcast-inbox)")
+    parser.add_argument("--podcast-dir", dest="podcast_dir", default=None,
+                        help="Specific podcast output dir (for publish-podcast)")
     args = parser.parse_args()
 
     ensure_dirs()
@@ -65,6 +69,10 @@ def main() -> None:
 
     if args.stage == "podcast-inbox":
         podcast_inbox(args.date, local_only=args.local_only, dry_run=args.dry_run_flag)
+        return
+
+    if args.stage == "publish-podcast":
+        publish_podcast(args.date, podcast_dir=args.podcast_dir)
         return
 
     STAGES[args.stage](args.date)
