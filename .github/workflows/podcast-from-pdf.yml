@@ -47,19 +47,23 @@ jobs:
           pip install -r requirements.txt
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Find new PDFs from this push
+      - name: Find PDFs to process
         id: find-pdfs
         run: |
-          # Detect newly added PDFs via git diff
-          ADDED=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} -- 'podcast_pdfs/**.pdf' || true)
-          if [ -z "$ADDED" ]; then
-            echo "No new PDFs in this push"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger: process ALL PDFs in the folder
+            PDFS=$(find podcast_pdfs -maxdepth 1 -name "*.pdf" -type f 2>/dev/null || true)
+          else
+            # Push trigger: only process newly added PDFs
+            PDFS=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} -- 'podcast_pdfs/*.pdf' || true)
+          fi
+          if [ -z "$PDFS" ]; then
+            echo "No PDFs to process"
             echo "has_pdfs=false" >> "$GITHUB_OUTPUT"
           else
-            echo "New PDFs:"
-            echo "$ADDED"
-            # Save list to file for later steps
-            echo "$ADDED" > /tmp/new_pdfs.txt
+            echo "PDFs to process:"
+            echo "$PDFS"
+            echo "$PDFS" > /tmp/new_pdfs.txt
             echo "has_pdfs=true" >> "$GITHUB_OUTPUT"
           fi
 
