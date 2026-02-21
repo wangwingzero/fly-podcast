@@ -319,16 +319,30 @@ def synthesize_segment(
     raise TTSError(f"All TTS backends failed. {summary}")
 
 
-# ── Dialogue-level synthesis (session-locked backend) ─────────
+# ── Dialogue-level synthesis (smart fallback) ─────────────────
+#
+# Qwen and DashScope both use Cherry/Ethan voices → safe to mix.
+# Edge uses completely different voices (晓晓/云健) → must be all-or-nothing.
+#
+# Strategy:
+#   1. Qwen for all segments (free, best quality)
+#   2. If Qwen partially fails → DashScope patches the gaps (same voice)
+#   3. If Qwen fully fails → clean slate, Edge for all (different voice)
+#   4. Last resort → clean slate, DashScope for all (paid)
 
-def _synthesize_dialogue_with_backend(
+
+def _try_all_segments(
     dialogue: list[dict[str, str]],
     output_dir: Path,
     backend: str,
     retries: int = 2,
-) -> list[Path]:
-    """Synthesize ALL segments using a single backend. Raises on any failure."""
-    segment_files: list[Path] = []
+) -> tuple[list[Path | None], list[dict]]:
+    """Try all segments with one backend, continuing past failures.
+
+    Returns (files, failed) where files[i] is Path or None.
+    """
+    files: list[Path | None] = []
+    failed: list[dict] = []
 
     for i, line in enumerate(dialogue):
         role = line["role"]
@@ -343,25 +357,72 @@ def _synthesize_dialogue_with_backend(
         for j, chunk in enumerate(chunks):
             suffix = f"_{j}" if len(chunks) > 1 else ""
             seg_path = output_dir / f"seg_{i:03d}{suffix}.mp3"
+            idx = len(files)
 
             if seg_path.exists():
                 logger.debug("Segment already exists: %s", seg_path.name)
-                segment_files.append(seg_path)
+                files.append(seg_path)
                 continue
 
             logger.info("TTS [%s][%s] seg %d%s: %s...", backend, role, i, suffix, chunk[:30])
-            audio_bytes = _synthesize_one(
-                chunk, preset["voice"], preset["instructions"],
-                role=role, backend=backend, retries=retries,
-            )
-
-            with open(seg_path, "wb") as f:
-                f.write(audio_bytes)
-            segment_files.append(seg_path)
+            try:
+                audio_bytes = _synthesize_one(
+                    chunk, preset["voice"], preset["instructions"],
+                    role=role, backend=backend, retries=retries,
+                )
+                with open(seg_path, "wb") as f:
+                    f.write(audio_bytes)
+                files.append(seg_path)
+            except TTSError as exc:
+                logger.warning("[TTS] %s failed seg %d%s: %s", backend, i, suffix, exc)
+                files.append(None)
+                failed.append({
+                    "idx": idx, "seg_path": seg_path, "chunk": chunk,
+                    "preset": preset, "role": role,
+                    "line_idx": i, "suffix": suffix,
+                })
 
             time.sleep(0.5)
 
-    return segment_files
+    return files, failed
+
+
+def _patch_failed_segments(
+    files: list[Path | None],
+    failed: list[dict],
+    backend: str,
+    retries: int = 2,
+) -> list[Path | None]:
+    """Retry failed segments with a compatible backend (same voice family)."""
+    for item in failed:
+        logger.info("TTS [%s] patching seg %d%s: %s...",
+                     backend, item["line_idx"], item["suffix"], item["chunk"][:30])
+        try:
+            audio_bytes = _synthesize_one(
+                item["chunk"], item["preset"]["voice"], item["preset"]["instructions"],
+                role=item["role"], backend=backend, retries=retries,
+            )
+            with open(item["seg_path"], "wb") as fp:
+                fp.write(audio_bytes)
+            files[item["idx"]] = item["seg_path"]
+            logger.info("[TTS] Patched seg %d%s via %s",
+                         item["line_idx"], item["suffix"], backend)
+        except TTSError as exc:
+            logger.warning("[TTS] %s patch failed seg %d%s: %s",
+                            backend, item["line_idx"], item["suffix"], exc)
+        time.sleep(0.5)
+    return files
+
+
+def _clean_segments(output_dir: Path) -> int:
+    """Delete all segment mp3 files in preparation for a different voice."""
+    cleaned = 0
+    for f in output_dir.glob("seg_*.mp3"):
+        f.unlink()
+        cleaned += 1
+    if cleaned:
+        logger.info("[TTS] Cleaned %d partial segments", cleaned)
+    return cleaned
 
 
 def synthesize_dialogue(
@@ -369,38 +430,58 @@ def synthesize_dialogue(
     output_dir: Path,
 ) -> list[Path]:
     """
-    Synthesize a list of dialogue lines to individual mp3 files.
+    Synthesize dialogue with smart voice-consistent fallback.
 
-    IMPORTANT: The entire dialogue is locked to ONE TTS backend to ensure
-    voice consistency. If a backend fails mid-dialogue, all partial segments
-    are deleted and the entire dialogue is retried with the next backend.
+    Qwen + DashScope share Cherry/Ethan voices → partial patching OK.
+    Edge uses different voices → requires clean slate, all-or-nothing.
 
-    Fallback chain: Qwen (Cherry/Ethan) → Edge (晓晓/云健) → DashScope (paid)
+    Fallback chain:
+      1. Qwen all → if partial fail → DashScope patches gaps
+      2. Edge all  (clean slate, different voice)
+      3. DashScope all (clean slate, paid)
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    errors: dict[str, str] = {}
 
-    for backend in BACKEND_CHAIN:
-        logger.info("[TTS] Attempting full dialogue (%d lines) with '%s'",
-                     len(dialogue), backend)
-        try:
-            files = _synthesize_dialogue_with_backend(dialogue, output_dir, backend)
-            logger.info("[TTS] Dialogue complete via '%s' (%d segments)", backend, len(files))
-            return files
-        except TTSError as exc:
-            errors[backend] = str(exc)
-            logger.warning("[TTS] Backend '%s' failed mid-dialogue: %s", backend, exc)
-            # Clean ALL partial segments — mixing voices is unacceptable
-            cleaned = 0
-            for f in output_dir.glob("seg_*.mp3"):
-                f.unlink()
-                cleaned += 1
-            if cleaned:
-                logger.info("[TTS] Deleted %d partial segments from '%s' to avoid voice mixing",
-                            cleaned, backend)
+    # ── Phase 1: Qwen (free, Cherry/Ethan) ──
+    logger.info("[TTS] Phase 1: Qwen direct for all %d lines", len(dialogue))
+    files, failed = _try_all_segments(dialogue, output_dir, "qwen")
 
-    summary = "; ".join(f"{k}: {v}" for k, v in errors.items())
-    raise TTSError(f"All TTS backends failed for dialogue. {summary}")
+    if not failed:
+        logger.info("[TTS] All %d segments done via Qwen", len(files))
+        return [f for f in files if f is not None]
+
+    qwen_ok = sum(1 for f in files if f is not None)
+    logger.warning("[TTS] Qwen: %d succeeded, %d failed", qwen_ok, len(failed))
+
+    if qwen_ok > 0:
+        # ── Phase 1b: DashScope patches Qwen gaps (same voice) ──
+        logger.info("[TTS] Phase 1b: Patching %d gaps with DashScope", len(failed))
+        files = _patch_failed_segments(files, failed, "dashscope")
+        still_missing = sum(1 for f in files if f is None)
+        if not still_missing:
+            logger.info("[TTS] All segments complete (Qwen + DashScope patch)")
+            return [f for f in files if f is not None]
+        logger.warning("[TTS] Still %d segments missing after DashScope patch", still_missing)
+
+    # ── Phase 2: Edge (free, different voice — clean slate) ──
+    _clean_segments(output_dir)
+    logger.info("[TTS] Phase 2: Edge TTS for all %d lines (different voice)", len(dialogue))
+    files, failed = _try_all_segments(dialogue, output_dir, "edge")
+
+    if not failed:
+        logger.info("[TTS] All %d segments done via Edge", len(files))
+        return [f for f in files if f is not None]
+
+    # ── Phase 3: DashScope all (paid, last resort) ──
+    _clean_segments(output_dir)
+    logger.info("[TTS] Phase 3: DashScope for all %d lines (paid)", len(dialogue))
+    files, failed = _try_all_segments(dialogue, output_dir, "dashscope")
+
+    if not failed:
+        logger.info("[TTS] All %d segments done via DashScope", len(files))
+        return [f for f in files if f is not None]
+
+    raise TTSError(f"All TTS backends failed. {len(failed)} segments ungenerated.")
 
 
 def concatenate_audio(segment_files: list[Path], output_path: Path) -> Path:
