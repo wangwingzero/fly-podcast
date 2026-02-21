@@ -134,7 +134,7 @@ def _synthesize_via_qwen_direct(text: str, role: str) -> bytes:
         f"{_QWEN_GRADIO_BASE}/queue/join",
         headers=_QWEN_GRADIO_HEADERS,
         json={
-            "data": [text[:MAX_CHARS_PER_REQUEST], voice, "Chinese / 中文"],
+            "data": [text[:MAX_CHARS_PER_REQUEST], voice, "Auto / 自动"],
             "event_data": None,
             "fn_index": 1,
             "trigger_id": 7,
