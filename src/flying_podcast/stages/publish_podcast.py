@@ -16,31 +16,13 @@ from flying_podcast.core.wechat import WeChatClient
 logger = get_logger("publish_podcast")
 
 
-def _build_article_html(title: str, dialogue_html: str,
-                        mp3_url: str = "") -> str:
-    """Build complete article HTML for WeChat with dialogue only.
+def _build_article_html(title: str, dialogue_html: str) -> str:
+    """Build complete article HTML for WeChat — dialogue card only.
 
-    Audio is added manually in the WeChat editor above the dialogue.
-    An MP3 download link is placed at the top for convenience.
-
-    Args:
-        title: Podcast episode title
-        dialogue_html: Pre-rendered scrollable dialogue HTML fragment
-        mp3_url: CDN URL for the MP3 file (shown as download link at top)
+    Audio is added manually in the WeChat editor.
+    MP3 download link is set via source_url ("阅读原文") for editor convenience.
     """
-    parts: list[str] = []
-
-    if mp3_url:
-        parts.append(
-            '<section style="text-align:center;margin:10px auto 15px;'
-            'max-width:420px;padding:8px 16px;">'
-            f'<a href="{mp3_url}" style="color:#1e6fff;font-size:13px;'
-            'text-decoration:none;">下载音频：' + title + '</a>'
-            '</section>'
-        )
-
-    parts.append(dialogue_html)
-    return "".join(parts)
+    return dialogue_html
 
 
 def run(target_date: str | None = None, *,
@@ -114,7 +96,7 @@ def run(target_date: str | None = None, *,
                 logger.warning("Cover upload failed, using default thumb")
 
         # Build article HTML
-        article_html = _build_article_html(title, dialogue_html, mp3_url=mp3_url)
+        article_html = _build_article_html(title, dialogue_html)
 
         # Create digest summary
         lines = script.get("dialogue", [])
@@ -130,6 +112,7 @@ def run(target_date: str | None = None, *,
                 author="飞行播客",
                 content_html=article_html,
                 digest=digest,
+                source_url=mp3_url,
                 thumb_media_id=thumb_media_id,
             )
             logger.info("Draft created: %s (media_id: %s)", title, media_id[:30])
