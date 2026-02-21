@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import base64
 import subprocess
 import time
 from pathlib import Path
@@ -51,6 +53,22 @@ QWEN_FREE_VOICE_MAP = {
     "虎机长": "ethan",
 }
 
+# Edge TTS voice mapping
+EDGE_VOICE_MAP = {
+    "女": "zh-CN-XiaoxiaoNeural",
+    "男": "zh-CN-YunjianNeural",
+    "千羽": "zh-CN-XiaoxiaoNeural",
+    "虎机长": "zh-CN-YunjianNeural",
+}
+
+# 火山 TTS voice mapping
+VOLCENGINE_VOICE_MAP = {
+    "女": "zh_female_zhubo",
+    "男": "zh_male_zhubo",
+    "千羽": "zh_female_zhubo",
+    "虎机长": "zh_male_zhubo",
+}
+
 # ── TTS client ─────────────────────────────────────────────────
 
 MODEL = "qwen3-tts-instruct-flash"
@@ -71,10 +89,12 @@ def _wav_to_mp3(wav_bytes: bytes) -> bytes:
     return result.stdout
 
 
-# ── Free TTS backend ──────────────────────────────────────────
+# ── Tier 1: qwen-tts2api (free, self-hosted) ─────────────────
 
 def _synthesize_via_qwen_free(text: str, role: str) -> bytes:
     """Synthesize via qwen-tts2api (Qwen Gradio demo proxy). Returns MP3 bytes."""
+    if not settings.qwen_tts_url:
+        raise TTSError("QWEN_TTS_URL is not set, skipping")
     url = settings.qwen_tts_url.rstrip("/") + "/v1/audio/speech"
     voice = QWEN_FREE_VOICE_MAP.get(role, "cherry")
 
@@ -91,6 +111,95 @@ def _synthesize_via_qwen_free(text: str, role: str) -> bytes:
 
     return _wav_to_mp3(resp.content)
 
+
+# ── Tier 2: Edge TTS (free, Microsoft Edge API) ──────────────
+
+def _synthesize_via_edge_tts(text: str, role: str) -> bytes:
+    """Synthesize via edge-tts library. Returns MP3 bytes."""
+    import edge_tts
+
+    voice = EDGE_VOICE_MAP.get(role, "zh-CN-XiaoxiaoNeural")
+    communicate = edge_tts.Communicate(text[:MAX_CHARS_PER_REQUEST], voice=voice)
+
+    # edge-tts is async; run in event loop
+    mp3_chunks: list[bytes] = []
+
+    async def _generate():
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                mp3_chunks.append(chunk["data"])
+
+    asyncio.run(_generate())
+
+    if not mp3_chunks:
+        raise TTSError("Edge TTS returned no audio data")
+
+    mp3_data = b"".join(mp3_chunks)
+    if len(mp3_data) < 100:
+        raise TTSError(f"Edge TTS returned too little data ({len(mp3_data)} bytes)")
+
+    return mp3_data
+
+
+# ── Tier 3: 火山 TTS (free, Volcengine translate API) ────────
+
+_VOLCENGINE_HEADERS = {
+    "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "Origin": "chrome-extension://klgfhbiooeogdfodpopgppeadghjjemk",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "accept": "application/json, text/plain, */*",
+    "content-type": "application/json",
+}
+
+
+def _synthesize_via_volcengine(text: str, role: str) -> bytes:
+    """Synthesize via Volcengine translate TTS API. Returns MP3 bytes."""
+    voice = VOLCENGINE_VOICE_MAP.get(role, "zh_female_zhubo")
+
+    # Detect language first
+    language = None
+    try:
+        resp = requests.post(
+            "https://translate.volcengine.com/web/langdetect/v1/",
+            headers=_VOLCENGINE_HEADERS,
+            json={"text": text[:100]},
+            timeout=10,
+        )
+        language = resp.json().get("language")
+    except Exception:
+        pass
+
+    payload: dict[str, Any] = {
+        "text": text[:MAX_CHARS_PER_REQUEST],
+        "speaker": voice,
+    }
+    if language:
+        payload["language"] = language
+
+    resp = requests.post(
+        "https://translate.volcengine.com/crx/tts/v1/",
+        headers=_VOLCENGINE_HEADERS,
+        json=payload,
+        timeout=60,
+    )
+    resp.raise_for_status()
+
+    data = resp.json()
+    audio = data.get("audio")
+    if not audio:
+        raise TTSError(f"Volcengine returned no audio: {data}")
+
+    audio_b64 = audio.get("data")
+    if not audio_b64:
+        raise TTSError("Volcengine returned empty audio data")
+
+    return base64.b64decode(audio_b64)
+
+
+# ── Tier 4: DashScope (paid, Alibaba Cloud) ──────────────────
 
 def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes:
     """Synthesize via paid DashScope API. Returns MP3 bytes."""
@@ -121,7 +230,7 @@ def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes
     return audio_resp.content
 
 
-# ── Main synthesis with 2-tier fallback ────────────────────────
+# ── Main synthesis with 4-tier fallback ────────────────────────
 
 def synthesize_segment(
     text: str,
@@ -129,37 +238,61 @@ def synthesize_segment(
     instructions: str,
     *,
     role: str = "女",
-    retries: int = 3,
+    retries: int = 2,
 ) -> bytes:
     """
     Synthesize a single text segment to MP3 bytes.
 
-    Fallback chain: qwen-tts2api (free, with retries) → DashScope (paid).
+    Fallback chain:
+      1. qwen-tts2api (free, self-hosted)
+      2. Edge TTS (free, Microsoft Edge API)
+      3. 火山 TTS (free, Volcengine API)
+      4. DashScope (paid, Alibaba Cloud)
     """
-    # ── Tier 1: qwen-tts2api (free, same Cherry/Ethan voices) ──
-    qwen_error = ""
+    errors: dict[str, str] = {}
+
+    # ── Tier 1: qwen-tts2api ──
+    if settings.qwen_tts_url:
+        for attempt in range(1, retries + 1):
+            try:
+                mp3 = _synthesize_via_qwen_free(text, role)
+                logger.info("[TTS] using qwen-tts2api (free)")
+                return mp3
+            except Exception as exc:
+                errors["qwen"] = str(exc)
+                if attempt < retries:
+                    wait = min(3 * attempt, 10)
+                    logger.warning("[TTS] qwen attempt %d/%d failed: %s, retry in %ds", attempt, retries, exc, wait)
+                    time.sleep(wait)
+        logger.warning("[TTS] qwen-tts2api failed: %s, trying Edge TTS", errors["qwen"])
+
+    # ── Tier 2: Edge TTS ──
     for attempt in range(1, retries + 1):
         try:
-            mp3 = _synthesize_via_qwen_free(text, role)
-            logger.info("[TTS] using qwen-tts2api (free)")
+            mp3 = _synthesize_via_edge_tts(text, role)
+            logger.info("[TTS] using Edge TTS (free)")
             return mp3
         except Exception as exc:
-            qwen_error = str(exc)
+            errors["edge"] = str(exc)
             if attempt < retries:
-                wait = min(3 * attempt, 15)
-                logger.warning(
-                    "[TTS] qwen-tts2api attempt %d/%d failed: %s, retrying in %ds",
-                    attempt, retries, qwen_error, wait,
-                )
-                time.sleep(wait)
-            else:
-                logger.warning(
-                    "[TTS] qwen-tts2api all %d attempts failed: %s, falling back to DashScope",
-                    retries, qwen_error,
-                )
+                time.sleep(2)
+                logger.warning("[TTS] Edge TTS attempt %d/%d failed: %s", attempt, retries, exc)
+    logger.warning("[TTS] Edge TTS failed: %s, trying Volcengine", errors.get("edge"))
 
-    # ── Tier 2: DashScope (paid) ──
-    last_error = ""
+    # ── Tier 3: 火山 TTS ──
+    for attempt in range(1, retries + 1):
+        try:
+            mp3 = _synthesize_via_volcengine(text, role)
+            logger.info("[TTS] using Volcengine (free)")
+            return mp3
+        except Exception as exc:
+            errors["volcengine"] = str(exc)
+            if attempt < retries:
+                time.sleep(2)
+                logger.warning("[TTS] Volcengine attempt %d/%d failed: %s", attempt, retries, exc)
+    logger.warning("[TTS] Volcengine failed: %s, trying DashScope", errors.get("volcengine"))
+
+    # ── Tier 4: DashScope (paid) ──
     for attempt in range(1, retries + 1):
         try:
             mp3 = _synthesize_via_dashscope(text, voice, instructions)
@@ -168,13 +301,14 @@ def synthesize_segment(
         except TTSError:
             raise
         except Exception as exc:
-            last_error = str(exc)
+            errors["dashscope"] = str(exc)
             if attempt < retries:
                 wait = min(2 ** attempt, 8)
-                logger.warning("DashScope attempt %d failed: %s, retrying in %ds", attempt, last_error, wait)
+                logger.warning("[TTS] DashScope attempt %d/%d failed: %s, retry in %ds", attempt, retries, exc, wait)
                 time.sleep(wait)
 
-    raise TTSError(f"All TTS backends failed. qwen-tts2api: {qwen_error}; DashScope: {last_error}")
+    summary = "; ".join(f"{k}: {v}" for k, v in errors.items())
+    raise TTSError(f"All TTS backends failed. {summary}")
 
 
 def synthesize_dialogue(
