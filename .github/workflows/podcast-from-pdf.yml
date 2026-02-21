@@ -108,6 +108,19 @@ jobs:
             echo "No podcast output directory found"
           fi
 
+      - name: Publish podcast drafts to WeChat
+        if: steps.find-pdfs.outputs.has_pdfs == 'true'
+        env:
+          DRY_RUN: "false"
+          WECHAT_ENABLE_PUBLISH: "true"
+          WECHAT_APP_ID: ${{ secrets.WECHAT_APP_ID }}
+          WECHAT_APP_SECRET: ${{ secrets.WECHAT_APP_SECRET }}
+          WECHAT_THUMB_MEDIA_ID: ${{ secrets.WECHAT_THUMB_MEDIA_ID }}
+          WECHAT_PROXY: ${{ vars.WECHAT_PROXY || '' }}
+        run: |
+          DATE=$(TZ=Asia/Shanghai date +%F)
+          python run.py publish-podcast --date "$DATE"
+
       - name: Upload artifacts
         if: always() && steps.find-pdfs.outputs.has_pdfs == 'true'
         uses: actions/upload-artifact@v4
