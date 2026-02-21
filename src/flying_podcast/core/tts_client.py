@@ -239,6 +239,7 @@ def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes
         voice=voice,
         instructions=instructions,
         optimize_instructions=True,
+        language_type="Auto",
         stream=False,
     )
 
