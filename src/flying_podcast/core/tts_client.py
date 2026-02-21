@@ -226,8 +226,12 @@ def concatenate_audio(segment_files: list[Path], output_path: Path) -> Path:
         inputs.extend(["-i", str(seg_file)])
         filter_parts.append(f"[{i}:a]")
 
-    # Simple concat without silence (silence via anullsrc adds complexity)
-    filter_str = "".join(filter_parts) + f"concat=n={len(segment_files)}:v=0:a=1[out]"
+    # Concat then boost volume via loudnorm (EBU R128 broadcast standard)
+    filter_str = (
+        "".join(filter_parts)
+        + f"concat=n={len(segment_files)}:v=0:a=1[raw];"
+        + "[raw]loudnorm=I=-16:TP=-1.5:LRA=11[out]"
+    )
 
     cmd = [
         "ffmpeg", "-y",

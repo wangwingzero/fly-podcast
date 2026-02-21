@@ -63,6 +63,9 @@ class Settings:
     # Free TTS (fallback chain: qwen-tts2api free → DashScope paid)
     qwen_tts_url: str = os.getenv("QWEN_TTS_URL", "http://localhost:8825")
 
+    # Podcast extra prompt (e.g. holiday greetings)
+    podcast_greeting: str = os.getenv("PODCAST_GREETING", "")
+
     # CCAR-workflow integration (podcast inbox)
     ccar_data_path: str = os.getenv("CCAR_DATA_PATH", "D:/CCAR-workflow/data/regulations.json")
     ccar_downloads_path: str = os.getenv("CCAR_DOWNLOADS_PATH", "D:/CCAR-workflow/downloads")

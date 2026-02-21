@@ -6,6 +6,15 @@ on:
     paths:
       - "podcast_pdfs/**.pdf"
   workflow_dispatch:
+    inputs:
+      greeting:
+        description: "Extra prompt for dialogue (e.g. holiday greeting)"
+        required: false
+        default: ""
+      pdf_filter:
+        description: "Only process PDFs matching this keyword (empty = all)"
+        required: false
+        default: ""
 
 env:
   TZ: Asia/Shanghai
@@ -16,6 +25,7 @@ env:
   LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
   DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
   QWEN_TTS_URL: ${{ vars.QWEN_TTS_URL || 'http://localhost:8825' }}
+  PODCAST_GREETING: ${{ github.event.inputs.greeting || '' }}
   UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
   UNSPLASH_ACCESS_KEY_2: ${{ secrets.UNSPLASH_ACCESS_KEY_2 }}
   PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
@@ -50,12 +60,17 @@ jobs:
       - name: Find PDFs to process
         id: find-pdfs
         run: |
+          FILTER="${{ github.event.inputs.pdf_filter }}"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # Manual trigger: process ALL PDFs in the folder
             PDFS=$(find podcast_pdfs -maxdepth 1 -name "*.pdf" -type f 2>/dev/null || true)
           else
             # Push trigger: only process newly added PDFs
             PDFS=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} -- 'podcast_pdfs/*.pdf' || true)
+          fi
+          # Apply filter if specified
+          if [ -n "$FILTER" ] && [ -n "$PDFS" ]; then
+            PDFS=$(echo "$PDFS" | grep -i "$FILTER" || true)
           fi
           if [ -z "$PDFS" ]; then
             echo "No PDFs to process"

@@ -79,6 +79,7 @@ SYSTEM_PROMPT = """\
 1. **开头**（固定格式，必须严格遵守）：
    - 第一句（千羽）："欢迎来到飞行播客！我是千羽。"
    - 第二句（虎机长）："我是虎机长。"
+   - 如果有节日问候指令，在自我介绍后、进入主题前，两人自然地互动式送上节日祝福（不要生硬地念祝福语，要像聊天一样自然带出）
    - 然后千羽用一个有趣的引子引出今天的主题
 2. **主体**：逐一讨论文档核心要点
    - 每段台词控制在1-3句话，节奏要快
@@ -108,6 +109,11 @@ USER_PROMPT_TEMPLATE = """\
 ## 文档内容
 {pdf_text}"""
 
+GREETING_ADDENDUM = """
+
+## 特别指令
+{greeting}"""
+
 
 def generate_dialogue(pdf_text: str) -> dict[str, Any]:
     """Use LLM to generate podcast dialogue from PDF text."""
@@ -121,6 +127,9 @@ def generate_dialogue(pdf_text: str) -> dict[str, Any]:
     )
 
     user_prompt = USER_PROMPT_TEMPLATE.format(pdf_text=pdf_text)
+    if settings.podcast_greeting:
+        user_prompt += GREETING_ADDENDUM.format(greeting=settings.podcast_greeting)
+        logger.info("Added greeting: %s", settings.podcast_greeting[:50])
 
     logger.info("Generating dialogue via LLM (%s)...", settings.llm_model)
     resp = client.complete_json(
