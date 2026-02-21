@@ -5,7 +5,6 @@ and creates WeChat drafts with the dialogue content and cover image.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from flying_podcast.core.config import settings
@@ -17,37 +16,23 @@ from flying_podcast.core.wechat import WeChatClient
 logger = get_logger("publish_podcast")
 
 
-def _build_article_html(title: str, dialogue_html: str,
-                        has_audio: bool = False) -> str:
+def _build_article_html(title: str, dialogue_html: str) -> str:
     """Build complete article HTML for WeChat with intro + dialogue.
+
+    Audio is added manually in the WeChat editor above the intro section.
 
     Args:
         title: Podcast episode title
         dialogue_html: Pre-rendered scrollable dialogue HTML fragment
-        has_audio: Whether an audio player page is linked via "阅读原文"
     """
-    # Intro section above the dialogue
     intro = (
         '<section style="margin:15px auto;max-width:420px;padding:0 8px;">'
         '<section style="font-size:14px;color:#666;line-height:1.8;'
         'margin-bottom:12px;">'
         '虎机长和千羽带你用最轻松的方式，读懂民航局最新通告。'
         '</section>'
+        '</section>'
     )
-
-    if has_audio:
-        intro += (
-            '<section style="background:linear-gradient(135deg,#1e6fff,#4e95ff);'
-            'border-radius:8px;padding:12px 16px;margin-bottom:12px;'
-            'text-align:center;">'
-            '<section style="font-size:15px;color:#fff;font-weight:bold;'
-            'margin-bottom:4px;">点击底部「阅读原文」收听音频</section>'
-            '<section style="font-size:12px;color:rgba(255,255,255,0.8);">'
-            '边听边看文字稿，体验更佳</section>'
-            '</section>'
-        )
-
-    intro += '</section>'
 
     return intro + dialogue_html
 
@@ -88,8 +73,7 @@ def run(target_date: str | None = None, *,
     for ep_dir in dirs_to_publish:
         logger.info("Publishing: %s", ep_dir.name)
 
-        # Load metadata and content
-        meta_path = ep_dir / "metadata.json"
+        # Load content
         script_path = ep_dir / "script.json"
         html_path = ep_dir / "dialogue.html"
         cover_path = ep_dir / "cover.jpg"
@@ -100,10 +84,6 @@ def run(target_date: str | None = None, *,
 
         script = load_json(script_path)
         title = script.get("title", ep_dir.name)
-
-        # Load metadata for player URL
-        meta = load_json(meta_path) if meta_path.exists() else {}
-        player_url = meta.get("player_url", "")
 
         # Read dialogue HTML
         if html_path.exists():
@@ -123,9 +103,7 @@ def run(target_date: str | None = None, *,
                 logger.warning("Cover upload failed, using default thumb")
 
         # Build article HTML
-        article_html = _build_article_html(
-            title, dialogue_html, has_audio=bool(player_url)
-        )
+        article_html = _build_article_html(title, dialogue_html)
 
         # Create digest summary
         lines = script.get("dialogue", [])
@@ -141,7 +119,6 @@ def run(target_date: str | None = None, *,
                 author="飞行播客",
                 content_html=article_html,
                 digest=digest,
-                source_url=player_url,
                 thumb_media_id=thumb_media_id,
             )
             logger.info("Draft created: %s (media_id: %s)", title, media_id[:30])
