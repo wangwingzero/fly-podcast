@@ -1341,17 +1341,23 @@ def run(target_date: str | None = None) -> Path:
     }
 
     def _cleanup_old_drafts(wc: WeChatClient, keep_media_id: str) -> None:
-        """Delete all drafts except the one just created."""
+        """Delete old daily-digest drafts, keep podcasts and the one just created."""
+        podcast_authors = {"飞行播客"}
         try:
             drafts = wc.list_drafts(count=20)
             deleted = 0
             for item in drafts:
                 mid = item.get("media_id", "")
-                if mid and mid != keep_media_id:
-                    wc.delete_draft(mid)
-                    deleted += 1
+                if not mid or mid == keep_media_id:
+                    continue
+                # Skip podcast drafts (author = "飞行播客")
+                news_items = item.get("content", {}).get("news_item", [])
+                if news_items and news_items[0].get("author") in podcast_authors:
+                    continue
+                wc.delete_draft(mid)
+                deleted += 1
             if deleted:
-                logger.info("Cleaned up %d old draft(s)", deleted)
+                logger.info("Cleaned up %d old digest draft(s)", deleted)
         except Exception:
             logger.warning("Draft cleanup failed, continuing")
 
