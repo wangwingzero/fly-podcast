@@ -51,7 +51,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ vars.R2_BUCKET || 'flying-podcast' }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'ccar-pdfs' }}
         run: |
           mkdir -p data/history
           aws s3 cp "s3://${R2_BUCKET}/history/recent_published.json" data/history/recent_published.json \
@@ -70,7 +70,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ vars.R2_BUCKET || 'flying-podcast' }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'ccar-pdfs' }}
         run: |
           aws s3 cp data/output/ "s3://${R2_BUCKET}/digest/" \
             --endpoint-url "${R2_ENDPOINT}" \
@@ -92,7 +92,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ vars.R2_BUCKET || 'flying-podcast' }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'ccar-pdfs' }}
         run: |
           aws s3 cp data/history/recent_published.json "s3://${R2_BUCKET}/history/recent_published.json" \
             --endpoint-url "${R2_ENDPOINT}" \
