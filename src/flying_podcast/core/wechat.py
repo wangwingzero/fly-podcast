@@ -156,7 +156,8 @@ class WeChatClient:
             logger.warning("Upload image bytes exception")
         return ""
 
-    def upload_thumb_image_bytes(self, image_data: bytes, token: str | None = None) -> str:
+    def upload_thumb_image_bytes(self, image_data: bytes, token: str | None = None,
+                                file_name: str = "cover.jpg") -> str:
         """Upload image bytes as permanent material for use as article thumbnail."""
         if not token:
             token = self._access_token()
@@ -170,7 +171,7 @@ class WeChatClient:
                     url,
                     params={"access_token": token, "type": "image"},
                     file_field="media", file_path=tmp_path,
-                    file_name="cover.jpg", content_type="image/jpeg",
+                    file_name=file_name, content_type="image/jpeg",
                     proxy=self._proxy, timeout=60,
                 )
             finally:
@@ -274,7 +275,7 @@ class WeChatClient:
             "content": content_html,
             "content_source_url": source_url,
             "thumb_media_id": thumb_media_id or settings.wechat_thumb_media_id,
-            "need_open_comment": 0,
+            "need_open_comment": 1,
             "only_fans_can_comment": 0,
         }
         data = _curl_post_json(

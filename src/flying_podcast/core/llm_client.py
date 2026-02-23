@@ -86,7 +86,7 @@ class OpenAICompatibleClient:
         raise LLMError("llm_non_object_json")
 
     def _request_once_openai(self, headers: dict[str, str], body: dict[str, Any], timeout: int) -> tuple[dict[str, Any], str]:
-        resp = requests.post(self._chat_url(), headers=headers, json=body, timeout=timeout)
+        resp = requests.post(self._chat_url(), headers=headers, json=body, timeout=(10, timeout))
         if not resp.ok:
             raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
         data = resp.json()
@@ -137,7 +137,7 @@ class OpenAICompatibleClient:
         if system_prompt:
             body["system"] = system_prompt
 
-        resp = requests.post(self._chat_url(), headers=headers, json=body, timeout=timeout)
+        resp = requests.post(self._chat_url(), headers=headers, json=body, timeout=(10, timeout))
         if not resp.ok:
             raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
         data = resp.json()

@@ -60,6 +60,10 @@ class Settings:
 
     dashscope_api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
 
+    # TTS backend controls
+    tts_enable_dashscope: bool = _env_bool("TTS_ENABLE_DASHSCOPE", False)
+    tts_enable_edge: bool = _env_bool("TTS_ENABLE_EDGE", False)
+
     # Free TTS (fallback chain: qwen-tts2api free → DashScope paid)
     qwen_tts_url: str = os.getenv("QWEN_TTS_URL", "http://localhost:8825")
 

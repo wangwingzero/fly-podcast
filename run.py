@@ -20,6 +20,8 @@ from flying_podcast.stages.compose import run as compose
 from flying_podcast.stages.ingest import run as ingest
 from flying_podcast.stages.notify import run as notify
 from flying_podcast.stages.podcast import run as podcast
+from flying_podcast.stages.podcast import run_script as podcast_script
+from flying_podcast.stages.podcast import run_audio as podcast_audio
 from flying_podcast.stages.podcast_inbox import run as podcast_inbox
 from flying_podcast.stages.publish import run as publish
 from flying_podcast.stages.publish_podcast import run as publish_podcast
@@ -37,6 +39,8 @@ STAGES = {
     "publish": publish,
     "notify": notify,
     "podcast": podcast,
+    "podcast-script": podcast_script,
+    "podcast-audio": podcast_audio,
     "podcast-inbox": podcast_inbox,
     "publish-podcast": publish_podcast,
 }
@@ -53,6 +57,10 @@ def main() -> None:
                         help="Show what would be processed without generating (for podcast-inbox)")
     parser.add_argument("--podcast-dir", dest="podcast_dir", default=None,
                         help="Specific podcast output dir (for publish-podcast)")
+    parser.add_argument("--dir", dest="work_dir", default=None,
+                        help="Work directory (for podcast-audio)")
+    parser.add_argument("--output-dir", dest="output_dir", default=None,
+                        help="Output base directory (for podcast-script)")
     args = parser.parse_args()
 
     ensure_dirs()
@@ -65,6 +73,16 @@ def main() -> None:
 
     if args.stage == "podcast":
         podcast(args.date, pdf_path=args.pdf)
+        return
+
+    if args.stage == "podcast-script":
+        podcast_script(args.date, pdf_path=args.pdf, output_dir=args.output_dir)
+        return
+
+    if args.stage == "podcast-audio":
+        if not args.work_dir:
+            parser.error("podcast-audio requires --dir <work_directory>")
+        podcast_audio(work_dir=args.work_dir)
         return
 
     if args.stage == "podcast-inbox":

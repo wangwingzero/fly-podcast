@@ -125,7 +125,6 @@ SYSTEM_PROMPT = """\
 - 大量使用语气词（嗯、对、哈哈、得了吧、你别说、还真是、我跟你说）
 - 外国航空公司名保留英文（如Delta、United、Lufthansa）
 - **数字必须写成中文**：所有数字一律用中文书写，不能用阿拉伯数字。例如：200米→二百米，75米→七十五米，150→一百五十，400→四百，20000→两万，3.5→三点五，15米→十五米，720米→七百二十米。这是为了语音合成自然朗读。
-- **英文缩写用小写连读形式**：英文缩写必须写成小写字母以便语音合成时连读而非逐字母拼读。例如：CAT→cat，RVR→rvr，ILS→ils，HUD→hud，DH→dh，NPA→npa，CDFA→cdfa，A-SMGCS→a-smgcs。只有专有名词（如航空公司名Delta）保持正常大小写。
 
 ## 篇幅
 - 整个对话大约1200-1500字
@@ -368,52 +367,60 @@ def render_dialogue_html(title: str, dialogue: list[dict[str, str]],
     return html
 
 
-# ── Main stage ─────────────────────────────────────────────────
+# ── Stage entry points ────────────────────────────────────────
 
-def run(target_date: str | None = None, *, pdf_path: str | None = None,
-        download_url: str = "") -> Path:
-    """
-    Podcast generation stage.
+
+def _resolve_pdf(pdf_path: str | None) -> Path:
+    """Resolve and validate PDF path from argument or env var."""
+    import os
+
+    pdf_path = pdf_path or os.getenv("PODCAST_PDF_PATH", "")
+    if not pdf_path:
+        raise RuntimeError(
+            "No PDF path provided. Use --pdf <path> or set PODCAST_PDF_PATH env var."
+        )
+    pdf_file = Path(pdf_path)
+    if not pdf_file.exists():
+        raise FileNotFoundError(f"PDF not found: {pdf_file}")
+    return pdf_file
+
+
+def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
+               download_url: str = "", output_dir: str | None = None) -> Path:
+    """Generate podcast script from PDF (steps 1-3).
+
+    PDF → text extraction → LLM dialogue → script.json + dialogue.html + cover.jpg
 
     Args:
         target_date: Date string (YYYY-MM-DD) for output naming.
         pdf_path: Path to the input PDF file. Falls back to PODCAST_PDF_PATH env var.
         download_url: Optional URL to the original document for the dialogue HTML footer.
+        output_dir: Custom output base directory. Defaults to settings.output_dir.
 
     Returns:
-        Path to the generated MP3 file.
+        Path to the work directory containing script.json, dialogue.html, cover.jpg.
     """
-    import os
-
     day = target_date or beijing_today_str()
-    pdf_path = pdf_path or os.getenv("PODCAST_PDF_PATH", "")
-
-    if not pdf_path:
-        raise RuntimeError(
-            "No PDF path provided. Use --pdf <path> or set PODCAST_PDF_PATH env var."
-        )
-
-    pdf_file = Path(pdf_path)
-    if not pdf_file.exists():
-        raise FileNotFoundError(f"PDF not found: {pdf_file}")
+    pdf_file = _resolve_pdf(pdf_path)
 
     pdf_name = pdf_file.stem
-    work_dir = settings.output_dir / "podcast" / f"{day}_{pdf_name}"
+    base_dir = Path(output_dir) if output_dir else settings.output_dir / "podcast"
+    work_dir = base_dir / f"{day}_{pdf_name}"
     work_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("=" * 60)
-    logger.info("Podcast stage: %s", pdf_file.name)
+    logger.info("Podcast script: %s", pdf_file.name)
     logger.info("Output dir: %s", work_dir)
     logger.info("=" * 60)
 
     # Step 1: Extract PDF text
-    logger.info("Step 1/5: Extracting PDF text...")
+    logger.info("Step 1/3: Extracting PDF text...")
     pdf_text = extract_pdf_text(pdf_file)
     if not pdf_text.strip():
         raise RuntimeError(f"No text extracted from PDF: {pdf_file}")
 
     # Step 2: Generate dialogue via LLM
-    logger.info("Step 2/5: Generating dialogue script...")
+    logger.info("Step 2/3: Generating dialogue script...")
     dialogue_data = generate_dialogue(pdf_text)
 
     # Save dialogue script for reference
@@ -435,18 +442,68 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
     logger.info("Dialogue HTML saved: %s", html_path)
 
     # Step 3: Generate cover image
-    logger.info("Step 3/5: Generating cover image...")
+    logger.info("Step 3/3: Generating cover image...")
     cover_path = work_dir / "cover.jpg"
     generate_cover_image(pdf_file, title, cover_path)
 
-    # Step 4: TTS synthesis
-    logger.info("Step 4/5: Synthesizing %d dialogue segments...", len(flat_lines))
+    # Save partial metadata (no audio yet)
+    meta = {
+        "date": day,
+        "pdf_source": str(pdf_file),
+        "title": title,
+        "download_url": download_url,
+        "cover_path": str(cover_path),
+        "dialogue_html_path": str(html_path),
+        "dialogue_lines": len(flat_lines),
+        "total_chars": sum(len(l["text"]) for l in flat_lines),
+    }
+    dump_json(work_dir / "metadata.json", meta)
+
+    logger.info("Script generation complete: %s", work_dir)
+    return work_dir
+
+
+def run_audio(*, work_dir: str | Path) -> Path:
+    """Generate podcast audio from an existing script (steps 4-5).
+
+    Reads script.json from work_dir → TTS synthesis → MP3 concatenation.
+
+    Args:
+        work_dir: Path to the podcast work directory containing script.json.
+
+    Returns:
+        Path to the generated MP3 file.
+    """
+    from urllib.parse import quote
+
+    work_dir = Path(work_dir)
+    if not work_dir.exists():
+        raise FileNotFoundError(f"Work directory not found: {work_dir}")
+
+    script_path = work_dir / "script.json"
+    if not script_path.exists():
+        raise FileNotFoundError(f"script.json not found in: {work_dir}")
+
+    logger.info("=" * 60)
+    logger.info("Podcast audio: %s", work_dir.name)
+    logger.info("=" * 60)
+
+    # Load script
+    dialogue_data = json.loads(script_path.read_text(encoding="utf-8"))
+    flat_lines, chapters_info = normalize_dialogue(dialogue_data)
+    if not flat_lines:
+        raise RuntimeError("script.json contains empty dialogue")
+    logger.info("Loaded script: %d lines, %d chapters", len(flat_lines), len(chapters_info))
+
+    title = dialogue_data.get("title", work_dir.name)
+
+    # Step 1: TTS synthesis
+    logger.info("Step 1/2: Synthesizing %d dialogue segments...", len(flat_lines))
     segments_dir = work_dir / "segments"
     segment_files = synthesize_dialogue(flat_lines, segments_dir)
 
-    # Step 5: Concatenate (with music + chapters if assets available)
-    logger.info("Step 5/5: Concatenating audio...")
-    title = dialogue_data.get("title", pdf_name)
+    # Step 2: Concatenate (with music + chapters if assets available)
+    logger.info("Step 2/2: Concatenating audio...")
     mp3_path = work_dir / f"{title}.mp3"
     chapter_timestamps = concatenate_audio(
         segment_files, mp3_path,
@@ -454,27 +511,45 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
         num_lines=len(flat_lines),
     )
 
-    # Save metadata
-    dir_name = work_dir.name  # e.g. "2026-02-21_全天候运行规定"
+    # Update metadata with audio info
+    meta_path = work_dir / "metadata.json"
+    meta: dict = {}
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+    dir_name = work_dir.name
     mp3_filename = mp3_path.name
-    from urllib.parse import quote
     mp3_cdn_url = (
         f"https://{settings.r2_domain}/podcast/"
         f"{quote(dir_name)}/{quote(mp3_filename)}"
     )
-    meta = {
-        "date": day,
-        "pdf_source": str(pdf_file),
+    meta.update({
         "title": title,
         "mp3_path": str(mp3_path),
         "mp3_cdn_url": mp3_cdn_url,
-        "cover_path": str(cover_path),
-        "dialogue_html_path": str(html_path),
         "dialogue_lines": len(flat_lines),
         "total_chars": sum(len(l["text"]) for l in flat_lines),
         "chapters": chapter_timestamps,
-    }
-    dump_json(work_dir / "metadata.json", meta)
+    })
+    dump_json(meta_path, meta)
 
-    logger.info("Podcast complete: %s", mp3_path)
+    logger.info("Audio generation complete: %s", mp3_path)
     return mp3_path
+
+
+def run(target_date: str | None = None, *, pdf_path: str | None = None,
+        download_url: str = "") -> Path:
+    """Full podcast generation pipeline (script + audio).
+
+    Used by GitHub Actions and CLI ``python run.py podcast``.
+
+    Args:
+        target_date: Date string (YYYY-MM-DD) for output naming.
+        pdf_path: Path to the input PDF file. Falls back to PODCAST_PDF_PATH env var.
+        download_url: Optional URL to the original document for the dialogue HTML footer.
+
+    Returns:
+        Path to the generated MP3 file.
+    """
+    work_dir = run_script(target_date, pdf_path=pdf_path, download_url=download_url)
+    return run_audio(work_dir=work_dir)

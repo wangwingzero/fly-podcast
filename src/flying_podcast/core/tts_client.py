@@ -85,6 +85,7 @@ def _wav_to_mp3(wav_bytes: bytes) -> bytes:
 # ── Tier 1: Qwen direct API (free, Cherry/Ethan original) ────
 
 _QWEN_GRADIO_BASE = "https://qwen-qwen3-tts-demo.ms.show/gradio_api"
+_NO_PROXY = {"http": None, "https": None}
 _QWEN_GRADIO_HEADERS = {
     "accept": "*/*",
     "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
@@ -118,6 +119,7 @@ def _synthesize_via_qwen_direct(text: str, role: str) -> bytes:
             "session_hash": session_hash,
         },
         timeout=30,
+        proxies=_NO_PROXY,
     )
     resp.raise_for_status()
 
@@ -134,6 +136,7 @@ def _synthesize_via_qwen_direct(text: str, role: str) -> bytes:
             "session_hash": session_hash,
         },
         timeout=30,
+        proxies=_NO_PROXY,
     )
     resp.raise_for_status()
 
@@ -145,6 +148,7 @@ def _synthesize_via_qwen_direct(text: str, role: str) -> bytes:
         params={"session_hash": session_hash, "studio_token": ""},
         stream=True,
         timeout=180,
+        proxies=_NO_PROXY,
     )
     resp.raise_for_status()
 
@@ -185,6 +189,7 @@ def _synthesize_via_qwen_direct(text: str, role: str) -> bytes:
         headers={k: v for k, v in _QWEN_GRADIO_HEADERS.items()
                  if k != "content-type"},
         timeout=60,
+        proxies=_NO_PROXY,
     )
     audio_resp.raise_for_status()
 
@@ -432,15 +437,23 @@ def synthesize_dialogue(
     """
     Synthesize dialogue with smart voice-consistent fallback.
 
+    Backend availability controlled by settings:
+    - Qwen (free): always enabled
+    - DashScope (paid): only if TTS_ENABLE_DASHSCOPE=true
+    - Edge (free, different voice): only if TTS_ENABLE_EDGE=true
+
     Qwen + DashScope share Cherry/Ethan voices → partial patching OK.
     Edge uses different voices → requires clean slate, all-or-nothing.
 
     Fallback chain:
-      1. Qwen all → if partial fail → DashScope patches gaps
-      2. Edge all  (clean slate, different voice)
-      3. DashScope all (clean slate, paid)
+      1. Qwen all → if partial fail and DashScope enabled → patches gaps
+      2. Edge all  (if enabled, clean slate, different voice)
+      3. DashScope all (if enabled, clean slate, paid)
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    use_dashscope = settings.tts_enable_dashscope and settings.dashscope_api_key
+    use_edge = settings.tts_enable_edge
 
     # ── Phase 1: Qwen (free, Cherry/Ethan) ──
     logger.info("[TTS] Phase 1: Qwen direct for all %d lines", len(dialogue))
@@ -453,7 +466,7 @@ def synthesize_dialogue(
     qwen_ok = sum(1 for f in files if f is not None)
     logger.warning("[TTS] Qwen: %d succeeded, %d failed", qwen_ok, len(failed))
 
-    if qwen_ok > 0:
+    if qwen_ok > 0 and use_dashscope:
         # ── Phase 1b: DashScope patches Qwen gaps (same voice) ──
         logger.info("[TTS] Phase 1b: Patching %d gaps with DashScope", len(failed))
         files = _patch_failed_segments(files, failed, "dashscope")
@@ -464,22 +477,24 @@ def synthesize_dialogue(
         logger.warning("[TTS] Still %d segments missing after DashScope patch", still_missing)
 
     # ── Phase 2: Edge (free, different voice — clean slate) ──
-    _clean_segments(output_dir)
-    logger.info("[TTS] Phase 2: Edge TTS for all %d lines (different voice)", len(dialogue))
-    files, failed = _try_all_segments(dialogue, output_dir, "edge")
+    if use_edge:
+        _clean_segments(output_dir)
+        logger.info("[TTS] Phase 2: Edge TTS for all %d lines (different voice)", len(dialogue))
+        files, failed = _try_all_segments(dialogue, output_dir, "edge")
 
-    if not failed:
-        logger.info("[TTS] All %d segments done via Edge", len(files))
-        return [f for f in files if f is not None]
+        if not failed:
+            logger.info("[TTS] All %d segments done via Edge", len(files))
+            return [f for f in files if f is not None]
 
     # ── Phase 3: DashScope all (paid, last resort) ──
-    _clean_segments(output_dir)
-    logger.info("[TTS] Phase 3: DashScope for all %d lines (paid)", len(dialogue))
-    files, failed = _try_all_segments(dialogue, output_dir, "dashscope")
+    if use_dashscope:
+        _clean_segments(output_dir)
+        logger.info("[TTS] Phase 3: DashScope for all %d lines (paid)", len(dialogue))
+        files, failed = _try_all_segments(dialogue, output_dir, "dashscope")
 
-    if not failed:
-        logger.info("[TTS] All %d segments done via DashScope", len(files))
-        return [f for f in files if f is not None]
+        if not failed:
+            logger.info("[TTS] All %d segments done via DashScope", len(files))
+            return [f for f in files if f is not None]
 
     raise TTSError(f"All TTS backends failed. {len(failed)} segments ungenerated.")
 

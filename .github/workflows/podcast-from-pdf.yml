@@ -18,35 +18,81 @@ on:
 
 env:
   TZ: Asia/Shanghai
-  LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-  LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
-  LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
-  LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
-  LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
-  DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
-  QWEN_TTS_URL: ${{ vars.QWEN_TTS_URL || 'http://localhost:8825' }}
-  PODCAST_GREETING: ${{ github.event.inputs.greeting || '' }}
-  UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
-  UNSPLASH_ACCESS_KEY_2: ${{ secrets.UNSPLASH_ACCESS_KEY_2 }}
-  PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
-  IMAGE_GEN_API_KEY: ${{ secrets.IMAGE_GEN_API_KEY }}
-  IMAGE_GEN_BASE_URL: ${{ vars.IMAGE_GEN_BASE_URL || '' }}
-  IMAGE_GEN_MODEL: ${{ vars.IMAGE_GEN_MODEL || '' }}
-  IMAGE_GEN_BACKUP_API_KEY: ${{ secrets.IMAGE_GEN_BACKUP_API_KEY }}
-  IMAGE_GEN_BACKUP_BASE_URL: ${{ vars.IMAGE_GEN_BACKUP_BASE_URL || '' }}
-  IMAGE_GEN_BACKUP_MODEL: ${{ vars.IMAGE_GEN_BACKUP_MODEL || '' }}
 
 concurrency:
   group: podcast-from-pdf
   cancel-in-progress: false
 
 jobs:
-  generate:
+  # ── Job 1: Discover PDFs and build matrix ──────────────────
+  find-pdfs:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+      has_pdfs: ${{ steps.build-matrix.outputs.has_pdfs }}
+      date: ${{ steps.build-matrix.outputs.date }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+
+      - name: Build PDF matrix
+        id: build-matrix
+        run: |
+          DATE=$(TZ=Asia/Shanghai date +%F)
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+
+          FILTER="${{ github.event.inputs.pdf_filter }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PDFS=$(find podcast_pdfs -maxdepth 1 -name "*.pdf" -type f 2>/dev/null || true)
+          else
+            PDFS=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} -- 'podcast_pdfs/*.pdf' || true)
+          fi
+          if [ -n "$FILTER" ] && [ -n "$PDFS" ]; then
+            PDFS=$(echo "$PDFS" | grep -i "$FILTER" || true)
+          fi
+          if [ -z "$PDFS" ]; then
+            echo "No PDFs to process"
+            echo "has_pdfs=false" >> "$GITHUB_OUTPUT"
+            echo 'matrix={"pdf":[]}' >> "$GITHUB_OUTPUT"
+          else
+            echo "PDFs to process:"
+            echo "$PDFS"
+            # Build JSON array for matrix
+            JSON=$(echo "$PDFS" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "matrix={\"pdf\":$JSON}" >> "$GITHUB_OUTPUT"
+            echo "has_pdfs=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── Job 2: Generate each podcast in parallel ───────────────
+  generate:
+    needs: find-pdfs
+    if: needs.find-pdfs.outputs.has_pdfs == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.find-pdfs.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 5
+    env:
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
+      LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
+      LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
+      DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+      QWEN_TTS_URL: ${{ vars.QWEN_TTS_URL || 'http://localhost:8825' }}
+      PODCAST_GREETING: ${{ github.event.inputs.greeting || '' }}
+      UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+      UNSPLASH_ACCESS_KEY_2: ${{ secrets.UNSPLASH_ACCESS_KEY_2 }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      IMAGE_GEN_API_KEY: ${{ secrets.IMAGE_GEN_API_KEY }}
+      IMAGE_GEN_BASE_URL: ${{ vars.IMAGE_GEN_BASE_URL || '' }}
+      IMAGE_GEN_MODEL: ${{ vars.IMAGE_GEN_MODEL || '' }}
+      IMAGE_GEN_BACKUP_API_KEY: ${{ secrets.IMAGE_GEN_BACKUP_API_KEY }}
+      IMAGE_GEN_BACKUP_BASE_URL: ${{ vars.IMAGE_GEN_BACKUP_BASE_URL || '' }}
+      IMAGE_GEN_BACKUP_MODEL: ${{ vars.IMAGE_GEN_BACKUP_MODEL || '' }}
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
@@ -57,57 +103,45 @@ jobs:
           pip install -r requirements.txt
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Find PDFs to process
-        id: find-pdfs
+      - name: Generate podcast
         run: |
-          FILTER="${{ github.event.inputs.pdf_filter }}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Manual trigger: process ALL PDFs in the folder
-            PDFS=$(find podcast_pdfs -maxdepth 1 -name "*.pdf" -type f 2>/dev/null || true)
-          else
-            # Push trigger: only process newly added PDFs
-            PDFS=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} -- 'podcast_pdfs/*.pdf' || true)
-          fi
-          # Apply filter if specified
-          if [ -n "$FILTER" ] && [ -n "$PDFS" ]; then
-            PDFS=$(echo "$PDFS" | grep -i "$FILTER" || true)
-          fi
-          if [ -z "$PDFS" ]; then
-            echo "No PDFs to process"
-            echo "has_pdfs=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "PDFs to process:"
-            echo "$PDFS"
-            echo "$PDFS" > /tmp/new_pdfs.txt
-            echo "has_pdfs=true" >> "$GITHUB_OUTPUT"
-          fi
+          PDF="${{ matrix.pdf }}"
+          DATE="${{ needs.find-pdfs.outputs.date }}"
+          echo "=========================================="
+          echo "Processing: $PDF"
+          echo "=========================================="
+          python run.py podcast --date "$DATE" --pdf "$PDF"
 
-      - name: Generate podcasts
-        if: steps.find-pdfs.outputs.has_pdfs == 'true'
-        run: |
-          DATE=$(TZ=Asia/Shanghai date +%F)
-          SUCCESS=0
-          FAIL=0
-          while IFS= read -r pdf <&3; do
-            [ -f "$pdf" ] || continue
-            echo "=========================================="
-            echo "Processing: $pdf"
-            echo "=========================================="
-            if python run.py podcast --date "$DATE" --pdf "$pdf" </dev/null; then
-              SUCCESS=$((SUCCESS + 1))
-            else
-              echo "::warning::Failed to process: $pdf"
-              FAIL=$((FAIL + 1))
-            fi
-          done 3< /tmp/new_pdfs.txt
-          echo "Done: $SUCCESS succeeded, $FAIL failed"
-          if [ $SUCCESS -eq 0 ] && [ $FAIL -gt 0 ]; then
-            echo "::error::All PDFs failed to process"
-            exit 1
-          fi
+      - name: Upload podcast output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-${{ strategy.job-index }}
+          path: data/output/podcast/
+
+  # ── Job 3: Collect results, upload R2, publish WeChat ──────
+  finalize:
+    needs: [find-pdfs, generate]
+    if: always() && needs.find-pdfs.outputs.has_pdfs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download all podcast artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: podcast-*
+          path: data/output/podcast/
+          merge-multiple: true
 
       - name: Upload podcasts to R2
-        if: steps.find-pdfs.outputs.has_pdfs == 'true'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -124,7 +158,6 @@ jobs:
           fi
 
       - name: Publish podcast drafts to WeChat
-        if: steps.find-pdfs.outputs.has_pdfs == 'true'
         continue-on-error: true
         env:
           DRY_RUN: "false"
@@ -133,12 +166,15 @@ jobs:
           WECHAT_APP_SECRET: ${{ secrets.WECHAT_APP_SECRET }}
           WECHAT_THUMB_MEDIA_ID: ${{ secrets.WECHAT_THUMB_MEDIA_ID }}
           WECHAT_PROXY: ${{ vars.WECHAT_PROXY || '' }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
         run: |
-          DATE=$(TZ=Asia/Shanghai date +%F)
+          DATE="${{ needs.find-pdfs.outputs.date }}"
           python run.py publish-podcast --date "$DATE"
 
-      - name: Upload artifacts
-        if: always() && steps.find-pdfs.outputs.has_pdfs == 'true'
+      - name: Upload combined artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: podcast-output-${{ github.run_id }}

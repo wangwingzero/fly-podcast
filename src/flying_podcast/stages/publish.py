@@ -1091,12 +1091,13 @@ def _generate_cover_image_bytes(digest: dict) -> bytes | None:
     return image_data
 
 
-def _upload_cover_image(image_data: bytes, client: WeChatClient) -> str:
+def _upload_cover_image(image_data: bytes, client: WeChatClient,
+                        file_name: str = "cover.jpg") -> str:
     """Upload cover image bytes to WeChat as permanent material.
 
     Returns thumb_media_id, or empty string on failure.
     """
-    thumb_id = client.upload_thumb_image_bytes(image_data)
+    thumb_id = client.upload_thumb_image_bytes(image_data, file_name=file_name)
     if thumb_id:
         logger.info("Cover image uploaded: %s", thumb_id[:40])
     return thumb_id
@@ -1397,7 +1398,10 @@ def run(target_date: str | None = None) -> Path:
             # Upload cover image, fallback to default thumb
             cover_thumb_id = ""
             if cover_image_data:
-                cover_thumb_id = _upload_cover_image(cover_image_data, client)
+                cover_thumb_id = _upload_cover_image(
+                    cover_image_data, client,
+                    file_name=f"飞行播客日报_{day}.jpg",
+                )
             media_id = client.create_draft(
                 title=f"飞行播客日报 | {day}",
                 author=settings.wechat_author,

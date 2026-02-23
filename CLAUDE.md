@@ -25,9 +25,16 @@ python run.py notify [--date YYYY-MM-DD]
 
 # Podcast pipeline
 python run.py podcast --pdf path/to/file.pdf         # single PDF → dialogue → TTS → MP3
+python run.py podcast-script --pdf path/to/file.pdf  # PDF → script.json + cover + HTML (stops before TTS)
+python run.py podcast-audio --dir data/output/podcast/xxx/  # script.json → TTS → MP3
 python run.py podcast-inbox                           # batch process CCAR docs
 python run.py podcast-inbox --local-only              # only process data/podcast_inbox/pending/
 python run.py podcast-inbox --dry-run                 # preview without generating
+python run.py publish-podcast [--date YYYY-MM-DD]    # publish podcast to WeChat drafts
+
+# Podcast Studio GUI (Rust)
+cd podcast-studio && cargo run                        # dev mode
+cd podcast-studio && cargo build --release            # build release exe (~5MB)
 
 # Tests
 pytest                                                        # all tests
@@ -68,8 +75,20 @@ PDF → pdfplumber text extraction (max 30k chars)
     → MP3 + JSON metadata + HTML preview
 ```
 
-- **podcast** (`stages/podcast.py`): Single PDF → dialogue → TTS → MP3.
+- **podcast** (`stages/podcast.py`): Single PDF → dialogue → TTS → MP3. Split into sub-stages:
+  - `run_script()`: PDF → text extraction → LLM dialogue → script.json + dialogue.html + cover.jpg
+  - `run_audio()`: script.json → TTS synthesis → MP3 concatenation
+  - `run()`: Full pipeline (calls `run_script()` then `run_audio()`, used by GitHub Actions)
 - **podcast_inbox** (`stages/podcast_inbox.py`): Batch processing via CCAR-workflow integration. Auto-fetches pilot-relevant docs (categories 13/14/15), filters by Part 121 relevance (rule-based + LLM two-layer filter in `core/pilot_filter.py`), deduplicates by URL + file hash. Inbox state tracked in `data/podcast_inbox/processed.json`.
+- **publish_podcast** (`stages/publish_podcast.py`): Uploads finished podcast MP3 to R2 and publishes to WeChat drafts.
+
+### Podcast Studio GUI (`podcast-studio/`)
+
+Rust desktop application (egui/eframe) providing a 5-step timeline interface for interactive podcast production. Calls Python backend via `std::process::Command`. Steps: Select PDF → Generate Script → Edit Script → Generate Audio → Publish. Key modules:
+- `app.rs`: Main UI state and step content rendering
+- `pipeline.rs`: 5-step state machine (`Pending → Running → Done/Failed`)
+- `runner.rs`: Subprocess management (spawn Python, stream stdout/stderr via channels)
+- `widgets/timeline.rs`: Vertical timeline UI component with status indicators
 
 ### Core Modules (`core/`)
 
@@ -83,6 +102,8 @@ PDF → pdfplumber text extraction (max 30k chars)
 - **wechat.py**: WeChat Official Account API integration.
 - **time_utils.py**: Beijing timezone (`UTC+8`) helpers — `beijing_today_str()`, `beijing_now()`.
 - **io_utils.py**: JSON/YAML/text file helpers.
+- **logging_utils.py**: Structured logging setup; provides `get_logger()`.
+- **email_notify.py**: Email notification sender.
 
 ### Configuration Files (`config/`)
 
