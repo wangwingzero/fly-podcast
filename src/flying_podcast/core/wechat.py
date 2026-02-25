@@ -58,22 +58,35 @@ def _curl_get(url: str, params: dict | None = None, *,
 def _curl_post_json(url: str, params: dict | None = None,
                     body: dict | None = None, *,
                     proxy: str = "", timeout: int = 60) -> dict:
-    """HTTP POST JSON via curl subprocess."""
+    """HTTP POST JSON via curl subprocess.
+
+    Uses a temp file for the payload to avoid Windows command-line length limits.
+    """
+    import tempfile, os
     if params:
         url = f"{url}?{urlencode(params)}"
     cmd = ["curl", "-sS", "-m", str(timeout), "-X", "POST",
            "-H", "Content-Type: application/json; charset=utf-8"]
     if proxy:
         cmd += ["-x", proxy]
-    if body:
-        payload = json.dumps(body, ensure_ascii=False)
-        cmd += ["-d", payload]
-    cmd.append(url)
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 10,
-                       encoding="utf-8", env=_clean_proxy_env())
-    if r.returncode != 0:
-        raise WeChatPublishError(f"curl POST failed (rc={r.returncode}): {r.stderr[:200]}")
-    return json.loads(r.stdout)
+    tmp_path = None
+    try:
+        if body:
+            payload = json.dumps(body, ensure_ascii=False)
+            # Write to temp file to avoid Windows 32k command-line limit
+            fd, tmp_path = tempfile.mkstemp(suffix=".json", prefix="wx_")
+            os.write(fd, payload.encode("utf-8"))
+            os.close(fd)
+            cmd += ["-d", f"@{tmp_path}"]
+        cmd.append(url)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 10,
+                           encoding="utf-8", env=_clean_proxy_env())
+        if r.returncode != 0:
+            raise WeChatPublishError(f"curl POST failed (rc={r.returncode}): {r.stderr[:200]}")
+        return json.loads(r.stdout)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def _curl_post_file(url: str, params: dict | None = None,

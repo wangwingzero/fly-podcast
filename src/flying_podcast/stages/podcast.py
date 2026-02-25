@@ -413,12 +413,19 @@ def generate_cover_image(pdf_path: Path, title: str, output_path: Path) -> Path:
 
 def render_dialogue_html(title: str, dialogue: list[dict[str, str]],
                          download_url: str = "") -> str:
-    """Render podcast dialogue as scrollable chat-bubble HTML for WeChat articles.
+    """Render podcast dialogue as WeChat-chat-style bubbles for WeChat articles.
 
-    Uses section nesting with overflow-y:scroll, compatible with WeChat MP editor.
-    If download_url is provided, a link to the original document is shown below the dialogue.
+    Mimics the native WeChat conversation UI: avatars, white/green bubbles,
+    triangle pointers, dark top bar. All inline styles, no SVG/JS.
     """
-    # Bubble HTML for each line
+    # Avatar URLs on WeChat CDN
+    QIANYU_AVATAR = ("https://mmbiz.qpic.cn/sz_mmbiz_jpg/"
+                     "F9Rrg4S5wWGCugYMMib4DQWwUbia6OoiacJycHicW1lZejia3y9Creiau"
+                     "PpibZJ122quuppkicr32YpoTibJXqHFMgY6hx39molicsJxYdm9EZzUqTEmg/0?from=appmsg")
+    HU_AVATAR = ("https://mmbiz.qpic.cn/sz_mmbiz_jpg/"
+                 "F9Rrg4S5wWGPyAMuCK0DkkDZs4vlIrtEPibDR9icxFiaDSnzAC0IAlfBtauicm9QSB"
+                 "RJOYwQulHoXCGC4lllFPAInXVicaVpbPHAicVKiaf2kpiaKXQ/0?from=appmsg")
+
     bubbles: list[str] = []
     for line in dialogue:
         role = line["role"]
@@ -426,23 +433,41 @@ def render_dialogue_html(title: str, dialogue: list[dict[str, str]],
         is_qianyu = role in ("千羽", "女")
 
         if is_qianyu:
+            # Left side — white bubble
             bubble = (
-                '<section style="margin-bottom:14px;display:flex;flex-direction:column;align-items:flex-start;">'
-                '<span style="background:#1e6fff;color:#fff;padding:2px 8px;border-radius:4px;'
-                'font-size:12px;font-weight:bold;margin-bottom:4px;">千羽</span>'
-                '<section style="background:#fff;border:1px solid #e8e8e8;padding:10px 12px;'
-                'border-radius:0 12px 12px 12px;font-size:15px;line-height:1.7;color:#333;'
-                f'max-width:85%;">{text}</section>'
+                '<section style="display:flex;align-items:flex-start;margin:10px 10px;'
+                'padding-right:100px;">'
+                # Avatar
+                '<section style="width:36px;height:36px;border-radius:4px;overflow:hidden;'
+                'margin-right:8px;flex-shrink:0;">'
+                f'<img src="{QIANYU_AVATAR}" style="width:100%;height:100%;display:block;"/>'
+                '</section>'
+                # Name + bubble column
+                '<section style="display:flex;flex-direction:column;">'
+                '<span style="font-size:11px;color:#999;margin-bottom:2px;margin-left:2px;">千羽</span>'
+                '<section style="background:#fff;color:#000;padding:8px 10px;'
+                'border-radius:0 8px 8px 8px;font-size:14px;line-height:1.6;'
+                f'word-wrap:break-word;">{text}</section>'
+                '</section>'
                 '</section>'
             )
         else:
+            # Right side — green bubble
             bubble = (
-                '<section style="margin-bottom:14px;display:flex;flex-direction:column;align-items:flex-end;">'
-                '<span style="background:#07c160;color:#fff;padding:2px 8px;border-radius:4px;'
-                'font-size:12px;font-weight:bold;margin-bottom:4px;">虎机长</span>'
-                '<section style="background:#e7f8ee;border:1px solid #d0f0d8;padding:10px 12px;'
-                'border-radius:12px 0 12px 12px;font-size:15px;line-height:1.7;color:#333;'
-                f'max-width:85%;">{text}</section>'
+                '<section style="display:flex;flex-direction:row-reverse;align-items:flex-start;'
+                'margin:10px 10px;padding-left:100px;">'
+                # Avatar
+                '<section style="width:36px;height:36px;border-radius:4px;overflow:hidden;'
+                'margin-left:8px;flex-shrink:0;">'
+                f'<img src="{HU_AVATAR}" style="width:100%;height:100%;display:block;"/>'
+                '</section>'
+                # Name + bubble column
+                '<section style="display:flex;flex-direction:column;align-items:flex-end;">'
+                '<span style="font-size:11px;color:#999;margin-bottom:2px;margin-right:2px;">虎机长</span>'
+                '<section style="background:#95ec69;color:#000;padding:8px 10px;'
+                'border-radius:8px 0 8px 8px;font-size:14px;line-height:1.6;'
+                f'word-wrap:break-word;">{text}</section>'
+                '</section>'
                 '</section>'
             )
         bubbles.append(bubble)
@@ -450,49 +475,81 @@ def render_dialogue_html(title: str, dialogue: list[dict[str, str]],
     dialogue_html = "\n".join(bubbles)
     safe_title = escape(title)
 
-    html = (
-        # Outer: fixed height, hidden overflow, rounded card
-        '<section style="margin:15px auto;width:100%;max-width:420px;height:520px;'
-        'overflow:hidden;border-radius:12px;border:1px solid #e0e0e0;'
-        'box-shadow:0 2px 12px rgba(0,0,0,0.06);background:#f7f8fa;'
-        'position:relative;">'
+    # ── Listening guide ──
+    guide_html = (
+        '<section style="margin:20px auto 0;max-width:420px;'
+        'padding:14px 20px;'
+        'background:linear-gradient(135deg,#fffbeb,#fef3c7);'
+        'border-radius:12px 12px 0 0;'
+        'border:1px solid #fde68a;border-bottom:none;'
+        'box-shadow:0 2px 8px rgba(0,0,0,0.04);">'
 
-        # Title bar
-        '<section style="background:linear-gradient(135deg,#1e6fff,#4e95ff);'
-        'padding:12px 16px;color:#fff;font-size:15px;font-weight:bold;'
-        f'text-align:center;letter-spacing:1px;">{safe_title}</section>'
-
-        # Scroll hint (top fade)
-        '<section style="text-align:center;font-size:11px;color:#aaa;'
-        'padding:8px 0 2px 0;">上下滑动查看完整对话 ↕</section>'
-
-        # Inner: scrollable area
-        '<section style="height:430px;overflow-y:scroll;'
-        '-webkit-overflow-scrolling:touch;padding:6px 12px 20px 12px;">'
-
-        f'{dialogue_html}'
-
-        # End marker
-        '<section style="text-align:center;color:#ccc;font-size:11px;'
-        'padding:16px 0 8px 0;">— 对话结束 —</section>'
-
+        '<section style="display:flex;align-items:center;justify-content:center;gap:10px;">'
+        '<section style="width:30px;height:30px;border-radius:8px;'
+        'background:linear-gradient(135deg,#fbbf24,#f59e0b);'
+        'display:flex;align-items:center;justify-content:center;'
+        'font-size:14px;flex-shrink:0;color:#fff;'
+        'box-shadow:0 2px 6px rgba(245,158,11,0.25);">♪</section>'
+        '<section style="color:#92400e;font-size:15px;font-weight:600;'
+        'letter-spacing:0.3px;">点击上方音频，边听边看</section>'
         '</section>'
-
-        # Bottom fade overlay for visual hint
-        '<section style="position:absolute;bottom:0;left:0;right:0;height:30px;'
-        'background:linear-gradient(transparent,#f7f8fa);pointer-events:none;'
-        'border-radius:0 0 12px 12px;"></section>'
 
         '</section>'
     )
 
-    # Download link below the dialogue card
+    # ── WeChat-style top bar ──
+    topbar_html = (
+        '<section style="margin:0 auto;max-width:420px;'
+        'background:#ededed;padding:10px 16px;'
+        'border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;'
+        'display:flex;align-items:center;justify-content:center;">'
+        f'<span style="font-size:15px;font-weight:600;color:#333;">{safe_title}</span>'
+        '</section>'
+    )
+
+    # ── Dialogue body with scroll ──
+    body_html = (
+        '<section style="margin:0 auto;max-width:420px;height:520px;'
+        'overflow:hidden;background:#ededed;'
+        'border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;'
+        'position:relative;">'
+
+        '<section style="text-align:center;font-size:11px;color:#999;'
+        'padding:8px 0 4px 0;">上下滑动查看完整对话 ↕</section>'
+
+        '<section style="height:470px;overflow-y:scroll;'
+        '-webkit-overflow-scrolling:touch;padding:4px 4px 24px 4px;">'
+
+        f'{dialogue_html}'
+
+        '<section style="text-align:center;color:#bbb;font-size:11px;'
+        'padding:20px 0 10px 0;letter-spacing:2px;">— 对话结束 —</section>'
+
+        '</section>'
+
+        '<section style="position:absolute;bottom:0;left:0;right:0;height:30px;'
+        'background:linear-gradient(transparent,#ededed);pointer-events:none;"></section>'
+
+        '</section>'
+    )
+
+    # ── Bottom border ──
+    bottom_html = (
+        '<section style="margin:0 auto;max-width:420px;height:8px;'
+        'background:#ededed;border-left:1px solid #e5e7eb;'
+        'border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;'
+        'border-radius:0 0 12px 12px;"></section>'
+    )
+
+    html = f'{guide_html}{topbar_html}{body_html}{bottom_html}'
+
+    # Download link below
     if download_url:
         safe_url = escape(download_url)
         html += (
             '<section style="text-align:center;margin:10px auto;max-width:420px;'
             'padding:8px 16px;">'
-            f'<a href="{safe_url}" style="color:#1e6fff;font-size:13px;'
+            f'<a href="{safe_url}" style="color:#7c3aed;font-size:13px;'
             'text-decoration:none;">点击查看原文件</a>'
             '</section>'
         )
