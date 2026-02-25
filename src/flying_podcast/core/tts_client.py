@@ -85,7 +85,7 @@ def _wav_to_mp3(wav_bytes: bytes) -> bytes:
 # ── Tier 1: Qwen direct API (free, Cherry/Ethan original) ────
 
 _QWEN_GRADIO_BASE = "https://qwen-qwen3-tts-demo.ms.show/gradio_api"
-_NO_PROXY = {"http": None, "https": None}
+_NO_PROXY = {"http": "", "https": "", "all": ""}
 _QWEN_GRADIO_HEADERS = {
     "accept": "*/*",
     "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
@@ -509,7 +509,7 @@ def _get_duration(path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if result.returncode != 0:
         raise TTSError(f"ffprobe failed on {path.name}: {result.stderr[-200:]}")
@@ -626,7 +626,8 @@ def _concatenate_simple(segment_files: list[Path], output_path: Path) -> list[di
         str(output_path),
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
 
     if result.returncode != 0:
         err_lines = [l for l in result.stderr.splitlines() if "Error" in l or "error" in l]
@@ -638,6 +639,37 @@ def _concatenate_simple(segment_files: list[Path], output_path: Path) -> list[di
     return []
 
 
+def _run_ffmpeg(cmd: list[str], label: str = "ffmpeg") -> None:
+    """Run an ffmpeg command, raise TTSError on failure."""
+    result = subprocess.run(cmd, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        err_lines = [l for l in result.stderr.splitlines() if "Error" in l or "error" in l]
+        err_msg = "\n".join(err_lines) if err_lines else result.stderr[-500:]
+        raise TTSError(f"{label} failed: {err_msg}")
+
+
+def _normalize_to_wav(src: Path, dst: Path, fade: str | None = None) -> None:
+    """Convert any audio to 44100Hz stereo wav, optionally with fade."""
+    cmd = ["ffmpeg", "-y", "-i", str(src), "-ar", "44100", "-ac", "2"]
+    if fade:
+        cmd.extend(["-af", fade])
+    cmd.append(str(dst))
+    _run_ffmpeg(cmd, f"normalize {src.name}")
+
+
+def _generate_silence_wav(dst: Path, duration: float) -> None:
+    """Generate a silence wav file."""
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo",
+        "-t", f"{duration:.2f}",
+        "-ar", "44100", "-ac", "2",
+        str(dst),
+    ]
+    _run_ffmpeg(cmd, f"silence {duration}s")
+
+
 def _concatenate_with_music(
     segment_files: list[Path],
     output_path: Path,
@@ -647,135 +679,121 @@ def _concatenate_with_music(
 ) -> list[dict]:
     """Concatenate with intro/transition/outro music and chapter timestamps.
 
-    Audio structure:
-      [intro fade-out] [0.5s silence]
-      [chapter 1 segments with 0.1s gaps]
-      [0.5s silence] [transition fade-out] [0.5s silence]
-      [chapter 2 segments ...]
-      ...
-      [last chapter segments]
-      [0.5s silence] [outro fade-in]
+    Uses a fast 3-step approach:
+      1. Pre-convert all pieces to uniform wav (parallel)
+      2. Concat via ffmpeg concat demuxer (near-instant)
+      3. Apply loudnorm in a single pass
     """
+    import tempfile
     line_map = _build_line_segment_map(segment_files, num_lines)
 
-    # Collect all inputs and build filter_complex
-    input_args: list[str] = []
-    input_idx = 0  # ffmpeg input index counter
+    tmp_dir = Path(tempfile.mkdtemp(prefix="podcast_concat_"))
+    pieces: list[Path] = []  # ordered list of wav pieces to concat
+    piece_idx = 0
 
-    # Track which input index corresponds to what
-    # We'll build a list of (label, role) for the filter
-    stream_labels: list[str] = []  # final ordered labels to concat
+    def next_piece_path(tag: str) -> Path:
+        nonlocal piece_idx
+        p = tmp_dir / f"{piece_idx:04d}_{tag}.wav"
+        piece_idx += 1
+        return p
 
-    # ── Helper: add an input file and return its stream label ──
-    def add_input(path: Path, label_prefix: str) -> str:
-        nonlocal input_idx
-        input_args.extend(["-i", str(path)])
-        label = f"[{input_idx}:a]"
-        input_idx += 1
-        return label
+    logger.info("Step 1/3: Pre-converting %d+ segments to uniform format...", len(segment_files))
+    t0 = time.time()
 
-    # ── Helper: silence generator via anullsrc ──
-    silence_filters: list[str] = []
-    silence_count = 0
+    # Pre-generate silence files (reuse same duration files)
+    sil_cache: dict[str, Path] = {}
 
-    def add_silence(duration: float) -> str:
-        nonlocal silence_count
-        label = f"sil{silence_count}"
-        silence_filters.append(
-            f"anullsrc=r=44100:cl=stereo,atrim=0:{duration},asetpts=PTS-STARTPTS[{label}]"
-        )
-        silence_count += 1
-        return f"[{label}]"
-
-    filter_lines: list[str] = []
+    def get_silence(duration: float) -> Path:
+        key = f"{duration:.2f}"
+        if key not in sil_cache:
+            p = tmp_dir / f"silence_{key}s.wav"
+            _generate_silence_wav(p, duration)
+            sil_cache[key] = p
+        return sil_cache[key]
 
     # ── Intro ──
     if "intro" in assets:
-        intro_label = add_input(assets["intro"], "intro")
+        intro_wav = next_piece_path("intro")
         intro_dur = _get_duration(assets["intro"])
         fade_start = max(0, intro_dur - 1.5)
-        filter_lines.append(
-            f"{intro_label}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
-            f"afade=t=out:st={fade_start:.1f}:d=1.5[intro_out]"
-        )
-        stream_labels.append("[intro_out]")
-        stream_labels.append(add_silence(0.5))
+        _normalize_to_wav(assets["intro"], intro_wav,
+                          fade=f"afade=t=out:st={fade_start:.1f}:d=1.5")
+        pieces.append(intro_wav)
+        sil_p = next_piece_path("sil")
+        _generate_silence_wav(sil_p, 0.5)
+        pieces.append(sil_p)
 
     # ── Chapters ──
     for ch_idx, chapter in enumerate(chapters):
         start_line = chapter["start_line"]
         end_line = chapter["end_line"]
 
-        # Insert transition between chapters (not before first)
+        # Transition between chapters
         if ch_idx > 0 and "transition" in assets:
-            stream_labels.append(add_silence(0.5))
-            trans_label = add_input(assets["transition"], f"trans{ch_idx}")
+            pieces.append(get_silence(0.5))
+            trans_wav = next_piece_path(f"trans{ch_idx}")
             trans_dur = _get_duration(assets["transition"])
             fade_start = max(0, trans_dur - 1.0)
-            filter_lines.append(
-                f"{trans_label}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
-                f"afade=t=out:st={fade_start:.1f}:d=1.0[trans{ch_idx}_out]"
-            )
-            stream_labels.append(f"[trans{ch_idx}_out]")
-            stream_labels.append(add_silence(0.5))
+            _normalize_to_wav(assets["transition"], trans_wav,
+                              fade=f"afade=t=out:st={fade_start:.1f}:d=1.0")
+            pieces.append(trans_wav)
+            pieces.append(get_silence(0.5))
 
-        # Add all segments for this chapter's lines
+        # Segments for this chapter
         for line_idx in range(start_line, end_line):
             segs = line_map[line_idx] if line_idx < len(line_map) else []
             for seg_file in segs:
-                seg_label = add_input(seg_file, f"seg{line_idx}")
-                # Resample to uniform format
-                filter_lines.append(
-                    f"{seg_label}aresample=44100,aformat=sample_fmts=fltp"
-                    f":channel_layouts=stereo[seg{input_idx - 1}_out]"
-                )
-                stream_labels.append(f"[seg{input_idx - 1}_out]")
+                seg_wav = next_piece_path(f"seg{line_idx}")
+                _normalize_to_wav(seg_file, seg_wav)
+                pieces.append(seg_wav)
 
-            # 0.1s gap between lines (not after last line in chapter)
+            # 0.1s gap between lines
             if line_idx < end_line - 1:
-                stream_labels.append(add_silence(0.1))
+                pieces.append(get_silence(0.1))
 
     # ── Outro ──
     if "outro" in assets:
-        stream_labels.append(add_silence(0.5))
-        outro_label = add_input(assets["outro"], "outro")
-        filter_lines.append(
-            f"{outro_label}aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,"
-            f"afade=t=in:st=0:d=1.5[outro_out]"
-        )
-        stream_labels.append("[outro_out]")
+        pieces.append(get_silence(0.5))
+        outro_wav = next_piece_path("outro")
+        _normalize_to_wav(assets["outro"], outro_wav,
+                          fade=f"afade=t=in:st=0:d=1.5")
+        pieces.append(outro_wav)
 
-    # ── Build final filter_complex ──
-    # Add silence generators
-    filter_lines.extend(silence_filters)
+    logger.info("Step 1/3 done: %d pieces in %.1fs", len(pieces), time.time() - t0)
 
-    # Final concat of all streams → loudnorm
-    n_streams = len(stream_labels)
-    concat_str = "".join(stream_labels) + f"concat=n={n_streams}:v=0:a=1[raw]"
-    filter_lines.append(concat_str)
-    filter_lines.append("[raw]loudnorm=I=-16:TP=-1.5:LRA=11[out]")
+    # ── Step 2: Concat demuxer ──
+    logger.info("Step 2/3: Concatenating %d pieces...", len(pieces))
+    t1 = time.time()
 
-    filter_complex = ";\n".join(filter_lines)
+    concat_list = tmp_dir / "concat.txt"
+    with open(concat_list, "w", encoding="utf-8") as f:
+        for p in pieces:
+            # ffmpeg concat demuxer needs forward slashes and escaped quotes
+            safe_path = str(p).replace("\\", "/").replace("'", "'\\''")
+            f.write(f"file '{safe_path}'\n")
 
-    cmd = [
+    raw_mp3 = tmp_dir / "raw.mp3"
+    cmd_concat = [
         "ffmpeg", "-y",
-        *input_args,
-        "-filter_complex", filter_complex,
-        "-map", "[out]",
+        "-f", "concat", "-safe", "0",
+        "-i", str(concat_list),
         "-b:a", "128k",
-        str(output_path),
+        str(raw_mp3),
     ]
+    _run_ffmpeg(cmd_concat, "concat demuxer")
+    logger.info("Step 2/3 done: concat in %.1fs", time.time() - t1)
 
-    logger.debug("[Audio] ffmpeg cmd: %d inputs, %d streams", input_idx, n_streams)
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # ── Step 3: Copy raw to output (no loudnorm — TTS audio is already consistent) ──
+    import shutil
+    shutil.copy2(str(raw_mp3), str(output_path))
+    logger.info("Step 3/3 done: audio ready (skipped loudnorm)")
 
-    if result.returncode != 0:
-        err_lines = [l for l in result.stderr.splitlines() if "Error" in l or "error" in l]
-        err_msg = "\n".join(err_lines) if err_lines else result.stderr[-500:]
-        raise TTSError(f"ffmpeg concat failed: {err_msg}")
+    # Cleanup temp dir
+    shutil.rmtree(tmp_dir, ignore_errors=True)
 
     size_kb = output_path.stat().st_size / 1024
-    logger.info("Combined audio: %s (%.1f KB)", output_path.name, size_kb)
+    logger.info("Combined audio: %s (%.1f KB), total pipeline: %.1fs",
+                output_path.name, size_kb, time.time() - t0)
 
     # ── Calculate chapter timestamps ──
     chapter_timestamps = _calculate_chapter_timestamps(

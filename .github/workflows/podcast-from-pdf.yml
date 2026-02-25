@@ -76,7 +76,7 @@ jobs:
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
-      LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
       LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
       LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
       DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
@@ -168,10 +168,23 @@ jobs:
           WECHAT_PROXY: ${{ vars.WECHAT_PROXY || '' }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
         run: |
           DATE="${{ needs.find-pdfs.outputs.date }}"
           python run.py publish-podcast --date "$DATE"
+
+      - name: Clean up processed PDFs
+        run: |
+          if ls podcast_pdfs/*.pdf 1>/dev/null 2>&1; then
+            rm podcast_pdfs/*.pdf
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add podcast_pdfs/
+            git commit -m "chore: remove processed podcast PDFs [skip ci]" || echo "Nothing to commit"
+            git push
+          else
+            echo "No PDFs to clean up"
+          fi
 
       - name: Upload combined artifacts
         if: always()

@@ -33,3 +33,10 @@ grok说明/
 腾讯云服务器/
 test_*.mp3
 test_*.wav
+个人/
+podcast-studio.json
+.claude/
+data/daily-digest-download/
+podcast-studio/target/
+tests/成品/
+tests/2026-*/

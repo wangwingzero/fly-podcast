@@ -8,6 +8,9 @@ from typing import Any
 import requests
 
 from flying_podcast.core.config import settings
+from flying_podcast.core.logging_utils import get_logger
+
+_log = get_logger("llm")
 
 
 class LLMError(RuntimeError):
@@ -166,17 +169,21 @@ class OpenAICompatibleClient:
         retries: int = 5,
         timeout: int = 45,
     ) -> LLMResponse:
-        import logging
-        log = logging.getLogger("llm")
+        prompt_chars = len(system_prompt) + len(user_prompt)
+        _log.info("LLM 请求: model=%s, max_tokens=%d, prompt=%d 字符, timeout=%ds",
+                 self.model, max_tokens, prompt_chars, timeout)
         last_error = "unknown"
         for attempt in range(1, retries + 1):
             try:
+                t0 = time.monotonic()
                 if self._is_anthropic:
                     # Anthropic native Messages API
                     prompt = system_prompt + "\n请仅输出JSON对象，不要Markdown。"
                     parsed, content = self._request_once_anthropic(
                         prompt, user_prompt, max_tokens, temperature, timeout,
                     )
+                    elapsed = time.monotonic() - t0
+                    _log.info("LLM 响应: %.1f 秒, %d 字符", elapsed, len(content))
                     return LLMResponse(payload=parsed, raw_text=content)
                 else:
                     # OpenAI-compatible API
@@ -197,6 +204,8 @@ class OpenAICompatibleClient:
                     body["response_format"] = {"type": "json_object"}
                     try:
                         parsed, content = self._request_once_openai(headers, body, timeout)
+                        elapsed = time.monotonic() - t0
+                        _log.info("LLM 响应: %.1f 秒, %d 字符", elapsed, len(content))
                         return LLMResponse(payload=parsed, raw_text=content)
                     except LLMError:
                         # Some providers don't support response_format in OpenAI-compatible mode.
@@ -206,6 +215,8 @@ class OpenAICompatibleClient:
                             {"role": "user", "content": user_prompt},
                         ]
                         parsed, content = self._request_once_openai(headers, fallback, timeout)
+                        elapsed = time.monotonic() - t0
+                        _log.info("LLM 响应 (fallback): %.1f 秒, %d 字符", elapsed, len(content))
                         return LLMResponse(payload=parsed, raw_text=content)
             except Exception as exc:  # noqa: BLE001
                 last_error = str(exc)
@@ -213,7 +224,7 @@ class OpenAICompatibleClient:
                     # Longer backoff for server errors (5xx) — proxy may be overloaded
                     is_server_error = "http_5" in last_error
                     wait = min(30 * attempt, 120) if is_server_error else min(2**attempt, 6)
-                    log.warning("[LLM] attempt %d/%d failed: %s, retry in %ds",
+                    _log.warning("[LLM] attempt %d/%d failed: %s, retry in %ds",
                                 attempt, retries, last_error[:120], wait)
                     time.sleep(wait)
         raise LLMError(last_error)

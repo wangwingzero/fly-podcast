@@ -12,7 +12,7 @@ env:
   ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
   LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
   LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
-  LLM_MODEL: ${{ vars.LLM_MODEL || 'openai/gpt-oss-120b' }}
+  LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
   LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
   LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
 

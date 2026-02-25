@@ -578,9 +578,9 @@ def _ensure_min_facts(facts: list[str], raw_text: str, title: str, min_count: in
     if len(out) < min_count:
         # Avoid title repetition when source only has headline-level snippet.
         if len(out) == 0:
-            out.append("This is a news summary. Click the original link for full operational details.")
+            out.append("本条为新闻摘要，请点击原文链接查看完整运行细节。")
         if len(out) < min_count:
-            out.append("Original source link is attached for crew and dispatch to verify key information.")
+            out.append("附原始来源链接，供机组和签派核实关键信息。")
     return out[:3]
 
 
@@ -590,7 +590,7 @@ def _build_conclusion(title: str) -> str:
 
 
 def _build_impact() -> str:
-    return "See original source for details."
+    return "详见原始来源。"
 
 
 def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
@@ -1354,6 +1354,7 @@ def _post_compose_review(
     by_id = {c["id"]: c for c in candidates_pool}
     reviewed = []
     n_fixed = 0
+    n_dropped = 0
     for entry in entries:
         # Check if body has Chinese content
         if entry.body and _has_chinese(entry.body):
@@ -1375,9 +1376,17 @@ def _post_compose_review(
             entry.body = translate_result["body"]
             n_fixed += 1
             logger.info("Post-compose review: fixed entry %s", entry.id[:12])
-        reviewed.append(entry)
+            reviewed.append(entry)
+        else:
+            n_dropped += 1
+            logger.warning(
+                "Post-compose review: dropping entry %s (non-Chinese, translation failed)",
+                entry.id[:12],
+            )
     if n_fixed:
         logger.info("Post-compose review: fixed %d untranslated entries", n_fixed)
+    if n_dropped:
+        logger.warning("Post-compose review: dropped %d untranslatable entries", n_dropped)
     return reviewed
 
 

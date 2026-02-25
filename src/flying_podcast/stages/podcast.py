@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +14,7 @@ from flying_podcast.core.io_utils import dump_json
 from html import escape
 from flying_podcast.core.llm_client import OpenAICompatibleClient
 from flying_podcast.core.logging_utils import get_logger
+from flying_podcast.core.r2_upload import upload_file as r2_upload_file
 from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.core.tts_client import (
     concatenate_audio,
@@ -38,11 +42,108 @@ def extract_pdf_text(pdf_path: Path) -> str:
     full_text = "\n\n".join(pages_text)
     logger.info("Extracted %d chars from %d pages", len(full_text), len(pages_text))
 
-    if len(full_text) > MAX_PDF_CHARS:
-        logger.warning("PDF text truncated from %d to %d chars", len(full_text), MAX_PDF_CHARS)
-        full_text = full_text[:MAX_PDF_CHARS]
-
     return full_text
+
+
+# ── Long text condensation ────────────────────────────────────
+
+CONDENSE_SYSTEM_PROMPT = """\
+你是一位专业的民航法规文档分析师。请提取以下文档片段的核心要点。
+
+要求：
+- 保留所有关键数据、数字、术语、条款编号
+- 保留具体的标准、限制、要求（如高度、速度、距离等）
+- 去除重复内容、套话、格式性文字
+- 用简洁的条目式中文输出
+- 输出JSON格式：{"key_points": "提取的核心要点文本"}"""
+
+CONDENSE_USER_TEMPLATE = """\
+请提取以下文档片段的核心要点：
+
+{chunk_text}"""
+
+
+def _split_into_chunks(text: str, max_chars: int) -> list[str]:
+    """Split text into chunks at paragraph boundaries, each ≤ max_chars."""
+    paragraphs = text.split("\n\n")
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+
+    for para in paragraphs:
+        para_len = len(para) + 2  # account for \n\n separator
+        if current and current_len + para_len > max_chars:
+            chunks.append("\n\n".join(current))
+            current = []
+            current_len = 0
+        # Single paragraph exceeds max_chars — split by chars as fallback
+        if para_len > max_chars and not current:
+            for i in range(0, len(para), max_chars):
+                chunks.append(para[i:i + max_chars])
+            continue
+        current.append(para)
+        current_len += para_len
+
+    if current:
+        chunks.append("\n\n".join(current))
+    return chunks
+
+
+def _condense_chunk(client: OpenAICompatibleClient, chunk: str, idx: int) -> str:
+    """Condense a single chunk via LLM. Falls back to truncated original on error."""
+    try:
+        resp = client.complete_json(
+            system_prompt=CONDENSE_SYSTEM_PROMPT,
+            user_prompt=CONDENSE_USER_TEMPLATE.format(chunk_text=chunk),
+            max_tokens=2000,
+            temperature=0.1,
+            retries=3,
+            timeout=120,
+        )
+        key_points = resp.payload.get("key_points", "")
+        if key_points:
+            logger.info("Chunk %d condensed: %d → %d chars", idx, len(chunk), len(key_points))
+            return key_points
+    except Exception as exc:
+        logger.warning("Chunk %d condensation failed: %s, using truncated original", idx, exc)
+    # Fallback: return first portion of original chunk
+    return chunk[:5000]
+
+
+def condense_long_text(pdf_text: str, max_chars: int = MAX_PDF_CHARS) -> str:
+    """Condense long text via chunked LLM extraction. Short text passes through unchanged."""
+    if len(pdf_text) <= max_chars:
+        return pdf_text
+
+    logger.info("Text exceeds %d chars (%d chars), starting condensation...", max_chars, len(pdf_text))
+
+    if not OpenAICompatibleClient.is_configured():
+        logger.warning("LLM not configured, falling back to hard truncation")
+        return pdf_text[:max_chars]
+
+    client = OpenAICompatibleClient(
+        settings.llm_api_key,
+        settings.llm_base_url,
+        settings.llm_model,
+    )
+
+    chunks = _split_into_chunks(pdf_text, max_chars)
+    logger.info("Split into %d chunks for condensation", len(chunks))
+
+    results: dict[int, str] = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_idx = {
+            executor.submit(_condense_chunk, client, chunk, i): i
+            for i, chunk in enumerate(chunks)
+        }
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            results[idx] = future.result()
+
+    # Merge in original order
+    condensed = "\n\n".join(results[i] for i in range(len(chunks)))
+    logger.info("Condensation complete: %d → %d chars", len(pdf_text), len(condensed))
+    return condensed
 
 
 # ── LLM dialogue generation ───────────────────────────────────
@@ -159,14 +260,34 @@ def generate_dialogue(pdf_text: str) -> dict[str, Any]:
         logger.info("Added greeting: %s", settings.podcast_greeting[:50])
 
     logger.info("Generating dialogue via LLM (%s)...", settings.llm_model)
-    resp = client.complete_json(
-        system_prompt=SYSTEM_PROMPT,
-        user_prompt=user_prompt,
-        max_tokens=settings.llm_max_tokens,
-        temperature=0.7,  # Higher for creative dialogue
-        retries=5,
-        timeout=120,
-    )
+    logger.info("  Prompt length: system=%d chars, user=%d chars",
+                len(SYSTEM_PROMPT), len(user_prompt))
+
+    # Heartbeat thread — prints periodic "waiting" logs so the GUI stays alive
+    heartbeat_stop = threading.Event()
+
+    def _heartbeat():
+        import sys
+        start = time.monotonic()
+        while not heartbeat_stop.wait(5):
+            elapsed = int(time.monotonic() - start)
+            print(f"LLM 生成中... 已等待 {elapsed} 秒", flush=True)
+
+    heartbeat = threading.Thread(target=_heartbeat, daemon=True)
+    heartbeat.start()
+
+    try:
+        resp = client.complete_json(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            max_tokens=settings.llm_max_tokens,
+            temperature=0.7,  # Higher for creative dialogue
+            retries=5,
+            timeout=180,
+        )
+    finally:
+        heartbeat_stop.set()
+        heartbeat.join(timeout=2)
 
     dialogue = resp.payload
     title = dialogue.get("title", "飞行播客")
@@ -174,8 +295,20 @@ def generate_dialogue(pdf_text: str) -> dict[str, Any]:
     if "chapters" in dialogue:
         n_lines = sum(len(ch.get("dialogue", [])) for ch in dialogue["chapters"])
         n_chapters = len(dialogue["chapters"])
-        logger.info("Generated dialogue: title='%s', lines=%d, chapters=%d",
-                     title, n_lines, n_chapters)
+        # Per-role stats
+        role_counts: dict[str, int] = {}
+        for ch in dialogue["chapters"]:
+            for line in ch.get("dialogue", []):
+                role = line.get("role", "?")
+                role_counts[role] = role_counts.get(role, 0) + 1
+        role_summary = ", ".join(f"{r}={c}" for r, c in role_counts.items())
+        logger.info("Generated dialogue: title='%s', chapters=%d, lines=%d (%s)",
+                     title, n_chapters, n_lines, role_summary)
+        # Preview first few lines
+        preview_lines = dialogue["chapters"][0].get("dialogue", [])[:3]
+        for i, line in enumerate(preview_lines):
+            text_preview = line.get("text", "")[:30]
+            logger.info("  [preview %d] %s: %s...", i + 1, line.get("role", "?"), text_preview)
     else:
         n_lines = len(dialogue.get("dialogue", []))
         logger.info("Generated dialogue: title='%s', lines=%d", title, n_lines)
@@ -418,6 +551,10 @@ def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
     pdf_text = extract_pdf_text(pdf_file)
     if not pdf_text.strip():
         raise RuntimeError(f"No text extracted from PDF: {pdf_file}")
+    logger.info("PDF text ready: %d chars", len(pdf_text))
+
+    # Step 1.5: Condense if text exceeds limit
+    pdf_text = condense_long_text(pdf_text)
 
     # Step 2: Generate dialogue via LLM
     logger.info("Step 2/3: Generating dialogue script...")
@@ -439,7 +576,7 @@ def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
     dialogue_html = render_dialogue_html(title, flat_lines, download_url=download_url)
     html_path = work_dir / "dialogue.html"
     html_path.write_text(dialogue_html, encoding="utf-8")
-    logger.info("Dialogue HTML saved: %s", html_path)
+    logger.info("Dialogue HTML saved: %s (%d bytes)", html_path.name, len(dialogue_html.encode("utf-8")))
 
     # Step 3: Generate cover image
     logger.info("Step 3/3: Generating cover image...")
@@ -519,10 +656,17 @@ def run_audio(*, work_dir: str | Path) -> Path:
 
     dir_name = work_dir.name
     mp3_filename = mp3_path.name
-    mp3_cdn_url = (
-        f"https://{settings.r2_domain}/podcast/"
-        f"{quote(dir_name)}/{quote(mp3_filename)}"
-    )
+    r2_key = f"podcast/{dir_name}/{mp3_filename}"
+
+    # Upload MP3 to R2
+    try:
+        mp3_cdn_url = r2_upload_file(mp3_path, r2_key)
+    except Exception as e:
+        logger.error("R2 upload failed, using constructed URL: %s", e)
+        mp3_cdn_url = (
+            f"https://{settings.r2_domain}/podcast/"
+            f"{quote(dir_name)}/{quote(mp3_filename)}"
+        )
     meta.update({
         "title": title,
         "mp3_path": str(mp3_path),
