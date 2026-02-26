@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -601,10 +602,10 @@ def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: floa
 
 def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: list[str], impact: str, body: str = "") -> DigestEntry:
     source_name = item.get("source_name", "")
-    clean_title = title.strip() or _clean_title(item.get("title", ""))[0]
+    clean_title = html.unescape(title.strip()) or _clean_title(item.get("title", ""))[0]
     if _is_noisy_title(clean_title):
         clean_title = _clean_title(item.get("title", ""))[0]
-    conclusion = conclusion.strip()[:120] or clean_title[:80]
+    conclusion = html.unescape(conclusion.strip()[:120]) or clean_title[:80]
     normalized_facts = _ensure_min_facts(
         [f.strip() for f in facts if str(f).strip()],
         raw_text=item.get("raw_text", ""),
@@ -613,7 +614,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
     )
     impact = impact.strip() or _build_impact()
     # If body is provided but facts are empty, derive facts from body for scoring
-    body = body.strip()
+    body = html.unescape(body.strip())
     if body and not facts:
         normalized_facts = _ensure_min_facts(
             [s.strip() for s in re.split(r"[。.!?；]\s*", body) if s.strip()],
