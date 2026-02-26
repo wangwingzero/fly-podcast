@@ -91,6 +91,11 @@ jobs:
       IMAGE_GEN_BACKUP_API_KEY: ${{ secrets.IMAGE_GEN_BACKUP_API_KEY }}
       IMAGE_GEN_BACKUP_BASE_URL: ${{ vars.IMAGE_GEN_BACKUP_BASE_URL || '' }}
       IMAGE_GEN_BACKUP_MODEL: ${{ vars.IMAGE_GEN_BACKUP_MODEL || '' }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ vars.R2_BUCKET || 'ccar-pdfs' }}
+      R2_DOMAIN: ${{ vars.R2_DOMAIN || 'ccar.hudawang.cn' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -124,6 +129,8 @@ jobs:
     needs: [find-pdfs, generate]
     if: always() && needs.find-pdfs.outputs.has_pdfs == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
