@@ -1150,7 +1150,10 @@ _TRANSLATE_BODY_PROMPT = (
     "3. 飞机型号保留英文（如Boeing 737、Airbus A320等）\n"
     "4. 用2-3句话概括核心内容，记者叙述体\n"
     "5. 不要评论原文质量，不要写空话套话\n"
-    "只输出中文翻译结果，不要任何其他内容。\n\n"
+    "6. 正文结构：先写事实摘要（2-3句），然后另起一行写「划重点：」开头的编辑锐评。\n"
+    "   锐评像一个毒舌但专业的老机长发朋友圈配文，"
+    "既有行业洞察又带点个人情绪——可以是吐槽、调侃、感慨、无奈、或者犀利的反问。\n"
+    "只输出JSON，不要任何其他内容。\n\n"
     "标题：{title}\n内容：{text}"
 )
 
@@ -1171,7 +1174,11 @@ def _llm_translate_fallback(
 
         prompt = _TRANSLATE_BODY_PROMPT.format(title=raw_title, text=raw_text)
         response = client.complete_json(
-            system_prompt="你是航空新闻翻译。输出JSON：{\"title\": \"中文标题\", \"body\": \"中文正文\"}",
+            system_prompt=(
+                "你是航空新闻翻译。输出JSON：{\"title\": \"中文标题\", \"body\": \"中文正文\"}\n"
+                "body格式：先写2-3句事实摘要，然后另起一行写「划重点：」开头的编辑锐评。"
+                "锐评像毒舌老机长发朋友圈，有行业洞察又带个人情绪。"
+            ),
             user_prompt=prompt,
             max_tokens=800,
             temperature=0.1,
