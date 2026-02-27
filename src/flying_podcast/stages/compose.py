@@ -77,6 +77,83 @@ def _normalize_title_for_recent_dedup(title: str) -> str:
     return text
 
 
+# ---------------------------------------------------------------------------
+# Fuzzy title similarity for cross-day dedup
+# ---------------------------------------------------------------------------
+
+# Regex: split into CJK characters, English words, or digit sequences
+_TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[a-zA-Z][a-zA-Z0-9]*|[0-9]+")
+
+# Short / stop tokens to ignore (too common to be meaningful)
+_STOP_TOKENS: set[str] = {
+    "a", "an", "the", "of", "in", "on", "at", "to", "for", "and", "or",
+    "is", "are", "was", "were", "be", "by", "with", "from", "as", "its",
+    "的", "了", "在", "与", "和", "将", "为", "被", "已", "于", "从",
+    "向", "至", "等", "及", "上", "下", "中", "后", "前", "新", "大",
+}
+
+
+def _tokenize_title_for_fuzzy(title: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Extract tokens from a title, split into (english+numbers, cjk) sets.
+
+    Returns two frozensets: (en_num_tokens, cjk_tokens).
+    English words and numbers are high-signal (airline names, model numbers).
+    CJK characters carry event-specific meaning but are more granular.
+    """
+    text = str(title or "").strip()
+    if not text:
+        return frozenset(), frozenset()
+    raw_tokens = _TOKEN_RE.findall(text)
+    en_num: set[str] = set()
+    cjk: set[str] = set()
+    for t in raw_tokens:
+        if len(t) == 1 and "\u4e00" <= t <= "\u9fff":
+            if t not in _STOP_TOKENS:
+                cjk.add(t)
+        else:
+            low = t.lower()
+            if low in _STOP_TOKENS:
+                continue
+            if len(low) == 1 and low.isascii():
+                continue
+            en_num.add(low)
+    return frozenset(en_num), frozenset(cjk)
+
+
+def _jaccard_similarity(a: frozenset[str], b: frozenset[str]) -> float:
+    if not a or not b:
+        return 0.0
+    intersection = len(a & b)
+    union = len(a | b)
+    return intersection / union if union else 0.0
+
+
+def _is_fuzzy_title_match(
+    tokens_a: tuple[frozenset[str], frozenset[str]],
+    tokens_b: tuple[frozenset[str], frozenset[str]],
+) -> float | None:
+    """Check if two titles are fuzzy duplicates using two-tier Jaccard.
+
+    Returns the similarity score if matched, None otherwise.
+
+    Rule 1: English entities strongly overlap (>=0.8) AND some CJK overlap
+            (>=0.15) → same event reported by different outlets.
+    Rule 2: CJK overlap >= 0.35 AND neither title has many English tokens
+            (max 2) → pure-CJK titles about the same event.
+    """
+    en_a, cjk_a = tokens_a
+    en_b, cjk_b = tokens_b
+    en_sim = _jaccard_similarity(en_a, en_b)
+    cjk_sim = _jaccard_similarity(cjk_a, cjk_b)
+    # Rule 1: strong English entity match + some CJK overlap
+    if en_sim >= 0.8 and cjk_sim >= 0.15:
+        return en_sim * 0.5 + cjk_sim * 0.5
+    # Rule 2: high CJK overlap for titles with few/no English tokens
+    if cjk_sim >= 0.35 and max(len(en_a), len(en_b)) <= 2:
+        return cjk_sim
+    return None
+
+
 def _normalize_url_for_recent_dedup(url: str) -> str:
     raw = str(url or "").strip()
     if not raw:
@@ -104,11 +181,12 @@ def _normalize_url_for_recent_dedup(url: str) -> str:
     return base
 
 
-def _build_recent_dedup_index(recent_published: list[dict]) -> dict[str, set[str]]:
+def _build_recent_dedup_index(recent_published: list[dict]) -> dict[str, Any]:
     ids: set[str] = set()
     event_fps: set[str] = set()
     urls: set[str] = set()
     titles: set[str] = set()
+    title_tokens_list: list[tuple[str, tuple[frozenset[str], frozenset[str]]]] = []
     for row in recent_published:
         if not isinstance(row, dict):
             continue
@@ -121,14 +199,19 @@ def _build_recent_dedup_index(recent_published: list[dict]) -> dict[str, set[str
         url_key = _normalize_url_for_recent_dedup(str(row.get("url", "")))
         if url_key:
             urls.add(url_key)
-        title_key = _normalize_title_for_recent_dedup(str(row.get("title", "")))
+        raw_title = str(row.get("title", "")).strip()
+        title_key = _normalize_title_for_recent_dedup(raw_title)
         if title_key:
             titles.add(title_key)
+        tokens = _tokenize_title_for_fuzzy(raw_title)
+        if tokens:
+            title_tokens_list.append((raw_title, tokens))
     return {
         "ids": ids,
         "event_fps": event_fps,
         "urls": urls,
         "titles": titles,
+        "title_tokens": title_tokens_list,
     }
 
 
@@ -138,7 +221,7 @@ def _is_recent_duplicate(
     event_fingerprint: str,
     title: str,
     canonical_url: str,
-    recent_index: dict[str, set[str]],
+    recent_index: dict[str, Any],
 ) -> bool:
     if not recent_index:
         return False
@@ -159,10 +242,26 @@ def _is_recent_duplicate(
     row_title = _normalize_title_for_recent_dedup(title)
     if row_title and row_title in titles:
         return True
+
+    # Fuzzy title similarity check — catches same-event articles with
+    # different wording from different sources.
+    title_tokens_list = recent_index.get("title_tokens", [])
+    if title_tokens_list:
+        candidate_tokens = _tokenize_title_for_fuzzy(title)
+        total_tokens = len(candidate_tokens[0]) + len(candidate_tokens[1])
+        if total_tokens >= 3:  # skip very short titles
+            for recent_title, recent_tokens in title_tokens_list:
+                sim = _is_fuzzy_title_match(candidate_tokens, recent_tokens)
+                if sim is not None:
+                    logger.info(
+                        "Cross-day fuzzy dedup: %.2f similarity — [%s] ≈ [%s]",
+                        sim, title[:50], recent_title[:50],
+                    )
+                    return True
     return False
 
 
-def _prioritize_non_recent_candidates(candidates: list[dict], recent_index: dict[str, set[str]]) -> list[dict]:
+def _prioritize_non_recent_candidates(candidates: list[dict], recent_index: dict[str, Any]) -> list[dict]:
     """Remove candidates that match recently published entries.
 
     Hard-filters duplicates when enough fresh candidates exist (>= target count).
@@ -1511,7 +1610,7 @@ def _enforce_constraints(
 def _replace_recent_duplicates(
     entries: list[DigestEntry],
     pool: list[DigestEntry],
-    recent_index: dict[str, set[str]],
+    recent_index: dict[str, Any],
 ) -> list[DigestEntry]:
     """Replace or remove entries that duplicate recently published content.
 
