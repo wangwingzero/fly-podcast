@@ -1425,20 +1425,11 @@ def _llm_compose_entries(
                 continue
             entries.append(entry)
 
-    # Backfill from filtered articles if we don't have enough
-    target = settings.target_article_count
-    if len(entries) < target and filtered_entries:
-        filtered_entries.sort(key=lambda x: x[0], reverse=True)
-        for score, entry in filtered_entries:
-            if len(entries) >= target:
-                break
-            if score < _MIN_BACKFILL_SCORE:
-                logger.info("Phase 2 backfill skip (score %d < %d): %s", score, _MIN_BACKFILL_SCORE, entry.title[:40])
-                continue
-            entries.append(entry)
-            n_llm_ok += 1
-            n_filtered -= 1
-            logger.info("Phase 2 backfill (score %d): %s", score, entry.title[:40])
+    # No backfill — prefer fewer high-quality articles over padding with low-score filler.
+    # Previously we re-admitted filtered articles to hit target count, but this pulled in
+    # duplicates and low-quality content. Quality > quantity.
+    if n_filtered:
+        logger.info("Phase 2: dropped %d low-score articles (no backfill)", n_filtered)
 
     logger.info(
         "Phase 2 compose: %d LLM ok, %d filtered (score<%d), %d translate-fallback, %d rules-fallback",
