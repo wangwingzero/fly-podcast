@@ -1425,11 +1425,20 @@ def _llm_compose_entries(
                 continue
             entries.append(entry)
 
-    # No backfill — prefer fewer high-quality articles over padding with low-score filler.
-    # Previously we re-admitted filtered articles to hit target count, but this pulled in
-    # duplicates and low-quality content. Quality > quantity.
+    # Limited backfill: only score=3 articles that are NOT cross-day duplicates.
+    # Score <= 2 are truly irrelevant and never re-admitted.
+    if len(entries) < settings.target_article_count and filtered_entries:
+        filtered_entries.sort(key=lambda x: x[0], reverse=True)
+        for score, entry in filtered_entries:
+            if len(entries) >= settings.target_article_count:
+                break
+            if score < _MIN_BACKFILL_SCORE:
+                continue
+            entries.append(entry)
+            n_filtered -= 1
+            logger.info("Phase 2 backfill (score %d): %s", score, entry.title[:40])
     if n_filtered:
-        logger.info("Phase 2: dropped %d low-score articles (no backfill)", n_filtered)
+        logger.info("Phase 2: dropped %d low-score articles", n_filtered)
 
     logger.info(
         "Phase 2 compose: %d LLM ok, %d filtered (score<%d), %d translate-fallback, %d rules-fallback",
