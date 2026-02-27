@@ -1041,54 +1041,26 @@ def _generate_digest_summary(digest: dict) -> str:
     return fallback
 
 
-_COVER_PROMPT_TEMPLATE = (
-    "你是航空新闻视觉编辑。根据以下新闻摘要，写一段英文画图AI提示词，"
-    "用于生成今天航空日报的封面图。要求：\n"
-    "1. 宽屏构图(16:9)，高端大气的航空主题\n"
-    "2. 摄影级画质，电影感光影，专业航空杂志风格\n"
-    "3. 不要文字、水印、UI元素\n"
-    "4. 结合今天新闻的核心主题选择场景（如机场、客机、驾驶舱、航线等）\n"
-    "只输出英文提示词，不要任何其他内容。\n\n今日新闻：\n{summary}"
-)
 
-
-def _generate_cover_image_bytes(digest: dict) -> bytes | None:
-    """Generate a cover image via LLM prompt + AI (Gemini primary, Grok backup).
+def _download_first_article_image(digest: dict) -> bytes | None:
+    """Download the first article's image as cover.
 
     Returns image bytes, or None on failure.
     """
-    if not settings.llm_api_key or not settings.image_gen_api_key:
-        return None
-
-    # Build summary from titles + bodies
-    parts = []
-    for e in digest.get("entries", [])[:10]:
-        title = e.get("title", "")
-        body = e.get("body", "") or ""
-        parts.append(f"- {title}: {body[:80]}")
-    summary = "\n".join(parts)
-    if not summary:
-        return None
-
-    # Step 1: Ask LLM to write a Grok prompt
-    prompt = _llm_chat(
-        messages=[{"role": "user", "content": _COVER_PROMPT_TEMPLATE.format(summary=summary)}],
-        max_tokens=300,
-        temperature=0.7,
-        timeout=30,
-    )
-    if not prompt:
-        logger.warning("Cover prompt generation failed")
-        return None
-    logger.info("Cover prompt: %s", prompt[:120])
-
-    # Step 2: Call AI to generate image (16:9 widescreen)
-    from flying_podcast.core.image_gen import generate_cover_image
-
-    image_data = generate_cover_image(prompt, size="1792x1024")
-    if not image_data:
-        logger.warning("Cover image generation failed")
-    return image_data
+    entries = digest.get("entries", [])
+    for entry in entries:
+        url = entry.get("image_url", "")
+        if not url:
+            continue
+        try:
+            resp = requests.get(url, timeout=15)
+            if resp.status_code == 200 and len(resp.content) > 1000:
+                logger.info("Cover image downloaded from first article: %s", url[:80])
+                return resp.content
+        except Exception as exc:
+            logger.warning("Failed to download cover image from %s: %s", url[:80], exc)
+    logger.warning("No article image available for cover")
+    return None
 
 
 def _upload_cover_image(image_data: bytes, client: WeChatClient,
@@ -1362,8 +1334,8 @@ def run(target_date: str | None = None) -> Path:
         except Exception:
             logger.warning("Draft cleanup failed, continuing")
 
-    # Generate AI cover image (always, regardless of dry_run)
-    cover_image_data = _generate_cover_image_bytes(digest)
+    # Use the first article's image as cover
+    cover_image_data = _download_first_article_image(digest)
     if cover_image_data:
         cover_path = settings.output_dir / f"cover_{day}.jpg"
         cover_path.write_bytes(cover_image_data)
