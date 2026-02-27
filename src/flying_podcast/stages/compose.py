@@ -1413,6 +1413,21 @@ def _llm_compose_entries(
                 entry = fallback[0] if fallback else None
                 n_fallback += 1
 
+        # Paywall / incomplete content detection — demote to score 1
+        if entry:
+            _all_text = " ".join([entry.body or "", entry.conclusion or ""] + list(entry.facts or []))
+            _paywall_phrases = [
+                "付费墙", "内容不完整", "未能获取", "正文截断",
+                "paywall", "content unavailable", "subscription required",
+                "详见原始来源", "可惜正文没给答案",
+            ]
+            if any(p in _all_text for p in _paywall_phrases):
+                logger.info(
+                    "Phase 2 paywall/incomplete content detected, demoting: %s",
+                    cand.get("id", "")[:12],
+                )
+                score = 1
+
         # Unified score gate — applies to ALL paths (LLM, translate, rules)
         if entry and entry.citations:
             if score < _MIN_PUBLISH_SCORE:
