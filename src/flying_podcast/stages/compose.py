@@ -1240,6 +1240,7 @@ def _build_composition_prompt(
 
 # Minimum score threshold for articles to be published
 _MIN_PUBLISH_SCORE = 4
+_MIN_BACKFILL_SCORE = 2
 
 
 _TRANSLATE_BODY_PROMPT = (
@@ -1390,21 +1391,12 @@ def _llm_compose_entries(
                 "",
                 body=llm_result["body"],
             )
-            if score < _MIN_PUBLISH_SCORE:
-                logger.info(
-                    "Phase 2 filtered (score %d < %d): %s — %s",
-                    score, _MIN_PUBLISH_SCORE, cand.get("id", "")[:12],
-                    llm_result.get("score_reason", ""),
-                )
-                n_filtered += 1
-                if entry and entry.citations:
-                    filtered_entries.append((score, entry))
-                continue
             n_llm_ok += 1
         else:
             # Phase 2 compose failed — try simplified LLM translation first
             translate_result = _llm_translate_fallback(client, cand)
             if translate_result is not None:
+                score = translate_result.get("score", 3)
                 entry = _to_digest_entry(
                     cand,
                     translate_result["title"],
@@ -1416,10 +1408,21 @@ def _llm_compose_entries(
                 n_translate_fallback += 1
                 logger.info("Phase 2 using translate fallback for %s", cand.get("id", "")[:12])
             else:
+                score = 2
                 fallback = _build_entries_with_rules([cand])
                 entry = fallback[0] if fallback else None
                 n_fallback += 1
+
+        # Unified score gate — applies to ALL paths (LLM, translate, rules)
         if entry and entry.citations:
+            if score < _MIN_PUBLISH_SCORE:
+                logger.info(
+                    "Phase 2 filtered (score %d < %d): %s",
+                    score, _MIN_PUBLISH_SCORE, cand.get("id", "")[:12],
+                )
+                n_filtered += 1
+                filtered_entries.append((score, entry))
+                continue
             entries.append(entry)
 
     # Backfill from filtered articles if we don't have enough
@@ -1429,6 +1432,9 @@ def _llm_compose_entries(
         for score, entry in filtered_entries:
             if len(entries) >= target:
                 break
+            if score < _MIN_BACKFILL_SCORE:
+                logger.info("Phase 2 backfill skip (score %d < %d): %s", score, _MIN_BACKFILL_SCORE, entry.title[:40])
+                continue
             entries.append(entry)
             n_llm_ok += 1
             n_filtered -= 1

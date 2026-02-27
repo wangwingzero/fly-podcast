@@ -76,8 +76,9 @@ pilot_entity_keywords:
   - ntsb
   - boeing
   - airbus
-  - delta
-  - united
+  - delta air lines
+  - delta airlines
+  - united airlines
   - american airlines
   - lufthansa
   - emirates
@@ -86,7 +87,7 @@ pilot_entity_keywords:
   - british airways
   - cathay pacific
   - ryanair
-  - southwest
+  - southwest airlines
 
 hard_reject_keywords:
   - stock
@@ -101,6 +102,32 @@ hard_reject_keywords:
   - frequent flyer
   - meal service
   - tourism
+  - soccer
+  - football match
+  - basketball
+  - mls
+  - nfl
+  - nba
+  - premier league
+  - world cup
+  - real estate
+  - cryptocurrency
+  - crypto
+  - bitcoin
+
+# Patterns that indicate non-aviation entities (hard-reject on title match)
+non_aviation_reject_patterns:
+  - minnesota united
+  - manchester united
+  - newcastle united
+  - atlanta united
+  - dc united
+  - leeds united
+  - sheffield united
+  - west ham united
+  - delta force
+  - delta variant
+  - delta state
 
 pilot_allowed_source_ids:
   - iata_press_web

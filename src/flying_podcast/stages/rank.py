@@ -130,6 +130,9 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     signal_words = _keyword_list(kw_cfg.get("pilot_signal_keywords"), _DEFAULT_PILOT_SIGNAL_KEYWORDS)
     entity_words = _keyword_list(kw_cfg.get("pilot_entity_keywords"), _DEFAULT_PILOT_ENTITY_KEYWORDS)
     reject_words = _keyword_list(kw_cfg.get("hard_reject_keywords"), _DEFAULT_HARD_REJECT_KEYWORDS)
+    non_aviation_patterns = _keyword_list(
+        kw_cfg.get("non_aviation_reject_patterns"), [],
+    )
 
     allowed_source_ids = {str(x).strip() for x in kw_cfg.get("pilot_allowed_source_ids", []) if str(x).strip()}
     allowed_domains = {
@@ -142,11 +145,16 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     domain = _domain(canonical_url)
     source_id = str(item.get("source_id") or "").strip()
 
+    title_l = item.get("title", "").lower()
     text_l = text.lower()
     signal_hits = _count_hits(text_l, signal_words)
     entity_hits = _count_hits(text_l, entity_words)
     reject_hits = _count_hits(text_l, reject_words)
     trusted_source = source_id in allowed_source_ids or _domain_allowed(domain, allowed_domains)
+
+    # Hard-reject known non-aviation entities (e.g. "Minnesota United" soccer)
+    if non_aviation_patterns and _count_hits(title_l, non_aviation_patterns) > 0:
+        return False, "non_aviation_entity"
 
     # Reject obvious noise unless signal is very strong.
     if reject_hits > 0 and signal_hits < 2:
@@ -155,8 +163,13 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     if signal_hits <= 0:
         return False, "missing_pilot_signal"
 
-    if entity_hits <= 0 and not trusted_source:
-        return False, "missing_aviation_entity"
+    # Trusted sources still need either an aviation entity OR strong signal (2+)
+    # to prevent travel/lifestyle content from slipping through.
+    if entity_hits <= 0:
+        if not trusted_source:
+            return False, "missing_aviation_entity"
+        if signal_hits < 2:
+            return False, "trusted_source_weak_signal"
 
     return True, "ok"
 
