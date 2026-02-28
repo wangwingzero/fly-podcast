@@ -6,7 +6,7 @@ on:
 env:
   TZ: Asia/Shanghai
   DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
-  TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '10' }}
+  TARGET_ARTICLE_COUNT: ${{ vars.TARGET_ARTICLE_COUNT || '15' }}
   DOMESTIC_RATIO: ${{ vars.DOMESTIC_RATIO || '0.0' }}
   QUALITY_THRESHOLD: ${{ vars.QUALITY_THRESHOLD || '80' }}
   ALLOW_GOOGLE_REDIRECT_CITATION: ${{ vars.ALLOW_GOOGLE_REDIRECT_CITATION || 'false' }}
