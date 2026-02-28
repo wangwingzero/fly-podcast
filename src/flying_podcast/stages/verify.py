@@ -36,15 +36,19 @@ def _llm_information_review(
         })
 
     system_prompt = (
-        "你是航空新闻质量审核员。你的唯一任务是判断每条新闻是否有真正的信息增量。\n\n"
-        "【判断标准】一个飞行员/签派读完这条新闻后，是否获得了一个具体的新事实？\n"
-        "有信息增量的文章包含：具体事件(who/what/when/where)、具体数据、具体政策变更、具体安全通报。\n\n"
-        "【必须拒绝的类型】\n"
-        "- 概述性/科普性文章：讨论某个主题的一般性概念，没有具体新事件\n"
-        "  例如：『航空法律如何塑造全球航空旅行的未来』『数字化转型如何改变航空业』\n"
-        "- 企业软文/宣传稿：航司/机场的品牌宣传，无具体运行信息\n"
-        "- 空洞趋势分析：没有具体数据支撑的泛泛而谈\n"
-        "- 会议通稿/表态新闻：领导讲话、签约仪式\n\n"
+        "你是航空新闻质量审核员。你的任务是找出真正没有信息增量的软文并删除。\n\n"
+        "【判断标准】请宽松判断——只要文章包含至少一个具体事实（具体事件、具体数据、\n"
+        "具体时间、具体航司/机型/航线），就应该保留。\n\n"
+        "【只删除以下类型】\n"
+        "- 纯概述性/科普性文章：完全没有具体事件，只讨论一般性概念\n"
+        "  例如：『航空法律如何塑造全球航空旅行的未来』\n"
+        "- 纯企业软文/品牌宣传：没有任何具体数据或事件\n"
+        "- 完全空洞的表态/会议通稿：没有任何实质内容\n\n"
+        "【必须保留】\n"
+        "- 有具体数据（订单数量、金额、日期等）的新闻\n"
+        "- 有具体事件（事故、停飞、新航线开通等）的新闻\n"
+        "- 有具体政策/法规变更的新闻\n"
+        "- 宁可多保留，不要误删。如果拿不准，就保留。\n\n"
         "对每条新闻输出：{id, keep: true/false, reason: 一句话理由}\n"
         "输出JSON：{\"reviews\": [{\"id\": \"...\", \"keep\": true, \"reason\": \"...\"}]}"
     )
@@ -72,6 +76,19 @@ def _llm_information_review(
                 logger.info("LLM 信息增量审核 — 删除: %s | 理由: %s", eid[:12], reason)
             else:
                 logger.debug("LLM 信息增量审核 — 保留: %s | %s", eid[:12], reason)
+
+        # Safety cap: never delete more than 30% of entries
+        max_delete = max(1, len(entries) * 3 // 10)
+        # Also ensure we keep at least half of target_article_count
+        min_keep = max(settings.target_article_count // 2, 1)
+        max_delete_by_keep = max(0, len(entries) - min_keep)
+        effective_max = min(max_delete, max_delete_by_keep)
+        if len(blocked_ids) > effective_max:
+            logger.warning(
+                "LLM 信息增量审核: 拟删除 %d 条超过上限 %d，只删除前 %d 条",
+                len(blocked_ids), effective_max, effective_max,
+            )
+            blocked_ids = blocked_ids[:effective_max]
         return blocked_ids
     except Exception as exc:  # noqa: BLE001
         logger.warning("LLM 信息增量审核失败，跳过: %s", exc)
