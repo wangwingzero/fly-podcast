@@ -1,16 +1,81 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from urllib.parse import urlparse
 
 from flying_podcast.core.config import settings
 from flying_podcast.core.io_utils import dump_json, load_json, load_yaml
+from flying_podcast.core.llm_client import OpenAICompatibleClient
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.models import QualityReport
 from flying_podcast.core.scoring import has_source_conflict
 from flying_podcast.core.time_utils import beijing_today_str
 
 logger = get_logger("verify")
+
+
+def _llm_information_review(
+    entries: list[dict],
+    client: OpenAICompatibleClient,
+) -> list[str]:
+    """Use LLM to review each entry for information increment.
+
+    Returns list of entry IDs that should be blocked (no real information).
+    """
+    if not entries:
+        return []
+
+    # Build a batch prompt for efficiency — one LLM call for all entries
+    items = []
+    for i, e in enumerate(entries):
+        items.append({
+            "id": e.get("id", ""),
+            "title": e.get("title", ""),
+            "body": (e.get("body") or "")[:300],
+        })
+
+    system_prompt = (
+        "你是航空新闻质量审核员。你的唯一任务是判断每条新闻是否有真正的信息增量。\n\n"
+        "【判断标准】一个飞行员/签派读完这条新闻后，是否获得了一个具体的新事实？\n"
+        "有信息增量的文章包含：具体事件(who/what/when/where)、具体数据、具体政策变更、具体安全通报。\n\n"
+        "【必须拒绝的类型】\n"
+        "- 概述性/科普性文章：讨论某个主题的一般性概念，没有具体新事件\n"
+        "  例如：『航空法律如何塑造全球航空旅行的未来』『数字化转型如何改变航空业』\n"
+        "- 企业软文/宣传稿：航司/机场的品牌宣传，无具体运行信息\n"
+        "- 空洞趋势分析：没有具体数据支撑的泛泛而谈\n"
+        "- 会议通稿/表态新闻：领导讲话、签约仪式\n\n"
+        "对每条新闻输出：{id, keep: true/false, reason: 一句话理由}\n"
+        "输出JSON：{\"reviews\": [{\"id\": \"...\", \"keep\": true, \"reason\": \"...\"}]}"
+    )
+    user_prompt = json.dumps({"entries": items}, ensure_ascii=False)
+
+    try:
+        response = client.complete_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=2000,
+            temperature=0.0,
+            retries=2,
+            timeout=60,
+        )
+        reviews = response.payload.get("reviews", [])
+        blocked_ids = []
+        for review in reviews:
+            if not isinstance(review, dict):
+                continue
+            eid = str(review.get("id", "")).strip()
+            keep = review.get("keep", True)
+            reason = str(review.get("reason", "")).strip()
+            if not keep and eid:
+                blocked_ids.append(eid)
+                logger.info("LLM 信息增量审核 — 删除: %s | 理由: %s", eid[:12], reason)
+            else:
+                logger.debug("LLM 信息增量审核 — 保留: %s | %s", eid[:12], reason)
+        return blocked_ids
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("LLM 信息增量审核失败，跳过: %s", exc)
+        return []
 
 
 def run(target_date: str | None = None) -> Path:
@@ -116,6 +181,29 @@ def run(target_date: str | None = None) -> Path:
 
     if total < settings.quality_threshold:
         reasons.append("quality_below_threshold")
+
+    # ---- LLM information-increment review ----
+    llm_blocked: list[str] = []
+    if OpenAICompatibleClient.is_configured() and entries:
+        llm_client = OpenAICompatibleClient(
+            api_key=settings.llm_api_key,
+            base_url=settings.llm_base_url,
+            model=settings.llm_model,
+        )
+        llm_blocked = _llm_information_review(entries, llm_client)
+        if llm_blocked:
+            reasons.append("llm_low_information_increment")
+            blocked.extend(llm_blocked)
+            # Remove blocked entries from composed output and re-save
+            original_count = len(entries)
+            entries = [e for e in entries if e.get("id", "") not in set(llm_blocked)]
+            digest["entries"] = entries
+            digest["article_count"] = len(entries)
+            dump_json(composed_path, digest)
+            logger.info(
+                "LLM 信息增量审核: 删除 %d 条 (%d → %d)",
+                original_count - len(entries), original_count, len(entries),
+            )
 
     # Always auto_publish — quality issues are logged in reasons for reference
     # but no longer gate the publish decision.
