@@ -1014,7 +1014,7 @@ def _build_selection_prompt(
             {
                 "ref_id": row["id"],
                 "title": row.get("title", ""),
-                "raw_text": _strip_html(row.get("raw_text", ""))[:300],
+                "raw_text": _strip_html(row.get("raw_text", ""))[:600],
                 "source_tier": row.get("source_tier", "C"),
                 "source_name": row.get("source_name", ""),
                 "publisher_domain": row.get("publisher_domain", ""),
@@ -1041,9 +1041,7 @@ def _build_selection_prompt(
         "4. 运行网络变化：新航线/停航/换季调整（影响签派排班）\n"
         "5. 气象与运行：极端天气/火山灰/NOTAM/TFR\n"
         "6. 行业动态：订单/技术/培训/其他航空新闻\n\n"
-        "【不选】股价财报、明星娱乐、旅游生活方式、政治宣传、企业软文广告、\n"
-        "概述性/科普性/综述类文章（如「航空法律如何塑造未来」「XX的发展趋势」）、\n"
-        "没有具体事件/数据/政策的空洞分析文\n\n"
+        "【不选】股价财报、明星娱乐、旅游生活方式、政治宣传、企业软文广告\n\n"
         f"必须选够{total}条。确保话题多样性，避免多条新闻讲同一件事。\n"
         "输出必须是 JSON object，且仅包含 entries 字段。"
         + dedup_instruction
@@ -1062,11 +1060,8 @@ def _build_selection_prompt(
                 "明星娱乐", "旅游生活方式", "泛科技八卦",
                 "与飞行运行完全无关的社会新闻",
                 "政治宣传/政绩报道/领导视察",
-                "企业软文/品牌广告/营销推广",
-                "概述性/科普性/综述类文章（如『航空法律如何塑造未来』『XX技术的发展趋势』）",
-                "没有具体事件、数据或政策的空洞分析/评论文",
+                "纯企业软文/品牌广告/营销推广",
             ],
-            "selection_principle": "每条必须有具体的新事实、新数据、新政策或新事件。如果raw_text里找不到一个具体的who/what/when，就不要选。",
             "prefer_topics": [
                 "运行安全（事故/事件/安全通报/紧急着陆/备降）",
                 "适航与监管（适航指令AD/安全建议/罚单/强制检查）",
@@ -1250,7 +1245,7 @@ def _build_composition_prompt(
 
 # Minimum score threshold for articles to be published
 _MIN_PUBLISH_SCORE = 4
-_MIN_BACKFILL_SCORE = 4
+_MIN_BACKFILL_SCORE = 3
 
 
 _TRANSLATE_BODY_PROMPT = (
