@@ -15,40 +15,44 @@ from flying_podcast.core.time_utils import beijing_today_str
 logger = get_logger("verify")
 
 
-def _llm_information_review(
+def _llm_editor_review(
     entries: list[dict],
     client: OpenAICompatibleClient,
 ) -> list[str]:
-    """Use LLM to review each entry for information increment.
+    """LLM acts as editor-in-chief for final quality gate.
 
-    Returns list of entry IDs that should be blocked (no real information).
+    Reviews every entry for overall quality — not just soft-article filtering,
+    but also translation quality, factual coherence, readability, and
+    information value.  No deletion cap: quality over quantity.
+
+    Returns list of entry IDs that should be removed.
     """
     if not entries:
         return []
 
-    # Build a batch prompt for efficiency — one LLM call for all entries
     items = []
-    for i, e in enumerate(entries):
+    for e in entries:
         items.append({
             "id": e.get("id", ""),
             "title": e.get("title", ""),
-            "body": (e.get("body") or "")[:300],
+            "body": (e.get("body") or "")[:800],
         })
 
     system_prompt = (
-        "你是航空新闻质量审核员。你的任务是找出真正没有信息增量的软文并删除。\n\n"
-        "【判断标准】请宽松判断——只要文章包含至少一个具体事实（具体事件、具体数据、\n"
-        "具体时间、具体航司/机型/航线），就应该保留。\n\n"
-        "【只删除以下类型】\n"
-        "- 纯概述性/科普性文章：完全没有具体事件，只讨论一般性概念\n"
-        "  例如：『航空法律如何塑造全球航空旅行的未来』\n"
-        "- 纯企业软文/品牌宣传：没有任何具体数据或事件\n"
-        "- 完全空洞的表态/会议通稿：没有任何实质内容\n\n"
-        "【必须保留】\n"
-        "- 有具体数据（订单数量、金额、日期等）的新闻\n"
-        "- 有具体事件（事故、停飞、新航线开通等）的新闻\n"
-        "- 有具体政策/法规变更的新闻\n"
-        "- 宁可多保留，不要误删。如果拿不准，就保留。\n\n"
+        "你是一位资深航空媒体总编辑，负责对即将发布的每日简报做最终质量终审。\n"
+        "这些文章已经过AI选稿和翻译，你是发布前的最后一道关。追求质量，不求数量。\n\n"
+        "【审查维度】请从以下五个方面逐条审查：\n"
+        "1. 信息增量：飞行员/签派读完后是否获得了至少一个可操作的新事实？\n"
+        "   删除：纯概述/科普（如『航空法律如何塑造未来』）、纯表态/口号、无具体事件的趋势分析。\n"
+        "2. 翻译/写作质量：中文是否通顺自然？有无机翻痕迹、语义不通、前后矛盾？\n"
+        "   删除：读起来像机器翻译、关键信息表述混乱、无法理解要点的文章。\n"
+        "3. 事实与逻辑：标题与正文是否一致？要点之间是否自相矛盾？\n"
+        "   删除：标题党（标题夸大但正文无支撑）、要点之间互相矛盾的文章。\n"
+        "4. 重复与冗余：与本期其他文章是否实质重复（同一事件的不同来源）？\n"
+        "   删除：与同期另一篇文章报道同一核心事件（保留质量更好的那篇）。\n"
+        "5. 发布价值：整体来看，这篇文章是否值得推送给专业飞行员读者？\n"
+        "   删除：即使有具体事实但价值极低（如某航司换了个logo、某机场改了名字）。\n\n"
+        "【输出要求】\n"
         "对每条新闻输出：{id, keep: true/false, reason: 一句话理由}\n"
         "输出JSON：{\"reviews\": [{\"id\": \"...\", \"keep\": true, \"reason\": \"...\"}]}"
     )
@@ -58,10 +62,10 @@ def _llm_information_review(
         response = client.complete_json(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            max_tokens=2000,
+            max_tokens=3000,
             temperature=0.0,
             retries=2,
-            timeout=60,
+            timeout=90,
         )
         reviews = response.payload.get("reviews", [])
         blocked_ids = []
@@ -73,25 +77,12 @@ def _llm_information_review(
             reason = str(review.get("reason", "")).strip()
             if not keep and eid:
                 blocked_ids.append(eid)
-                logger.info("LLM 信息增量审核 — 删除: %s | 理由: %s", eid[:12], reason)
+                logger.info("总编辑终审 — 删除: %s | 理由: %s", eid[:12], reason)
             else:
-                logger.debug("LLM 信息增量审核 — 保留: %s | %s", eid[:12], reason)
-
-        # Safety cap: never delete more than 30% of entries
-        max_delete = max(1, len(entries) * 3 // 10)
-        # Also ensure we keep at least half of target_article_count
-        min_keep = max(settings.target_article_count // 2, 1)
-        max_delete_by_keep = max(0, len(entries) - min_keep)
-        effective_max = min(max_delete, max_delete_by_keep)
-        if len(blocked_ids) > effective_max:
-            logger.warning(
-                "LLM 信息增量审核: 拟删除 %d 条超过上限 %d，只删除前 %d 条",
-                len(blocked_ids), effective_max, effective_max,
-            )
-            blocked_ids = blocked_ids[:effective_max]
+                logger.info("总编辑终审 — 保留: %s | %s", eid[:12], reason)
         return blocked_ids
     except Exception as exc:  # noqa: BLE001
-        logger.warning("LLM 信息增量审核失败，跳过: %s", exc)
+        logger.warning("总编辑终审失败，跳过: %s", exc)
         return []
 
 
@@ -199,7 +190,7 @@ def run(target_date: str | None = None) -> Path:
     if total < settings.quality_threshold:
         reasons.append("quality_below_threshold")
 
-    # ---- LLM information-increment review ----
+    # ---- LLM editor-in-chief final review ----
     llm_blocked: list[str] = []
     if OpenAICompatibleClient.is_configured() and entries:
         llm_client = OpenAICompatibleClient(
@@ -207,9 +198,9 @@ def run(target_date: str | None = None) -> Path:
             base_url=settings.llm_base_url,
             model=settings.llm_model,
         )
-        llm_blocked = _llm_information_review(entries, llm_client)
+        llm_blocked = _llm_editor_review(entries, llm_client)
         if llm_blocked:
-            reasons.append("llm_low_information_increment")
+            reasons.append("llm_editor_rejected")
             blocked.extend(llm_blocked)
             # Remove blocked entries from composed output and re-save
             original_count = len(entries)
@@ -218,7 +209,7 @@ def run(target_date: str | None = None) -> Path:
             digest["article_count"] = len(entries)
             dump_json(composed_path, digest)
             logger.info(
-                "LLM 信息增量审核: 删除 %d 条 (%d → %d)",
+                "总编辑终审: 删除 %d 条 (%d → %d)",
                 original_count - len(entries), original_count, len(entries),
             )
 
