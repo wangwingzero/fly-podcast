@@ -55,6 +55,10 @@ class OpenAICompatibleClient:
     def is_configured() -> bool:
         return bool(settings.llm_api_key and settings.llm_base_url and settings.llm_model)
 
+    @staticmethod
+    def backup_configured() -> bool:
+        return bool(settings.llm_backup_api_key and settings.llm_backup_base_url and settings.llm_backup_model)
+
     def _chat_url(self) -> str:
         base = self.base_url.rstrip("/")
         if self._is_anthropic:
@@ -168,6 +172,7 @@ class OpenAICompatibleClient:
         temperature: float = 0.2,
         retries: int = 5,
         timeout: int = 45,
+        _allow_backup: bool = True,
     ) -> LLMResponse:
         prompt_chars = len(system_prompt) + len(user_prompt)
         _log.info("LLM 请求: model=%s, max_tokens=%d, prompt=%d 字符, timeout=%ds",
@@ -227,4 +232,22 @@ class OpenAICompatibleClient:
                     _log.warning("[LLM] attempt %d/%d failed: %s, retry in %ds",
                                 attempt, retries, last_error[:120], wait)
                     time.sleep(wait)
+        # Primary model exhausted all retries – try backup model if configured
+        if _allow_backup and self.backup_configured():
+            _log.warning("[LLM] 主模型 %s 全部重试失败，切换备用模型 %s",
+                        self.model, settings.llm_backup_model)
+            backup = OpenAICompatibleClient(
+                api_key=settings.llm_backup_api_key,
+                base_url=settings.llm_backup_base_url,
+                model=settings.llm_backup_model,
+            )
+            return backup.complete_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                retries=retries,
+                timeout=timeout,
+                _allow_backup=False,
+            )
         raise LLMError(last_error)

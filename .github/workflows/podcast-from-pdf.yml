@@ -79,6 +79,9 @@ jobs:
       LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
       LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
       LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
+      LLM_BACKUP_API_KEY: ${{ secrets.LLM_BACKUP_API_KEY }}
+      LLM_BACKUP_BASE_URL: ${{ vars.LLM_BACKUP_BASE_URL || '' }}
+      LLM_BACKUP_MODEL: ${{ vars.LLM_BACKUP_MODEL || '' }}
       DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
       QWEN_TTS_URL: ${{ vars.QWEN_TTS_URL || 'http://localhost:8825' }}
       PODCAST_GREETING: ${{ github.event.inputs.greeting || '' }}

@@ -15,6 +15,9 @@ env:
   LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
   LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
   LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
+  LLM_BACKUP_API_KEY: ${{ secrets.LLM_BACKUP_API_KEY }}
+  LLM_BACKUP_BASE_URL: ${{ vars.LLM_BACKUP_BASE_URL || '' }}
+  LLM_BACKUP_MODEL: ${{ vars.LLM_BACKUP_MODEL || '' }}
   WECHAT_ENABLE_PUBLISH: ${{ vars.WECHAT_ENABLE_PUBLISH || 'false' }}
   WECHAT_APP_ID: ${{ secrets.WECHAT_APP_ID }}
   WECHAT_APP_SECRET: ${{ secrets.WECHAT_APP_SECRET }}

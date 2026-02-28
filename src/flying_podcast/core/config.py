@@ -46,6 +46,9 @@ class Settings:
     llm_model: str = os.getenv("LLM_MODEL", "")
     llm_max_tokens: int = _env_int("LLM_MAX_TOKENS", 6000)
     llm_temperature: float = _env_float("LLM_TEMPERATURE", 0.1)
+    llm_backup_api_key: str = os.getenv("LLM_BACKUP_API_KEY", "")
+    llm_backup_base_url: str = os.getenv("LLM_BACKUP_BASE_URL", "")
+    llm_backup_model: str = os.getenv("LLM_BACKUP_MODEL", "")
 
     wechat_enable_publish: bool = _env_bool("WECHAT_ENABLE_PUBLISH", False)
     wechat_app_id: str = os.getenv("WECHAT_APP_ID", "")

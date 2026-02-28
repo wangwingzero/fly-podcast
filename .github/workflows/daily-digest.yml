@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 19 * * *" # Beijing 03:00
   workflow_dispatch:
+    inputs:
+      date:
+        description: 'Target date (YYYY-MM-DD), defaults to today'
+        required: false
+        type: string
 
 env:
   TZ: Asia/Shanghai
@@ -17,6 +22,9 @@ env:
   LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
   LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
   LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
+  LLM_BACKUP_API_KEY: ${{ secrets.LLM_BACKUP_API_KEY }}
+  LLM_BACKUP_BASE_URL: ${{ vars.LLM_BACKUP_BASE_URL || '' }}
+  LLM_BACKUP_MODEL: ${{ vars.LLM_BACKUP_MODEL || '' }}
   WECHAT_ENABLE_PUBLISH: ${{ vars.WECHAT_ENABLE_PUBLISH || 'false' }}
   WECHAT_APP_ID: ${{ secrets.WECHAT_APP_ID }}
   WECHAT_APP_SECRET: ${{ secrets.WECHAT_APP_SECRET }}
@@ -63,20 +71,24 @@ jobs:
           aws s3 cp "s3://${R2_BUCKET}/history/recent_published.json" data/history/recent_published.json \
             --endpoint-url "${R2_ENDPOINT}" || echo "No history file yet, first run"
 
+      - name: Set target date
+        id: date
+        run: echo "TARGET_DATE=${{ inputs.date || '$(date +%F)' }}" >> "$GITHUB_OUTPUT"
+
       - name: "Stage 1/6: Ingest"
-        run: python run.py ingest --date "$(date +%F)"
+        run: python run.py ingest --date "${{ steps.date.outputs.TARGET_DATE }}"
 
       - name: "Stage 2/6: Rank"
-        run: python run.py rank --date "$(date +%F)"
+        run: python run.py rank --date "${{ steps.date.outputs.TARGET_DATE }}"
 
       - name: "Stage 3/6: Compose"
-        run: python run.py compose --date "$(date +%F)"
+        run: python run.py compose --date "${{ steps.date.outputs.TARGET_DATE }}"
 
       - name: "Stage 4/6: Verify"
-        run: python run.py verify --date "$(date +%F)"
+        run: python run.py verify --date "${{ steps.date.outputs.TARGET_DATE }}"
 
       - name: "Stage 5/6: Publish"
-        run: python run.py publish --date "$(date +%F)"
+        run: python run.py publish --date "${{ steps.date.outputs.TARGET_DATE }}"
 
       - name: Upload web digest to R2
         if: hashFiles('data/output/web_*.html') != ''
@@ -114,7 +126,7 @@ jobs:
             --content-type "application/json"
 
       - name: "Stage 6/6: Notify"
-        run: python run.py notify --date "$(date +%F)"
+        run: python run.py notify --date "${{ steps.date.outputs.TARGET_DATE }}"
 
       - name: Upload artifacts
         if: always()
