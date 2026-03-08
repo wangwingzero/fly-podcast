@@ -35,6 +35,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
+      - name: Install Playwright browser
+        run: python -m playwright install --with-deps chromium
       - name: Ensure publish result exists
         run: |
           python run.py ingest --date "$(date +%F)"

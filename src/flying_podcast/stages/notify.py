@@ -48,8 +48,11 @@ def run(target_date: str | None = None) -> None:
 
     # --- Webhook notification ---
     msg = _build_message(day, quality, publish)
-    if settings.dry_run or not settings.alert_webhook_url:
+    if settings.dry_run:
         logger.info("[DRY_RUN notify]\n%s", msg)
+        return
+    if not settings.alert_webhook_url:
+        logger.info("[SKIP notify] ALERT_WEBHOOK_URL is not configured\n%s", msg)
         return
 
     resp = requests.post(
