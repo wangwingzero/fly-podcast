@@ -75,22 +75,23 @@ jobs:
       max-parallel: 5
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
-      LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'http://38.12.32.114:8317/v1' }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-5.4' }}
       LLM_MAX_TOKENS: ${{ vars.LLM_MAX_TOKENS || '6000' }}
       LLM_TEMPERATURE: ${{ vars.LLM_TEMPERATURE || '0.1' }}
       LLM_BACKUP_API_KEY: ${{ secrets.LLM_BACKUP_API_KEY }}
       LLM_BACKUP_BASE_URL: ${{ vars.LLM_BACKUP_BASE_URL || '' }}
       LLM_BACKUP_MODEL: ${{ vars.LLM_BACKUP_MODEL || '' }}
       DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+      MINERU: ${{ secrets.MINERU }}
       QWEN_TTS_URL: ${{ vars.QWEN_TTS_URL || 'http://localhost:8825' }}
       PODCAST_GREETING: ${{ github.event.inputs.greeting || '' }}
       UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
       UNSPLASH_ACCESS_KEY_2: ${{ secrets.UNSPLASH_ACCESS_KEY_2 }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       IMAGE_GEN_API_KEY: ${{ secrets.IMAGE_GEN_API_KEY }}
-      IMAGE_GEN_BASE_URL: ${{ vars.IMAGE_GEN_BASE_URL || '' }}
-      IMAGE_GEN_MODEL: ${{ vars.IMAGE_GEN_MODEL || '' }}
+      IMAGE_GEN_BASE_URL: ${{ vars.IMAGE_GEN_BASE_URL || 'http://38.12.32.114:8317/v1' }}
+      IMAGE_GEN_MODEL: ${{ vars.IMAGE_GEN_MODEL || 'gemini-3.1-flash-image' }}
       IMAGE_GEN_BACKUP_API_KEY: ${{ secrets.IMAGE_GEN_BACKUP_API_KEY }}
       IMAGE_GEN_BACKUP_BASE_URL: ${{ vars.IMAGE_GEN_BACKUP_BASE_URL || '' }}
       IMAGE_GEN_BACKUP_MODEL: ${{ vars.IMAGE_GEN_BACKUP_MODEL || '' }}
@@ -177,8 +178,8 @@ jobs:
           WECHAT_THUMB_MEDIA_ID: ${{ secrets.WECHAT_THUMB_MEDIA_ID }}
           WECHAT_PROXY: ${{ vars.WECHAT_PROXY || '' }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.agentify.top/v1/chat/completions' }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'claude-sonnet-4-6' }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'http://38.12.32.114:8317/v1' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-5.4' }}
         run: |
           DATE="${{ needs.find-pdfs.outputs.date }}"
           python run.py publish-podcast --date "$DATE"

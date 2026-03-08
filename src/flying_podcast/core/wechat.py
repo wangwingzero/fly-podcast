@@ -44,14 +44,15 @@ def _curl_get(url: str, params: dict | None = None, *,
     """HTTP GET via curl subprocess (reliable proxy CONNECT tunneling)."""
     if params:
         url = f"{url}?{urlencode(params)}"
-    cmd = ["curl", "-sS", "-m", str(timeout)]
+    cmd = ["curl", "-sS", "-m", str(timeout), "--ssl-no-revoke"]
     if proxy:
         cmd += ["-x", proxy]
     cmd.append(url)
-    r = subprocess.run(cmd, capture_output=True, text=True,
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=timeout + 10, env=_clean_proxy_env())
     if r.returncode != 0:
-        raise WeChatPublishError(f"curl GET failed (rc={r.returncode}): {r.stderr[:200]}")
+        stderr_msg = (r.stderr or "")[:200]
+        raise WeChatPublishError(f"curl GET failed (rc={r.returncode}): {stderr_msg}")
     return json.loads(r.stdout)
 
 
@@ -65,7 +66,7 @@ def _curl_post_json(url: str, params: dict | None = None,
     import tempfile, os
     if params:
         url = f"{url}?{urlencode(params)}"
-    cmd = ["curl", "-sS", "-m", str(timeout), "-X", "POST",
+    cmd = ["curl", "-sS", "-m", str(timeout), "-X", "POST", "--ssl-no-revoke",
            "-H", "Content-Type: application/json; charset=utf-8"]
     if proxy:
         cmd += ["-x", proxy]
@@ -79,10 +80,11 @@ def _curl_post_json(url: str, params: dict | None = None,
             os.close(fd)
             cmd += ["-d", f"@{tmp_path}"]
         cmd.append(url)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 10,
-                           encoding="utf-8", env=_clean_proxy_env())
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout + 10, env=_clean_proxy_env())
         if r.returncode != 0:
-            raise WeChatPublishError(f"curl POST failed (rc={r.returncode}): {r.stderr[:200]}")
+            stderr_msg = (r.stderr or "")[:200]
+            raise WeChatPublishError(f"curl POST failed (rc={r.returncode}): {stderr_msg}")
         return json.loads(r.stdout)
     finally:
         if tmp_path and os.path.exists(tmp_path):
@@ -97,15 +99,16 @@ def _curl_post_file(url: str, params: dict | None = None,
     """HTTP POST multipart file upload via curl subprocess."""
     if params:
         url = f"{url}?{urlencode(params)}"
-    cmd = ["curl", "-sS", "-m", str(timeout)]
+    cmd = ["curl", "-sS", "-m", str(timeout), "--ssl-no-revoke"]
     if proxy:
         cmd += ["-x", proxy]
     cmd += ["-F", f"{file_field}=@{file_path};filename={file_name};type={content_type}"]
     cmd.append(url)
-    r = subprocess.run(cmd, capture_output=True, text=True,
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=timeout + 10, env=_clean_proxy_env())
     if r.returncode != 0:
-        raise WeChatPublishError(f"curl upload failed (rc={r.returncode}): {r.stderr[:200]}")
+        stderr_msg = (r.stderr or "")[:200]
+        raise WeChatPublishError(f"curl upload failed (rc={r.returncode}): {stderr_msg}")
     return json.loads(r.stdout)
 
 

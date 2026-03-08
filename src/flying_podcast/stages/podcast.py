@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,8 +29,8 @@ logger = get_logger("podcast")
 MAX_PDF_CHARS = 30000  # Truncate very long PDFs
 
 
-def extract_pdf_text(pdf_path: Path) -> str:
-    """Extract all text from a PDF file."""
+def _extract_pdf_text_local(pdf_path: Path) -> str:
+    """Extract text locally via pdfplumber."""
     logger.info("Extracting text from: %s", pdf_path.name)
     pages_text: list[str] = []
     with pdfplumber.open(pdf_path) as pdf:
@@ -43,6 +44,62 @@ def extract_pdf_text(pdf_path: Path) -> str:
     logger.info("Extracted %d chars from %d pages", len(full_text), len(pages_text))
 
     return full_text
+
+
+def _clean_mineru_markdown_for_script(md_text: str) -> str:
+    """Convert MinerU markdown into plain text suitable for script generation."""
+    text = md_text
+    text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
+    text = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", text)
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    text = re.sub(r"`(.*?)`", r"\1", text)
+    text = re.sub(r"\|", " ", text)
+    text = re.sub(r"^-{3,}$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("&lt;", "").replace("&gt;", "").replace("&amp;", "和")
+    text = text.replace("&nbsp;", " ").replace("&quot;", "")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    return text.strip()
+
+
+def _extract_pdf_text_mineru(pdf_path: Path, work_dir: Path | None = None) -> str:
+    """Extract text via MinerU, optionally caching markdown in work_dir."""
+    from flying_podcast.stages.pdf_narration import extract_markdown
+
+    md_path = work_dir / f"{pdf_path.stem}_mineru.md" if work_dir else None
+    if md_path and md_path.exists():
+        logger.info("Using cached MinerU markdown: %s", md_path.name)
+        md_text = md_path.read_text(encoding="utf-8")
+    else:
+        logger.info("Extracting PDF via MinerU: %s", pdf_path.name)
+        md_text = extract_markdown(pdf_path)
+        if md_path:
+            md_path.write_text(md_text, encoding="utf-8")
+            logger.info("MinerU markdown saved: %s", md_path.name)
+
+    clean_text = _clean_mineru_markdown_for_script(md_text)
+    logger.info("MinerU text ready: %d -> %d chars", len(md_text), len(clean_text))
+    return clean_text
+
+
+def extract_pdf_text(pdf_path: Path, work_dir: Path | None = None) -> str:
+    """Extract all text from a PDF file.
+
+    Primary: MinerU markdown extraction when MINERU is configured.
+    Fallback: local pdfplumber extraction.
+    """
+    if settings.mineru_token:
+        try:
+            text = _extract_pdf_text_mineru(pdf_path, work_dir=work_dir)
+            if text.strip():
+                return text
+            logger.warning("MinerU returned empty text, falling back to local extraction")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("MinerU extraction failed, fallback to local extraction: %s", exc)
+    return _extract_pdf_text_local(pdf_path)
 
 
 # ── Long text condensation ────────────────────────────────────
@@ -605,7 +662,7 @@ def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
 
     # Step 1: Extract PDF text
     logger.info("Step 1/3: Extracting PDF text...")
-    pdf_text = extract_pdf_text(pdf_file)
+    pdf_text = extract_pdf_text(pdf_file, work_dir=work_dir)
     if not pdf_text.strip():
         raise RuntimeError(f"No text extracted from PDF: {pdf_file}")
     logger.info("PDF text ready: %d chars", len(pdf_text))
@@ -724,10 +781,29 @@ def run_audio(*, work_dir: str | Path) -> Path:
             f"https://{settings.r2_domain}/podcast/"
             f"{quote(dir_name)}/{quote(mp3_filename)}"
         )
+
+    # Upload narration MP3 if exists
+    narration_mp3_files = list(work_dir.glob("*_narration.mp3"))
+    narration_mp3_cdn_url = ""
+    if narration_mp3_files:
+        narration_mp3_path = narration_mp3_files[0]
+        logger.info("Uploading narration MP3 to R2...")
+        narration_r2_key = f"podcast/{dir_name}/{narration_mp3_path.name}"
+        try:
+            narration_mp3_cdn_url = r2_upload_file(narration_mp3_path, narration_r2_key)
+            logger.info("Narration MP3 uploaded: %s", narration_mp3_cdn_url)
+        except Exception as e:
+            logger.error("Narration R2 upload failed: %s", e)
+            narration_mp3_cdn_url = (
+                f"https://{settings.r2_domain}/podcast/"
+                f"{quote(dir_name)}/{quote(narration_mp3_path.name)}"
+            )
+
     meta.update({
         "title": title,
         "mp3_path": str(mp3_path),
         "mp3_cdn_url": mp3_cdn_url,
+        "narration_mp3_cdn_url": narration_mp3_cdn_url,
         "dialogue_lines": len(flat_lines),
         "total_chars": sum(len(l["text"]) for l in flat_lines),
         "chapters": chapter_timestamps,
@@ -740,7 +816,7 @@ def run_audio(*, work_dir: str | Path) -> Path:
 
 def run(target_date: str | None = None, *, pdf_path: str | None = None,
         download_url: str = "") -> Path:
-    """Full podcast generation pipeline (script + audio).
+    """Full podcast generation pipeline (script + audio + PDF narration).
 
     Used by GitHub Actions and CLI ``python run.py podcast``.
 
@@ -753,4 +829,25 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
         Path to the generated MP3 file.
     """
     work_dir = run_script(target_date, pdf_path=pdf_path, download_url=download_url)
-    return run_audio(work_dir=work_dir)
+    mp3_path = run_audio(work_dir=work_dir)
+
+    # Generate PDF full-text narration (optional, non-blocking)
+    if settings.mineru_token:
+        try:
+            from flying_podcast.stages.pdf_narration import generate_narration
+            pdf_file = Path(pdf_path) if pdf_path else Path(os.getenv("PODCAST_PDF_PATH", ""))
+            if pdf_file.exists():
+                logger.info("Generating PDF full-text narration...")
+                narration_mp3 = generate_narration(pdf_file, work_dir)
+                if narration_mp3:
+                    logger.info("PDF narration saved: %s", narration_mp3)
+                else:
+                    logger.warning("PDF narration generation failed")
+            else:
+                logger.warning("PDF file not found for narration: %s", pdf_file)
+        except Exception as e:
+            logger.error("PDF narration failed: %s", e, exc_info=True)
+    else:
+        logger.info("Skipping PDF narration (MINERU token not configured)")
+
+    return mp3_path

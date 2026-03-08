@@ -22,8 +22,9 @@ _CAAC_PREFIXES = ("AC-", "IB-", "CCAR-", "AP-", "MD-", "MH-")
 
 
 def _build_article_html(title: str, dialogue_html: str,
-                        mp3_url: str = "") -> str:
-    """Build complete article HTML for WeChat — MP3 URL + dialogue card.
+                        mp3_url: str = "", narration_mp3_url: str = "",
+                        pdf_url: str = "") -> str:
+    """Build complete article HTML for WeChat — MP3 URL + dialogue card + narration + downloads.
 
     Audio is added manually in the WeChat editor.
     MP3 URL shown as plain text at top for easy copy-paste.
@@ -40,6 +41,49 @@ def _build_article_html(title: str, dialogue_html: str,
         )
 
     parts.append(dialogue_html)
+
+    # Add PDF full-text narration section at the end
+    if narration_mp3_url or pdf_url:
+        parts.append(
+            '<section style="margin-top:40px;padding:20px;'
+            'background:#f8f9fa;border-radius:8px;">'
+            '<h3 style="font-size:16px;font-weight:600;color:#333;margin:0 0 16px;">📚 资源下载</h3>'
+        )
+
+        # Narration audio
+        if narration_mp3_url:
+            parts.append(
+                '<div style="margin-bottom:16px;">'
+                '<p style="font-size:14px;color:#333;font-weight:500;margin:0 0 6px;">🎧 完整文档朗读</p>'
+                '<p style="font-size:13px;color:#666;line-height:1.5;margin:0 0 8px;">'
+                '完整法规原文朗读（约 3-4 小时），点击链接在浏览器播放或下载'
+                '</p>'
+                '<section style="padding:8px 12px;font-size:12px;'
+                'color:#0066cc;word-break:break-all;background:#fff;border-radius:4px;'
+                'border:1px solid #e0e0e0;">'
+                f'🔗 {narration_mp3_url}'
+                '</section>'
+                '</div>'
+            )
+
+        # PDF download
+        if pdf_url:
+            parts.append(
+                '<div style="margin-bottom:0;">'
+                '<p style="font-size:14px;color:#333;font-weight:500;margin:0 0 6px;">📄 PDF 原文下载</p>'
+                '<p style="font-size:13px;color:#666;line-height:1.5;margin:0 0 8px;">'
+                '下载完整 PDF 文档，方便离线阅读和存档'
+                '</p>'
+                '<section style="padding:8px 12px;font-size:12px;'
+                'color:#0066cc;word-break:break-all;background:#fff;border-radius:4px;'
+                'border:1px solid #e0e0e0;">'
+                f'🔗 {pdf_url}'
+                '</section>'
+                '</div>'
+            )
+
+        parts.append('</section>')
+
     return "".join(parts)
 
 
@@ -123,6 +167,7 @@ def run(target_date: str | None = None, *,
         # Load metadata for MP3 CDN URL and source document link
         meta = load_json(meta_path) if meta_path.exists() else {}
         mp3_url = meta.get("mp3_cdn_url", "")
+        narration_mp3_url = meta.get("narration_mp3_cdn_url", "")
         source_url = _resolve_source_url(meta)
 
         # Read dialogue HTML
@@ -144,7 +189,9 @@ def run(target_date: str | None = None, *,
                 logger.warning("Cover upload failed, using default thumb")
 
         # Build article HTML
-        article_html = _build_article_html(title, dialogue_html, mp3_url=mp3_url)
+        article_html = _build_article_html(title, dialogue_html, mp3_url=mp3_url,
+                                           narration_mp3_url=narration_mp3_url,
+                                           pdf_url=source_url)
 
         # Create digest summary (just the title)
         lines = script.get("dialogue", [])

@@ -16,6 +16,7 @@ from dateutil import parser as dt_parser
 from flying_podcast.core.config import ensure_dirs, settings
 from flying_podcast.core.image_gen import generate_article_image, search_public_image_url
 from flying_podcast.core.io_utils import dump_json, load_json
+from flying_podcast.core.llm_client import LLMError, OpenAICompatibleClient
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.time_utils import beijing_now, beijing_today_str
 from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
@@ -23,123 +24,51 @@ from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
 logger = get_logger("publish")
 
 
-def _extract_llm_text(data: dict) -> str:
-    """Extract text content from an LLM response (OpenAI or Anthropic format).
-
-    Handles multiple content formats: string, list of content blocks, dict, None.
-    Mirrors the robust extraction logic in llm_client.py.
-    """
-    # Anthropic native format: {"content": [{"type": "text", "text": "..."}]}
-    if "content" in data and "choices" not in data:
-        content_blocks = data.get("content") or []
-        if isinstance(content_blocks, list):
-            parts = []
-            for block in content_blocks:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    parts.append(block.get("text", ""))
-                elif isinstance(block, str):
-                    parts.append(block)
-            return "\n".join([x for x in parts if x.strip()])
-
-    # OpenAI format
-    choices = data.get("choices") or []
-    if not choices:
-        return ""
-    msg = choices[0].get("message") or {}
-    content = msg.get("content")
-
-    if content is None:
-        # Legacy: some providers put text at choice.text
-        content = choices[0].get("text") or ""
-
-    if isinstance(content, list):
-        text_parts: list[str] = []
-        for block in content:
-            if isinstance(block, str):
-                text_parts.append(block)
-            elif isinstance(block, dict):
-                if isinstance(block.get("text"), str):
-                    text_parts.append(block["text"])
-                elif block.get("type") == "text" and isinstance(block.get("content"), str):
-                    text_parts.append(block["content"])
-        content = "\n".join([x for x in text_parts if x.strip()])
-    elif isinstance(content, dict):
-        content = content.get("text") or content.get("content") or ""
-
-    return str(content).strip() if content else ""
-
-
 def _llm_chat(messages: list[dict], max_tokens: int = 200,
               temperature: float = 0.5, retries: int = 2,
               timeout: int = 30) -> str:
-    """Make an LLM chat completion request with retry and robust extraction.
+    """Generate text via the shared LLM client.
 
-    Auto-detects Anthropic native API (sk-ant- key) vs OpenAI-compatible format.
-    Returns the extracted text content, or "" on failure.
+    Responses API is tried first for OpenAI-compatible providers, with chat
+    completions kept as fallback inside the client.
     """
-    if not settings.llm_api_key:
+    if not OpenAICompatibleClient.is_configured():
         return ""
 
-    is_anthropic = settings.llm_api_key.startswith("sk-ant-")
+    system_parts: list[str] = []
+    user_parts: list[str] = []
+    for message in messages:
+        role = str(message.get("role", "user")).strip().lower()
+        content = str(message.get("content", "")).strip()
+        if not content:
+            continue
+        if role == "system":
+            system_parts.append(content)
+        elif role == "user":
+            user_parts.append(content)
+        else:
+            user_parts.append(f"[{role}] {content}")
 
-    for attempt in range(1, retries + 1):
-        try:
-            if is_anthropic:
-                # Anthropic native Messages API
-                base = settings.llm_base_url.rstrip("/")
-                if base.endswith("/messages"):
-                    url = base
-                elif base.endswith("/v1"):
-                    url = f"{base}/messages"
-                else:
-                    url = f"{base}/v1/messages"
-                headers = {
-                    "x-api-key": settings.llm_api_key,
-                    "anthropic-version": "2023-06-01",
-                    "Content-Type": "application/json",
-                }
-                # Extract system prompt from messages
-                system_text = ""
-                user_messages = []
-                for m in messages:
-                    if m.get("role") == "system":
-                        system_text += m.get("content", "") + "\n"
-                    else:
-                        user_messages.append(m)
-                body: dict[str, Any] = {
-                    "model": settings.llm_model,
-                    "max_tokens": max_tokens,
-                    "temperature": temperature,
-                    "messages": user_messages or [{"role": "user", "content": ""}],
-                }
-                if system_text.strip():
-                    body["system"] = system_text.strip()
-            else:
-                # OpenAI-compatible
-                url = settings.llm_base_url
-                headers = {
-                    "Authorization": f"Bearer {settings.llm_api_key}",
-                    "Content-Type": "application/json",
-                }
-                body = {
-                    "model": settings.llm_model,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "temperature": temperature,
-                }
+    if not user_parts:
+        return ""
 
-            resp = requests.post(url, headers=headers, json=body, timeout=timeout)
-            resp.raise_for_status()
-            text = _extract_llm_text(resp.json())
-            if text:
-                return text
-            logger.warning("LLM returned empty content (attempt %d/%d)", attempt, retries)
-        except Exception as exc:
-            logger.warning("LLM request failed (attempt %d/%d): %s", attempt, retries, exc)
-        if attempt < retries:
-            time.sleep(min(2 ** attempt, 8))
-
-    return ""
+    client = OpenAICompatibleClient(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        model=settings.llm_model,
+    )
+    try:
+        return client.complete_text(
+            system_prompt="\n".join(system_parts),
+            user_prompt="\n\n".join(user_parts),
+            max_tokens=max_tokens,
+            temperature=temperature,
+            retries=retries,
+            timeout=timeout,
+        )
+    except LLMError as exc:
+        logger.warning("LLM request failed: %s", exc)
+        return ""
 
 
 _TIER_LABEL = {"A": "Core", "B": "Media", "C": "Reference"}

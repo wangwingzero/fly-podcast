@@ -62,6 +62,7 @@ class Settings:
     alert_webhook_url: str = os.getenv("ALERT_WEBHOOK_URL", "")
 
     dashscope_api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
+    mineru_token: str = os.getenv("MINERU", "")
 
     # TTS backend controls
     tts_enable_dashscope: bool = _env_bool("TTS_ENABLE_DASHSCOPE", False)
