@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -89,7 +90,15 @@ def _is_high_value_ops_entry(entry: dict) -> bool:
     ]
     text_parts.extend(str(x) for x in entry.get("facts", []) if x)
     text = "\n".join(text_parts).lower()
-    return any(term in text for term in _HIGH_VALUE_OPS_TERMS)
+    for term in _HIGH_VALUE_OPS_TERMS:
+        if term.isascii():
+            pattern = rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])"
+            if re.search(pattern, text):
+                return True
+            continue
+        if term in text:
+            return True
+    return False
 
 
 def _should_override_editor_rejection(entry: dict, reason: str) -> bool:

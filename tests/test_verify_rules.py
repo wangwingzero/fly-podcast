@@ -105,3 +105,32 @@ def test_llm_editor_review_still_blocks_high_value_ops_story_for_hard_quality_fa
     )
 
     assert blocked == ["a1"]
+
+
+def test_llm_editor_review_does_not_treat_emirates_as_rat_signal():
+    client = _FakeClient(
+        payload={
+            "reviews": [
+                {
+                    "id": "a1",
+                    "keep": False,
+                    "reason": "只有区域局势与运行受扰的笼统表述，缺少具体航班、机场、空域限制或航司处置细节，信息增量不足。",
+                }
+            ]
+        }
+    )
+    blocked = _llm_editor_review(
+        [{
+            "id": "a1",
+            "title": "伊朗导弹回应导致中东航司运行受扰",
+            "conclusion": "美国和以色列袭击伊朗后，伊朗发射导弹回应，已对中东航空公司运行造成严重干扰。",
+            "facts": [
+                "过去一周，美国和以色列袭击伊朗后，伊朗以发射导弹作出回应。",
+                "受此影响，中东多家航空公司运行严重受扰，Emirates的航线网络运营也出现困难。",
+            ],
+            "body": "受此影响，中东多家航空公司运行严重受扰，Emirates的航线网络运营也出现困难。",
+        }],
+        client,
+    )
+
+    assert blocked == ["a1"]
