@@ -75,6 +75,140 @@ _DEFAULT_HARD_REJECT_KEYWORDS = [
     "celebrity",
 ]
 
+_DEFAULT_PILOT_DIRECT_OPERATION_KEYWORDS = [
+    "incident",
+    "accident",
+    "emergency",
+    "diversion",
+    "go-around",
+    "airworthiness",
+    "directive",
+    "service bulletin",
+    "inspection",
+    "fault",
+    "failure",
+    "defect",
+    "crack",
+    "engine issue",
+    "engine fault",
+    "smoke",
+    "fire",
+    "runway",
+    "notam",
+    "tfr",
+    "atc",
+    "airspace",
+    "weather",
+    "turbulence",
+    "windshear",
+    "icing",
+    "volcanic ash",
+    "closure",
+    "closed",
+    "restriction",
+    "restricted",
+    "grounding",
+    "grounded",
+    "training",
+    "simulator",
+    "fatigue",
+    "procedure",
+    "checklist",
+    "mel",
+    "etops",
+    "cpdlc",
+    "navigation",
+    "gps interference",
+    "spoofing",
+    "jamming",
+    "事故",
+    "事件",
+    "紧急",
+    "备降",
+    "复飞",
+    "适航",
+    "检查",
+    "故障",
+    "失效",
+    "裂纹",
+    "跑道",
+    "航行通告",
+    "空域",
+    "天气",
+    "颠簸",
+    "风切变",
+    "结冰",
+    "火山灰",
+    "关闭",
+    "限制",
+    "停飞",
+    "训练",
+    "疲劳",
+    "程序",
+    "检查单",
+    "导航",
+    "干扰",
+]
+
+_DEFAULT_PILOT_BACKGROUND_ONLY_KEYWORDS = [
+    "new route",
+    "new routes",
+    "route launch",
+    "network",
+    "schedule",
+    "timetable",
+    "frequency",
+    "frequencies",
+    "additional flights",
+    "extra flights",
+    "more flights",
+    "adds flights",
+    "increase flights",
+    "increases flights",
+    "capacity",
+    "expansion",
+    "demand",
+    "market",
+    "fleet",
+    "order",
+    "orders",
+    "delivery",
+    "deliveries",
+    "takes delivery",
+    "receives",
+    "received",
+    "deploy",
+    "deployment",
+    "assigned to",
+    "to serve",
+    "service to",
+    "nonstop service",
+    "planned maintenance",
+    "scheduled maintenance",
+    "maintenance rotation",
+    "aircraft assignment",
+    "widebody assignment",
+    "livery",
+    "inaugural",
+    "launch ceremony",
+    "新航线",
+    "增班",
+    "加班",
+    "航线安排",
+    "时刻",
+    "排班",
+    "机型安排",
+    "执飞",
+    "订单",
+    "交付",
+    "机队",
+    "扩张",
+    "计划维护",
+    "定检",
+    "停场",
+    "首航",
+]
+
 
 def _load_raw(day: str) -> list[dict]:
     path = settings.raw_dir / f"{day}.json"
@@ -130,6 +264,14 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     signal_words = _keyword_list(kw_cfg.get("pilot_signal_keywords"), _DEFAULT_PILOT_SIGNAL_KEYWORDS)
     entity_words = _keyword_list(kw_cfg.get("pilot_entity_keywords"), _DEFAULT_PILOT_ENTITY_KEYWORDS)
     reject_words = _keyword_list(kw_cfg.get("hard_reject_keywords"), _DEFAULT_HARD_REJECT_KEYWORDS)
+    direct_operation_words = _keyword_list(
+        kw_cfg.get("pilot_direct_operation_keywords"),
+        _DEFAULT_PILOT_DIRECT_OPERATION_KEYWORDS,
+    )
+    background_only_words = _keyword_list(
+        kw_cfg.get("pilot_background_only_keywords"),
+        _DEFAULT_PILOT_BACKGROUND_ONLY_KEYWORDS,
+    )
     non_aviation_patterns = _keyword_list(
         kw_cfg.get("non_aviation_reject_patterns"), [],
     )
@@ -170,6 +312,11 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
             return False, "missing_aviation_entity"
         if signal_hits < 2:
             return False, "trusted_source_weak_signal"
+
+    direct_operation_hits = _count_hits(title_l, direct_operation_words) + _count_hits(text_l, direct_operation_words)
+    background_only_hits = _count_hits(title_l, background_only_words) + _count_hits(text_l, background_only_words)
+    if background_only_hits > 0 and direct_operation_hits <= 0:
+        return False, "background_only_story"
 
     return True, "ok"
 

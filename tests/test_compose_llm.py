@@ -1,4 +1,6 @@
-from flying_podcast.stages.compose import _validate_llm_entries
+import json
+
+from flying_podcast.stages.compose import _build_selection_prompt, _validate_llm_entries
 
 
 def _candidate(i: int, region: str = "domestic"):
@@ -58,3 +60,14 @@ def test_validate_llm_entries_reject_unknown_ref_id():
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "empty" in str(exc)
+
+
+def test_build_selection_prompt_targets_pilot_only_and_allows_fewer_entries():
+    system_prompt, user_prompt = _build_selection_prompt([_candidate(1)], total=10)
+    payload = json.loads(user_prompt)
+
+    assert payload["audience"] == "飞行员"
+    assert "must_select_enough" not in payload["rules"]
+    assert "allow_fewer_entries" in payload["rules"]
+    assert all("新航线" not in topic for topic in payload["rules"]["prefer_topics"])
+    assert "宁缺毋滥" in system_prompt
