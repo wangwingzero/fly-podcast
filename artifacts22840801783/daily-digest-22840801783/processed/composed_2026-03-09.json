@@ -1,0 +1,51 @@
+{
+  "date": "2026-03-09",
+  "article_count": 1,
+  "entries": [
+    {
+      "id": "319dea398922f2234f5e0d6f4c840eba9b0c175ea670ee3256bca379b0c6dc21",
+      "source_id": "onemileatatime",
+      "section": "",
+      "title": "Uganda Airlines因非计划维护停飞A330neo机队",
+      "conclusion": "Uganda Airlines的两架Airbus A330-800neo已因非计划维护停飞数周。",
+      "facts": [
+        "Uganda Airlines近年来重启运营，机队包括Airbus A330-800neo和Bombardier CRJ-900",
+        "该航司的两架宽体机Airbus A330-800neo目前均因非计划维护停飞，且已持续数周",
+        "划重点：两架宽体机一起趴窝，机队规模小的时候，维护计划和抽盲盒也差不多"
+      ],
+      "impact": "详见原始来源。",
+      "citations": [
+        "https://onemileatatime.com/news/uganda-airlines-grounds-a330neo-fleet-unscheduled-maintenance/"
+      ],
+      "source_tier": "B",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 70.0,
+        "authority": 80.0,
+        "timeliness": 75.0,
+        "readability": 100.0,
+        "total": 81.0
+      },
+      "source_name": "One Mile at a Time",
+      "url": "https://onemileatatime.com/news/uganda-airlines-grounds-a330neo-fleet-unscheduled-maintenance/",
+      "canonical_url": "https://onemileatatime.com/news/uganda-airlines-grounds-a330neo-fleet-unscheduled-maintenance/",
+      "publisher_domain": "onemileatatime.com",
+      "event_fingerprint": "3943dc29377aac9532bcbfbaeb9bc7e2c17c70a68fa4c3133dc43d4b8dd2ef5e",
+      "published_at": "2026-03-07T14:20:55+00:00",
+      "image_url": "https://cdn.onemileatatime.com/wp-content/uploads/2020/10/Uganda-Airlines-A330.jpeg?width=1200&quality=75&height=729&aspect_ratio=400%3A243",
+      "body": "Uganda Airlines近年来重启运营，机队包括Airbus A330-800neo和Bombardier CRJ-900。该航司的两架宽体机Airbus A330-800neo目前均因非计划维护停飞，且已持续数周。\n划重点：两架宽体机一起趴窝，机队规模小的时候，维护计划和抽盲盒也差不多。"
+    }
+  ],
+  "total_score": 81.0,
+  "decision": "hold",
+  "generated_at": "2026-03-09T14:13:46.002721+08:00",
+  "meta": {
+    "compose_mode": "llm_two_phase",
+    "compose_reason": "ok",
+    "model": "gpt-5.4",
+    "phase1_ids": [
+      "319dea398922f2234f5e0d6f4c840eba9b0c175ea670ee3256bca379b0c6dc21"
+    ]
+  }
+}

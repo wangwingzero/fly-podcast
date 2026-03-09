@@ -1,0 +1,14 @@
+{
+  "date": "2026-03-09",
+  "decision": "auto_publish",
+  "quality_score": 78.19,
+  "compose_mode": "llm_two_phase",
+  "status": "draft_created",
+  "publish_id": "2iS0rEPPaYLeZcrS6TrHOEhekDRHHkyB0F_StVmjLGDSp8beT1XJXL413iSEd2Lb",
+  "url": "https://mp.weixin.qq.com",
+  "copyright_notice_url": "https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag",
+  "reasons": [
+    "insufficient_articles",
+    "quality_below_threshold"
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "date": "2026-03-09",
+  "article_count": 4,
+  "entries": [
+    {
+      "id": "5b7faf0bf2160a314fd508f59a17780dca647b9afd7da46c29e01813635a74ed",
+      "source_id": "onemileatatime",
+      "section": "",
+      "title": "伊朗导弹袭击导致中东航司运行受扰，Emirates航线网络受影响",
+      "conclusion": "美国和以色列袭击伊朗后，伊朗向中东多地发射导弹，导致包括Emirates在内的航司网络运营受到严重干扰。",
+      "facts": [
+        "过去一周，美国和以色列袭击伊朗后，伊朗向其能够打击的中东多地发射导弹，其中理论上也包括该地区的“友好”国家",
+        "此举导致中东多家航空公司运行严重受扰，Emirates的航线网络运营也因此面临困难",
+        "划重点：航路还没算明白，导弹先把时刻表改了，签派和机组这周估计都没睡整觉"
+      ],
+      "impact": "详见原始来源。",
+      "citations": [
+        "https://onemileatatime.com/news/iran-fires-missile-dubai-airport-apologizes-promises-stop/"
+      ],
+      "source_tier": "B",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 55.0,
+        "authority": 80.0,
+        "timeliness": 75.0,
+        "readability": 100.0,
+        "total": 75.75
+      },
+      "source_name": "One Mile at a Time",
+      "url": "https://onemileatatime.com/news/iran-fires-missile-dubai-airport-apologizes-promises-stop/",
+      "canonical_url": "https://onemileatatime.com/news/iran-fires-missile-dubai-airport-apologizes-promises-stop/",
+      "publisher_domain": "onemileatatime.com",
+      "event_fingerprint": "b7779dc80c3fcb3b8edb46a146c85d19bb9a6afec604f9b354d9c6c4b43e1a79",
+      "published_at": "2026-03-07T16:16:18+00:00",
+      "image_url": "https://cdn.onemileatatime.com/wp-content/uploads/2026/03/DXB-Explosion.jpg?width=1200&quality=75&height=928&aspect_ratio=75%3A58",
+      "body": "过去一周，美国和以色列袭击伊朗后，伊朗向其能够打击的中东多地发射导弹，其中理论上也包括该地区的“友好”国家。此举导致中东多家航空公司运行严重受扰，Emirates的航线网络运营也因此面临困难。\n划重点：航路还没算明白，导弹先把时刻表改了，签派和机组这周估计都没睡整觉。"
+    },
+    {
+      "id": "ee36d9585a0e2fe62f41c2bb3085faa09ee563a2993f23f1334ee6419c495f76",
+      "source_id": "google_intl_boeing_airbus",
+      "section": "",
+      "title": "American Airlines一架Airbus A321因“黑暗驾驶舱”放出冲压空气涡轮并备降巴尔的摩",
+      "conclusion": "American Airlines一架Airbus A321发生“黑暗驾驶舱”情况后放出冲压空气涡轮，并备降巴尔的摩。",
+      "facts": [
+        "American Airlines一架Airbus A321因“黑暗驾驶舱”情况，放出冲压空气涡轮并备降巴尔的摩",
+        "事件涉及驾驶舱异常、冲压空气涡轮放出和备降处置",
+        "划重点：驾驶舱一黑，RAT都出来打工了"
+      ],
+      "impact": "详见原始来源。",
+      "citations": [
+        "https://simpleflying.com/dark-cockpit-american-airlines-airbus-a321-rat-deployment-diversion-baltimore/"
+      ],
+      "source_tier": "A",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 55.0,
+        "authority": 80.0,
+        "timeliness": 90.0,
+        "readability": 100.0,
+        "total": 77.25
+      },
+      "source_name": "Google News · Boeing & Airbus",
+      "url": "https://news.google.com/rss/articles/CBMipgFBVV95cUxObjBUbGYzSUZYWnI2TU00T2xjdEVzeTJKaExXZlVLcXZhSEVkazNIbWxyTHlTbnBnY3JJSzhaazVBX05QeEptb0dxWnREX2lzMERWWmhSUVJKUi03MFN2MmcxS3V2d1BmQmxkVUozMUJMMTlMSkc0ZXREZ19Mby1GWUVkaUV0VWZrM3pUb0tRWGlUZlYzYXlVeXhUMmo2U2FuQ21YVHF3?oc=5",
+      "canonical_url": "https://simpleflying.com/dark-cockpit-american-airlines-airbus-a321-rat-deployment-diversion-baltimore/",
+      "publisher_domain": "simpleflying.com",
+      "event_fingerprint": "1b5b913f800743ec0d18f0781c5d8762c707b8be36cf1c3a26bf203308011b48",
+      "published_at": "2026-03-08T08:18:08+00:00",
+      "image_url": "https://static0.simpleflyingimages.com/wordpress/wp-content/uploads/2026/03/804-american-airlines-airbus-a321-mkphoto12-_-shutterstock.jpg?w=1600&h=900&fit=crop",
+      "body": "American Airlines一架Airbus A321因“黑暗驾驶舱”情况，放出冲压空气涡轮并备降巴尔的摩。事件涉及驾驶舱异常、冲压空气涡轮放出和备降处置。\n划重点：驾驶舱一黑，RAT都出来打工了；机组这天的QRH，估计翻得比排班表还快。"
+    },
+    {
+      "id": "59d5222c7c54bf9a5e6fb76c23218143f6284c1bb71168adf9875360f9306e5a",
+      "source_id": "google_intl_aviation",
+      "section": "",
+      "title": "Southwest纳什维尔出发航班因潜在安全威胁备降，一名旅客被带离",
+      "conclusion": "一架从纳什维尔出发的Southwest航班因“潜在安全威胁”备降，并有一名旅客被带离航班。",
+      "facts": [
+        "一架从纳什维尔出发的Southwest航班因“潜在安全威胁”备降",
+        "事件处置中，一名旅客被带离航班",
+        "划重点：航班最怕这四个字——“安全威胁”，计划再稳也顶不住临场改剧本"
+      ],
+      "impact": "详见原始来源。",
+      "citations": [
+        "https://www.tennessean.com/story/news/crime/2026/03/07/bna-southwest-flight-diverted-to-atlanta-potential-security-threat/89036039007/"
+      ],
+      "source_tier": "A",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 55.0,
+        "authority": 80.0,
+        "timeliness": 75.0,
+        "readability": 100.0,
+        "total": 75.75
+      },
+      "source_name": "Google News · Aviation & Airlines",
+      "url": "https://news.google.com/rss/articles/CBMizwFBVV95cUxOWlJQRUwwb29wV0JCTFlpaEpsamoxbi1yUDFaVFR1Mm1hZEk2WEpOellpTHlMOWdHa2NKNXA0ZktDV3lma2xLdk5TakZZODFFdXRESHl2SC1MLUdqcHpCTVl4dGg0bjl5UkJNYl9kaWdtbHA0MmtSeU1nci1ERUpMdkliMy02NzNQMjhPU2U2NFI4TThKOEtZNTUwU0dDXzU5b1pRcnJRREpxRzFRR2R5elE2VWl5cW9QVHdlbC0wVW14QklONUN4MDFaa3RXR1U?oc=5",
+      "canonical_url": "https://www.tennessean.com/story/news/crime/2026/03/07/bna-southwest-flight-diverted-to-atlanta-potential-security-threat/89036039007/",
+      "publisher_domain": "www.tennessean.com",
+      "event_fingerprint": "4a08f0fb9ab42a2ade68d601ad879ed73468a7f753354b9010b05455c3f45dc3",
+      "published_at": "2026-03-08T00:24:00+00:00",
+      "image_url": "https://www.tennessean.com/gcdn/authoring/authoring-images/2026/01/16/PNAS/88205466007-airport-traffic-011526-an-002.jpg?crop=4450,2504,x0,y231&width=3200&height=1801&format=pjpg&auto=webp",
+      "body": "一架从纳什维尔出发的Southwest航班因“潜在安全威胁”备降。事件处置中，一名旅客被带离航班。\n划重点：航班最怕这四个字——“安全威胁”，计划再稳也顶不住临场改剧本。"
+    },
+    {
+      "id": "1dff9229b64b4eddea58215ba037c8b3dd4c0383261a47b04686aa08318224b2",
+      "source_id": "google_intl_aviation",
+      "section": "",
+      "title": "Garuda Indonesia一架Boeing 737着陆时机鼻整流罩受损",
+      "conclusion": "Garuda Indonesia一架Boeing 737在一次着陆后被发现机鼻整流罩受损，损伤原因尚未明确。",
+      "facts": [
+        "Garuda Indonesia一架Boeing 737在一次着陆后被发现机鼻整流罩受损",
+        "报道指，该机受损原因目前不明确，事件围绕机鼻部位损坏展开",
+        "划重点：机鼻都这样了还平安落地，机组和机务接力上强度，排故又得开盲盒了"
+      ],
+      "impact": "详见原始来源。",
+      "citations": [
+        "https://www.airlineratings.com/articles/garuda-indonesia-boeing-737-lands-with-damaged-nose-cone-mystery-surrounds-cause"
+      ],
+      "source_tier": "A",
+      "region": "international",
+      "score_breakdown": {
+        "factual": 90.0,
+        "relevance": 40.0,
+        "authority": 80.0,
+        "timeliness": 90.0,
+        "readability": 100.0,
+        "total": 72.0
+      },
+      "source_name": "Google News · Aviation & Airlines",
+      "url": "https://news.google.com/rss/articles/CBMivAFBVV95cUxPdGNkVm5lcGh2YjFoSW5zOURUaGR6X2tVaDZMaTRnVXJWc1Q1X011R3pVLVdfR2VwNFNmMkNhaTZyVFdsNnZUTkxjdEJwRkd3WXFObG13OW4tdi14ek1sb25aYVBJMmJkUHdHUHBSUTk2U0VWZjRaaFduaUFrYnVIRnVHVWFYVk53TW1LVDVvWFZfb3RQOGJ5YklzNkZRZWEzeHI4Zm1OYmNFa0xlMDBWMnE4UU9YLS05OWpaWA?oc=5",
+      "canonical_url": "https://www.airlineratings.com/articles/garuda-indonesia-boeing-737-lands-with-damaged-nose-cone-mystery-surrounds-cause",
+      "publisher_domain": "www.airlineratings.com",
+      "event_fingerprint": "0e1411025b996dd030b70d47d9b76c611eb25cb4447195aba23da110c83f1cd0",
+      "published_at": "2026-03-08T10:04:24+00:00",
+      "image_url": "https://cdn.airlineratings.com/media/8f91ccab-fc6f-428b-8d82-9e4ad8a1c01c.jpg",
+      "body": "Garuda Indonesia一架Boeing 737在一次着陆后被发现机鼻整流罩受损。报道指，该机受损原因目前不明确，事件围绕机鼻部位损坏展开。\n划重点：机鼻都这样了还平安落地，机组和机务接力上强度，排故又得开盲盒了。"
+    }
+  ],
+  "total_score": 75.19,
+  "decision": "hold",
+  "generated_at": "2026-03-09T12:23:19.705294+08:00",
+  "meta": {
+    "compose_mode": "llm_two_phase",
+    "compose_reason": "ok",
+    "model": "gpt-5.4",
+    "phase1_ids": [
+      "5b7faf0bf2160a314fd508f59a17780dca647b9afd7da46c29e01813635a74ed",
+      "ee36d9585a0e2fe62f41c2bb3085faa09ee563a2993f23f1334ee6419c495f76",
+      "59d5222c7c54bf9a5e6fb76c23218143f6284c1bb71168adf9875360f9306e5a",
+      "1dff9229b64b4eddea58215ba037c8b3dd4c0383261a47b04686aa08318224b2"
+    ]
+  }
+}

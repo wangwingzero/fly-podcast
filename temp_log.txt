@@ -1,0 +1,1061 @@
+daily-digest	UNKNOWN STEP	锘?026-02-28T19:26:33.9952398Z Current runner version: '2.331.0'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9976304Z ##[group]Runner Image Provisioner
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9977664Z Hosted Compute Agent
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9978473Z Version: 20260213.493
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9979194Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9980092Z Build Date: 2026-02-13T00:28:41Z
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9980891Z Worker ID: {82ff0867-2d2f-41f0-a3a5-e502c3e8db1a}
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9981775Z Azure Region: westcentralus
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9982515Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9984062Z ##[group]Operating System
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9984925Z Ubuntu
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9985592Z 24.04.3
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9986427Z LTS
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9986999Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9987709Z ##[group]Runner Image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9988411Z Image: ubuntu-24.04
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9989181Z Version: 20260224.36.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9990555Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260224.36/images/ubuntu/Ubuntu2404-Readme.md
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9992272Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260224.36
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9993365Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9994740Z ##[group]GITHUB_TOKEN Permissions
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9997029Z Contents: read
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9997835Z Metadata: read
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9998488Z Packages: read
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:33.9999139Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:34.0001352Z Secret source: Actions
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:34.0002464Z Prepare workflow directory
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:34.0594599Z Prepare all required actions
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:34.0631983Z Getting action download info
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:34.4400479Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:35.0348022Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:35.3736291Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.3989238Z Complete job name: daily-digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4680247Z ##[group]Run actions/checkout@v4
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4680898Z with:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4681204Z   repository: wangwingzero/fly-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4681721Z   token: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4682000Z   ssh-strict: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4682289Z   ssh-user: git
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4682581Z   persist-credentials: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4682885Z   clean: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4683185Z   sparse-checkout-cone-mode: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4683513Z   fetch-depth: 1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4683790Z   fetch-tags: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4684072Z   show-progress: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4684363Z   lfs: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4684629Z   submodules: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4684917Z   set-safe-directory: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4685404Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4685661Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4686114Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4686391Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4686698Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4687028Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4687330Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4687831Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4688157Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4688555Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4688856Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4689148Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4689868Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4690242Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4690673Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4691032Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4691377Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4691838Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4692134Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4692627Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4692972Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4693451Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4694116Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4694480Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4694902Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4695257Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4695672Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4696323Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4696710Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4697139Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4697547Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4698062Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4698536Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4698839Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4699143Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.4699407Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.5843257Z Syncing repository: wangwingzero/fly-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.5844671Z ##[group]Getting Git version info
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.5845223Z Working directory is '/home/runner/work/fly-podcast/fly-podcast'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.5846260Z [command]/usr/bin/git version
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7766724Z git version 2.53.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7793398Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7807471Z Temporarily overriding HOME='/home/runner/work/_temp/93e58546-998f-42d0-a443-c4cdd417a651' before making global git config changes
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7808383Z Adding repository directory to the temporary git global config as a safe directory
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7820256Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/fly-podcast/fly-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7860711Z Deleting the contents of '/home/runner/work/fly-podcast/fly-podcast'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7864205Z ##[group]Initializing the repository
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7869329Z [command]/usr/bin/git init /home/runner/work/fly-podcast/fly-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7976035Z hint: Using 'master' as the name for the initial branch. This default branch name
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7977219Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7978346Z hint: to use in all of your new repositories, which will suppress this warning,
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7979174Z hint: call:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7979623Z hint:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7980206Z hint: 	git config --global init.defaultBranch <name>
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7980843Z hint:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7981465Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7982521Z hint: 'development'. The just-created branch can be renamed via this command:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7983044Z hint:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7983313Z hint: 	git branch -m <name>
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7983623Z hint:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7984020Z hint: Disable this message with "git config set advice.defaultBranchName false"
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7984702Z Initialized empty Git repository in /home/runner/work/fly-podcast/fly-podcast/.git/
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.7992843Z [command]/usr/bin/git remote add origin https://github.com/wangwingzero/fly-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8027678Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8028264Z ##[group]Disabling automatic garbage collection
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8032347Z [command]/usr/bin/git config --local gc.auto 0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8068464Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8069253Z ##[group]Setting up auth
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8069747Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8159919Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8460088Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8490104Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8728931Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8763332Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.8998864Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.9033775Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.9034742Z ##[group]Fetching the repository
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:36.9043478Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +0e29d74d29850d81244a4de7f3ee98850e2d4c5c:refs/remotes/origin/main
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4478937Z From https://github.com/wangwingzero/fly-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4479562Z  * [new ref]         0e29d74d29850d81244a4de7f3ee98850e2d4c5c -> origin/main
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4511734Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4512414Z ##[group]Determining the checkout info
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4513925Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4519678Z [command]/usr/bin/git sparse-checkout disable
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4560599Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4587072Z ##[group]Checking out the ref
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4591261Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4729707Z Switched to a new branch 'main'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4732939Z branch 'main' set up to track 'origin/main'.
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4740638Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4786320Z [command]/usr/bin/git log -1 --format=%H
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.4812852Z 0e29d74d29850d81244a4de7f3ee98850e2d4c5c
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5028134Z ##[group]Run actions/setup-python@v5
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5028525Z with:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5028793Z   python-version: 3.11
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5029098Z   check-latest: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5029546Z   token: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5029880Z   update-environment: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5030220Z   allow-prereleases: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5030520Z   freethreaded: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5030784Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5031030Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5031294Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5031573Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5031870Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5032144Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5032451Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5032923Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5033255Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5033627Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5033930Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5034242Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5034941Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5035302Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5035712Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5036286Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5036644Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5036984Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5037270Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5037760Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5038093Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5038564Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5038978Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5039347Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5039769Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5040116Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5040522Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5041010Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5041400Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5041811Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5042216Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5042718Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5043373Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5043670Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5043960Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.5044217Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.6691617Z ##[group]Installed versions
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.6784332Z Successfully set up CPython (3.11.14)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.6785410Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.6900222Z ##[group]Run pip install -r requirements.txt
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.6900724Z [36;1mpip install -r requirements.txt[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7005618Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7006287Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7006549Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7006835Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7007126Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7007433Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7007713Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7008027Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7008561Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7008911Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7009302Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7009607Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7009889Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7010606Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7010965Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7011416Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7011763Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7012100Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7012439Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7012732Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7013208Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7013541Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7013989Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7014398Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7014753Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7015171Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7015518Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7016053Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7016534Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7016908Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7017322Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7017726Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7018254Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7018725Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7019015Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7019303Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7019643Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7020168Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7020679Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7021136Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7021604Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7022070Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:37.7022476Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.6129687Z Collecting feedparser==6.0.11 (from -r requirements.txt (line 1))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.7339699Z   Downloading feedparser-6.0.11-py3-none-any.whl.metadata (2.4 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.8071935Z Collecting PyYAML==6.0.2 (from -r requirements.txt (line 2))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.8274794Z   Downloading PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.8633465Z Collecting requests==2.32.3 (from -r requirements.txt (line 3))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.8827337Z   Downloading requests-2.32.3-py3-none-any.whl.metadata (4.6 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.9127414Z Collecting python-dateutil==2.9.0.post0 (from -r requirements.txt (line 4))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.9321994Z   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.9636940Z Collecting python-dotenv==1.1.0 (from -r requirements.txt (line 5))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:40.9841552Z   Downloading python_dotenv-1.1.0-py3-none-any.whl.metadata (24 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.0452828Z Collecting pytest==8.3.5 (from -r requirements.txt (line 6))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.0643162Z   Downloading pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.1189969Z Collecting playwright==1.51.0 (from -r requirements.txt (line 7))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.1386041Z   Downloading playwright-1.51.0-py3-none-manylinux1_x86_64.whl.metadata (3.5 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.1702941Z Collecting nodriver==0.39 (from -r requirements.txt (line 8))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.1901564Z   Downloading nodriver-0.39-py3-none-any.whl.metadata (48 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.2326622Z Collecting pyvirtualdisplay==3.0 (from -r requirements.txt (line 9))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.2516801Z   Downloading PyVirtualDisplay-3.0-py3-none-any.whl.metadata (943 bytes)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.3161107Z Collecting dashscope>=1.25.0 (from -r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.3362545Z   Downloading dashscope-1.25.12-py3-none-any.whl.metadata (7.1 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.3695308Z Collecting edge-tts>=6.1.0 (from -r requirements.txt (line 11))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.3895580Z   Downloading edge_tts-7.2.7-py3-none-any.whl.metadata (5.5 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.4221202Z Collecting pydub>=0.25.0 (from -r requirements.txt (line 12))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.4411852Z   Downloading pydub-0.25.1-py2.py3-none-any.whl.metadata (1.4 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.4720804Z Collecting pdfplumber>=0.11.0 (from -r requirements.txt (line 13))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.4912180Z   Downloading pdfplumber-0.11.9-py3-none-any.whl.metadata (43 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.6687472Z Collecting PyMuPDF>=1.25.0 (from -r requirements.txt (line 14))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.6878669Z   Downloading pymupdf-1.27.1-cp310-abi3-manylinux_2_28_x86_64.whl.metadata (3.4 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.8512000Z Collecting Pillow>=10.0.0 (from -r requirements.txt (line 15))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:41.8716068Z   Downloading pillow-12.1.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (8.8 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:42.1063111Z Collecting boto3>=1.35.0 (from -r requirements.txt (line 16))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:42.1256380Z   Downloading boto3-1.42.59-py3-none-any.whl.metadata (6.7 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:42.1515299Z Collecting sgmllib3k (from feedparser==6.0.11->-r requirements.txt (line 1))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:42.1710451Z   Downloading sgmllib3k-1.0.0.tar.gz (5.8 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:42.1770857Z   Installing build dependencies: started
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:43.4463149Z   Installing build dependencies: finished with status 'done'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:43.4468663Z   Getting requirements to build wheel: started
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:43.8111813Z   Getting requirements to build wheel: finished with status 'done'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:43.8121002Z   Preparing metadata (pyproject.toml): started
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:43.9788373Z   Preparing metadata (pyproject.toml): finished with status 'done'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.0638442Z Collecting charset-normalizer<4,>=2 (from requests==2.32.3->-r requirements.txt (line 3))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.0835602Z   Downloading charset_normalizer-3.4.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (37 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.1157778Z Collecting idna<4,>=2.5 (from requests==2.32.3->-r requirements.txt (line 3))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.1347851Z   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.1709748Z Collecting urllib3<3,>=1.21.1 (from requests==2.32.3->-r requirements.txt (line 3))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.1904211Z   Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.2234972Z Collecting certifi>=2017.4.17 (from requests==2.32.3->-r requirements.txt (line 3))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.2427148Z   Downloading certifi-2026.2.25-py3-none-any.whl.metadata (2.5 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.2718585Z Collecting six>=1.5 (from python-dateutil==2.9.0.post0->-r requirements.txt (line 4))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.2909874Z   Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.3177987Z Collecting iniconfig (from pytest==8.3.5->-r requirements.txt (line 6))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.3375296Z   Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.3690370Z Collecting packaging (from pytest==8.3.5->-r requirements.txt (line 6))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.3882714Z   Downloading packaging-26.0-py3-none-any.whl.metadata (3.3 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.4206478Z Collecting pluggy<2,>=1.5 (from pytest==8.3.5->-r requirements.txt (line 6))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.4396505Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.4691455Z Collecting pyee<13,>=12 (from playwright==1.51.0->-r requirements.txt (line 7))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.4894270Z   Downloading pyee-12.1.1-py3-none-any.whl.metadata (2.9 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.6476339Z Collecting greenlet<4.0.0,>=3.1.1 (from playwright==1.51.0->-r requirements.txt (line 7))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.6671835Z   Downloading greenlet-3.3.2-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.7 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.6970683Z Collecting mss (from nodriver==0.39->-r requirements.txt (line 8))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.7166930Z   Downloading mss-10.1.0-py3-none-any.whl.metadata (6.7 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.8122631Z Collecting websockets>=14 (from nodriver==0.39->-r requirements.txt (line 8))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.8317348Z   Downloading websockets-16.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (6.8 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.8613933Z Collecting deprecated (from nodriver==0.39->-r requirements.txt (line 8))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.8804783Z   Downloading deprecated-1.3.1-py2.py3-none-any.whl.metadata (5.9 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.9141403Z Collecting typing-extensions (from pyee<13,>=12->playwright==1.51.0->-r requirements.txt (line 7))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:44.9332372Z   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.4190249Z Collecting aiohttp (from dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.4389389Z   Downloading aiohttp-3.13.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (8.1 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.4730340Z Collecting websocket-client (from dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.4924081Z   Downloading websocket_client-1.9.0-py3-none-any.whl.metadata (8.3 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.6638539Z Collecting cryptography (from dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.6829380Z   Downloading cryptography-46.0.5-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.7202596Z Collecting tabulate<1.0.0,>=0.4.4 (from edge-tts>=6.1.0->-r requirements.txt (line 11))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.7392206Z   Downloading tabulate-0.9.0-py3-none-any.whl.metadata (34 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.7752392Z Collecting aiohappyeyeballs>=2.5.0 (from aiohttp->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.7942500Z   Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl.metadata (5.9 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.8197346Z Collecting aiosignal>=1.4.0 (from aiohttp->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.8389795Z   Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.8676549Z Collecting attrs>=17.3.0 (from aiohttp->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:45.8867600Z   Downloading attrs-25.4.0-py3-none-any.whl.metadata (10 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.0090415Z Collecting frozenlist>=1.1.1 (from aiohttp->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.0285539Z   Downloading frozenlist-1.8.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (20 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.2486630Z Collecting multidict<7.0,>=4.5 (from aiohttp->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.2680612Z   Downloading multidict-6.7.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.3317884Z Collecting propcache>=0.2.0 (from aiohttp->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.3511126Z   Downloading propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (13 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.6434154Z Collecting yarl<2.0,>=1.17.0 (from aiohttp->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.6627556Z   Downloading yarl-1.22.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (75 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.7103438Z Collecting pdfminer.six==20251230 (from pdfplumber>=0.11.0->-r requirements.txt (line 13))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.7297065Z   Downloading pdfminer_six-20251230-py3-none-any.whl.metadata (4.3 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.8182494Z Collecting pypdfium2>=4.18.0 (from pdfplumber>=0.11.0->-r requirements.txt (line 13))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:46.8374582Z   Downloading pypdfium2-5.5.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (68 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.0634118Z Collecting botocore<1.43.0,>=1.42.59 (from boto3>=1.35.0->-r requirements.txt (line 16))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.0827079Z   Downloading botocore-1.42.59-py3-none-any.whl.metadata (5.9 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.1135993Z Collecting jmespath<2.0.0,>=0.7.1 (from boto3>=1.35.0->-r requirements.txt (line 16))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.1326940Z   Downloading jmespath-1.1.0-py3-none-any.whl.metadata (7.6 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.1630637Z Collecting s3transfer<0.17.0,>=0.16.0 (from boto3>=1.35.0->-r requirements.txt (line 16))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.1822888Z   Downloading s3transfer-0.16.0-py3-none-any.whl.metadata (1.7 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.3064889Z Collecting cffi>=2.0.0 (from cryptography->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.3265651Z   Downloading cffi-2.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.6 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.3534275Z Collecting pycparser (from cffi>=2.0.0->cryptography->dashscope>=1.25.0->-r requirements.txt (line 10))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.3727711Z   Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.6043180Z Collecting wrapt<3,>=1.10 (from deprecated->nodriver==0.39->-r requirements.txt (line 8))
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.6250294Z   Downloading wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (7.4 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.6516457Z Downloading feedparser-6.0.11-py3-none-any.whl (81 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.6771455Z Downloading PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (762 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.7226180Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 763.0/763.0 kB 22.0 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.7419922Z Downloading requests-2.32.3-py3-none-any.whl (64 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.7634885Z Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.7867528Z Downloading python_dotenv-1.1.0-py3-none-any.whl (20 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.8079020Z Downloading pytest-8.3.5-py3-none-any.whl (343 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:47.8343515Z Downloading playwright-1.51.0-py3-none-manylinux1_x86_64.whl (45.2 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.1051794Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 45.2/45.2 MB 167.8 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.1262362Z Downloading nodriver-0.39-py3-none-any.whl (325 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.1499326Z Downloading PyVirtualDisplay-3.0-py3-none-any.whl (15 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.1720664Z Downloading charset_normalizer-3.4.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (151 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.1939490Z Downloading greenlet-3.3.2-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (594 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.2000919Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 594.2/594.2 kB 89.3 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.2195552Z Downloading idna-3.11-py3-none-any.whl (71 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.2419972Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.2655386Z Downloading pyee-12.1.1-py3-none-any.whl (15 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.2880422Z Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.3105030Z Downloading dashscope-1.25.12-py3-none-any.whl (1.3 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.3191812Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 1.3/1.3 MB 166.7 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.3390393Z Downloading edge_tts-7.2.7-py3-none-any.whl (30 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.3690952Z Downloading aiohttp-3.13.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (1.7 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.3800403Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 1.7/1.7 MB 171.0 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.3993488Z Downloading multidict-6.7.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (246 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.4213829Z Downloading tabulate-0.9.0-py3-none-any.whl (35 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.4428617Z Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.4641781Z Downloading yarl-1.22.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (365 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.4864998Z Downloading pydub-0.25.1-py2.py3-none-any.whl (32 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.5085393Z Downloading pdfplumber-0.11.9-py3-none-any.whl (60 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.5332681Z Downloading pdfminer_six-20251230-py3-none-any.whl (6.6 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.5704323Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 6.6/6.6 MB 181.5 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.5898610Z Downloading pymupdf-1.27.1-cp310-abi3-manylinux_2_28_x86_64.whl (24.9 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.7255041Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 24.9/24.9 MB 185.4 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.7463835Z Downloading pillow-12.1.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (7.0 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.7869751Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 7.0/7.0 MB 183.7 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.8059408Z Downloading boto3-1.42.59-py3-none-any.whl (140 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.8278875Z Downloading botocore-1.42.59-py3-none-any.whl (14.6 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.9117207Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 14.6/14.6 MB 176.8 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.9309237Z Downloading jmespath-1.1.0-py3-none-any.whl (20 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.9559658Z Downloading s3transfer-0.16.0-py3-none-any.whl (86 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.9776657Z Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl (15 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:48.9986631Z Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.0203786Z Downloading attrs-25.4.0-py3-none-any.whl (67 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.0423921Z Downloading certifi-2026.2.25-py3-none-any.whl (153 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.0653879Z Downloading cryptography-46.0.5-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.0936726Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 4.5/4.5 MB 161.2 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.1128505Z Downloading cffi-2.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (215 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.1349101Z Downloading frozenlist-1.8.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (231 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.1573514Z Downloading propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (210 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.1793955Z Downloading pypdfium2-5.5.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.0 MB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.1983925Z    鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣鈹佲攣 3.0/3.0 MB 163.6 MB/s  0:00:00
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.2176233Z Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.2394088Z Downloading websockets-16.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (184 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.2612743Z Downloading deprecated-1.3.1-py2.py3-none-any.whl (11 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.2828117Z Downloading wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (113 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.3050239Z Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.3276956Z Downloading mss-10.1.0-py3-none-any.whl (24 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.3490218Z Downloading packaging-26.0-py3-none-any.whl (74 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.3707814Z Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.3924606Z Downloading websocket_client-1.9.0-py3-none-any.whl (82 kB)
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.5200012Z Building wheels for collected packages: sgmllib3k
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.5207887Z   Building wheel for sgmllib3k (pyproject.toml): started
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.7118792Z   Building wheel for sgmllib3k (pyproject.toml): finished with status 'done'
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.7124173Z   Created wheel for sgmllib3k: filename=sgmllib3k-1.0.0-py3-none-any.whl size=6091 sha256=e5cb62d2562d21c91f5699a4c0af365196f75810ff8493dcba5d60d1d78bc3a1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.7126070Z   Stored in directory: /home/runner/.cache/pip/wheels/3b/25/2a/105d6a15df6914f4d15047691c6c28f9052cc1173e40285d03
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.7139928Z Successfully built sgmllib3k
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:49.7991040Z Installing collected packages: sgmllib3k, pyvirtualdisplay, pydub, wrapt, websockets, websocket-client, urllib3, typing-extensions, tabulate, six, PyYAML, python-dotenv, pypdfium2, PyMuPDF, pycparser, propcache, pluggy, Pillow, packaging, multidict, mss, jmespath, iniconfig, idna, greenlet, frozenlist, feedparser, charset-normalizer, certifi, attrs, aiohappyeyeballs, yarl, requests, python-dateutil, pytest, pyee, deprecated, cffi, aiosignal, playwright, nodriver, cryptography, botocore, aiohttp, s3transfer, pdfminer.six, edge-tts, dashscope, pdfplumber, boto3
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.3411955Z 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.3438324Z Successfully installed Pillow-12.1.1 PyMuPDF-1.27.1 PyYAML-6.0.2 aiohappyeyeballs-2.6.1 aiohttp-3.13.3 aiosignal-1.4.0 attrs-25.4.0 boto3-1.42.59 botocore-1.42.59 certifi-2026.2.25 cffi-2.0.0 charset-normalizer-3.4.4 cryptography-46.0.5 dashscope-1.25.12 deprecated-1.3.1 edge-tts-7.2.7 feedparser-6.0.11 frozenlist-1.8.0 greenlet-3.3.2 idna-3.11 iniconfig-2.3.0 jmespath-1.1.0 mss-10.1.0 multidict-6.7.1 nodriver-0.39 packaging-26.0 pdfminer.six-20251230 pdfplumber-0.11.9 playwright-1.51.0 pluggy-1.6.0 propcache-0.4.1 pycparser-3.0 pydub-0.25.1 pyee-12.1.1 pypdfium2-5.5.0 pytest-8.3.5 python-dateutil-2.9.0.post0 python-dotenv-1.1.0 pyvirtualdisplay-3.0 requests-2.32.3 s3transfer-0.16.0 sgmllib3k-1.0.0 six-1.17.0 tabulate-0.9.0 typing-extensions-4.15.0 urllib3-2.6.3 websocket-client-1.9.0 websockets-16.0 wrapt-2.1.1 yarl-1.22.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9611262Z ##[group]Run mkdir -p data/history
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9611626Z [36;1mmkdir -p data/history[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9612133Z [36;1maws s3 cp "s3://${R2_BUCKET}/history/recent_published.json" data/history/recent_published.json \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9612772Z [36;1m  --endpoint-url "${R2_ENDPOINT}" || echo "No history file yet, first run"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9681820Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9682111Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9682323Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9682556Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9682795Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9683044Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9683276Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9683544Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9684164Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9684456Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9684783Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9685076Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9685306Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9686241Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9686566Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9686942Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9687232Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9687514Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9687795Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9688039Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9688470Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9688755Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9689167Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9689531Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9690039Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9690404Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9690700Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9691039Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9691531Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9691890Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9692256Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9692613Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9693061Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9693483Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9693725Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9693967Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9694259Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9694716Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9695162Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9695577Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9696111Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9696530Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9696932Z   AWS_ACCESS_KEY_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9697360Z   AWS_SECRET_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9697795Z   R2_ENDPOINT: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9698023Z   R2_BUCKET: flying-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:54.9698274Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.0548252Z Completed 35.8 KiB/35.8 KiB (69.8 KiB/s) with 1 file(s) remaining
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.0549414Z download: s3://flying-podcast/history/recent_published.json to data/history/recent_published.json
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1461834Z ##[group]Run echo "TARGET_DATE=$(date +%F)" >> "$GITHUB_OUTPUT"
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1462320Z [36;1mecho "TARGET_DATE=$(date +%F)" >> "$GITHUB_OUTPUT"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1510916Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1511203Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1511400Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1511616Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1511844Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1512093Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1512334Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1512582Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1513044Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1513332Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1513676Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1513935Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1514167Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1514819Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1515165Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1515538Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1516029Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1516374Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1516667Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1516916Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1517354Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1517632Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1518039Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1518399Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1518699Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1519055Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1519349Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1519697Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1520121Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1520441Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1520803Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1521150Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1521602Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1521998Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1522260Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1522668Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1522961Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1523413Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1523866Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1524268Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1524677Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1525080Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1525432Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1648737Z ##[group]Run python run.py ingest --date "2026-03-01"
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1649149Z [36;1mpython run.py ingest --date "2026-03-01"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1692782Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1693054Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1693251Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1693469Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1693703Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1693945Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1694182Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1694429Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1694868Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1695145Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1695475Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1695934Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1696193Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1696850Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1697173Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1697578Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1697878Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1698213Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1698563Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1698822Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1699253Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1699525Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1699933Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1700284Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1700590Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1700942Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1701240Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1701587Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1702031Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1702353Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1702716Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1703066Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1703523Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1703930Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1704172Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1704408Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1704701Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1705152Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1705599Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1706208Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1706613Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1707016Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:26:59.1707371Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:14.5403220Z 2026-03-01 03:27:14 WARNING [ingest] Fetch web source failed reuters_aerospace_web: http_401
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1742547Z 2026-03-01 03:27:15 WARNING [ingest] Fetch web source failed easa_newsroom_web: BrowserType.launch: Executable doesn't exist at /home/runner/.cache/ms-playwright/chromium_headless_shell-1161/chrome-linux/headless_shell
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1743821Z 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1744298Z 鈺?Looks like Playwright was just installed or updated.       鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1745073Z 鈺?Please run the following command to download new browsers: 鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1745503Z 鈺?                                                           鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1746505Z 鈺?    playwright install                                     鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1747169Z 鈺?                                                           鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1747816Z 鈺?<3 Playwright Team                                         鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1748412Z 鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.1962814Z 2026-03-01 03:27:15 INFO [ingest] Ingest done. sources=22 new_items=579 merged_items=579
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2602076Z ##[group]Run python run.py rank --date "2026-03-01"
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2602545Z [36;1mpython run.py rank --date "2026-03-01"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2651991Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2652291Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2652502Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2652750Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2652983Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2653233Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2653478Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2653731Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2654173Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2654464Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2654803Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2655052Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2655286Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2656272Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2656602Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2657003Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2657292Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2657571Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2657851Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2658092Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2658514Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2658802Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2659196Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2659559Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2659860Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2660217Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2660518Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2660862Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2661298Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2661613Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2661989Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2662337Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2662797Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2663200Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2663436Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2663663Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2663947Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2664674Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2665135Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2665537Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2666231Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2666648Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.2666988Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8137756Z 2026-03-01 03:27:15 INFO [rank] Rank done. candidates=579 selected=45
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8693686Z ##[group]Run python run.py compose --date "2026-03-01"
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8694151Z [36;1mpython run.py compose --date "2026-03-01"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8742855Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8743122Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8743324Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8743549Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8743779Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8744034Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8744265Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8744511Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8744945Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8745225Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8745548Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8746024Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8746281Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8746931Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8747255Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8747645Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8747931Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8748208Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8748484Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8748725Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8749139Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8749422Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8749817Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8750171Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8750468Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8750821Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8751117Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8751449Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8751872Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8752185Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8752543Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8752890Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8753334Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8753736Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8753972Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8754203Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8754491Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8754937Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8755386Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8756057Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8756531Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8756933Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:15.8757266Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:16.3194391Z 2026-03-01 03:27:16 INFO [compose] Cross-day dedup: 70 recent titles loaded
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:16.3251035Z 2026-03-01 03:27:16 INFO [compose] Cross-day dedup: removed 19 repeated candidates (fresh=26 total=45)
+daily-digest	UNKNOWN STEP	2026-02-28T19:27:16.3312266Z 2026-03-01 03:27:16 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=6000, prompt=45022 瀛楃, timeout=180s
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:04.3313175Z 2026-03-01 03:28:04 INFO [llm] LLM 鍝嶅簲: 48.0 绉? 981 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:04.3313725Z 2026-03-01 03:28:04 INFO [compose] Phase 1 selection: 10 entries returned, 10 valid
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:04.3410542Z 2026-03-01 03:28:04 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2541 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:15.8518166Z 2026-03-01 03:28:15 INFO [llm] LLM 鍝嶅簲: 11.5 绉? 399 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:15.8519844Z 2026-03-01 03:28:15 INFO [compose] Phase 2 scored 97356afbcdfc: 5/10 (鏂伴椈鎻愪緵浜哘antas鏈洪槦杩愯瀹夋帓鐨勪竴涓柊浜嬪疄锛圓321XLR宸叉帓鐝緝闀垮浗闄呰埅鐝級锛屼絾缂哄皯鏇村叿浣撶殑杩愯鍙傛暟锛屽椋炶杩愯鍐崇瓥鐨勭洿鎺ュ閲忔湁闄愩€? 鈥?Qantas灏咥irbus A321XLR鎶曞叆涓€鏉¤緝闀垮浗闄呰埅鐝?daily-digest	UNKNOWN STEP	2026-02-28T19:28:15.8608668Z 2026-03-01 03:28:15 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2320 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:26.1628409Z 2026-03-01 03:28:26 INFO [llm] LLM 鍝嶅簲: 10.3 绉? 310 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:26.1630202Z 2026-03-01 03:28:26 INFO [compose] Phase 2 scored b71de9446a00: 2/10 (鍐呭灞炰簬瀹忚姒傝堪锛屾湭鎻愪緵鍏蜂綋娉曡鏇存柊銆佽繍琛岄檺鍒舵垨瀹夊叏浜嬩欢缁嗚妭锛岄琛屽憳鍙幏寰楃殑鏂拌鐭ユ湁闄愩€? 鈥?鑸┖娉曞緥濡備綍濉戦€犲叏鐞冭埅绌烘梾琛屾湭鏉?daily-digest	UNKNOWN STEP	2026-02-28T19:28:26.1721177Z 2026-03-01 03:28:26 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2258 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:40.7509584Z 2026-03-01 03:28:40 INFO [llm] LLM 鍝嶅簲: 14.6 绉? 353 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:40.7513558Z 2026-03-01 03:28:40 INFO [compose] Phase 2 scored 971586d4b3b1: 5/10 (鏂伴椈鎻愪緵浜嗕竴涓槑纭殑鏂颁簨瀹炩€斺€擵irgin Australia绉癇oeing浜や粯鍦ㄨ建骞跺彲杈剧洰鏍囷紝浣嗙己灏戞洿鍏蜂綋鐨勮繍琛岀粏鑺傦紝鏁翠綋淇℃伅澧為噺涓瓑銆? 鈥?Virgin Australia绉癇oeing浜や粯杩涘害鍙疄鐜版棦瀹氱洰鏍?daily-digest	UNKNOWN STEP	2026-02-28T19:28:40.7599587Z 2026-03-01 03:28:40 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2235 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:51.4613487Z 2026-03-01 03:28:51 INFO [llm] LLM 鍝嶅簲: 10.7 绉? 316 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:28:51.4614614Z 2026-03-01 03:28:51 INFO [compose] Phase 2 scored 233402526944: 2/10 (浠呮湁瑙傜偣鎬ф爣棰樹俊鎭紝娌℃湁鎻愪緵鍙緵椋炶杩愯鎴栫娲剧洿鎺ヤ娇鐢ㄧ殑鍏蜂綋鏂颁簨瀹烇紝淇℃伅澧為噺寰堜綆銆? 鈥?Simple Flying绉癇oeing 777X灏嗕粠浜斾釜鏂归潰鏀瑰彉鑸┖涓?daily-digest	UNKNOWN STEP	2026-02-28T19:28:51.4703132Z 2026-03-01 03:28:51 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2328 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:01.2173314Z 2026-03-01 03:29:01 INFO [llm] LLM 鍝嶅簲: 9.7 绉? 409 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:01.2175516Z 2026-03-01 03:29:01 INFO [compose] Phase 2 scored 1ffe80db11d6: 3/10 (鏂伴椈鎻愪緵浜嗘槑纭殑浜や粯浜嬪疄锛堜袱鏋禕oeing 737 MAX 8浜や粯WestJet锛夛紝浣嗗椋炶杩愯涓庣娲剧殑鐩存帴淇℃伅澧為噺鏈夐檺銆? 鈥?Aviation Capital Group鍚慦estJet浜や粯涓ゆ灦Boeing 737 MAX 8
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:01.2268492Z 2026-03-01 03:29:01 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2563 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:14.0804502Z 2026-03-01 03:29:14 INFO [llm] LLM 鍝嶅簲: 12.9 绉? 446 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:14.0805687Z 2026-03-01 03:29:14 INFO [compose] Phase 2 scored 4484cb077f8d: 7/10 (鏂伴椈缁欏嚭浜嗘槑纭殑鏂颁簨瀹炩€斺€旂編鍥藉凡灏变竴璧疯嚧鍛藉潬姣佷簨鏁呭涓夊鑸┖浜т笟涓讳綋鍚姩娉曞緥琛屽姩锛屼笖涓庝簨鏁呰皟鏌ュ拰瀹夊叏璐ｄ换鐩存帴鐩稿叧銆? 鈥?缇庡浗灏盪PS 2976鑸彮璺槗鏂淮灏斿潬姣佽嚧15浜洪亣闅句簨浠跺Boeing绛夋彁璧锋硶寰嬭鍔?daily-digest	UNKNOWN STEP	2026-02-28T19:29:14.0896276Z 2026-03-01 03:29:14 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2276 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:31.3728602Z 2026-03-01 03:29:31 INFO [llm] LLM 鍝嶅簲: 17.3 绉? 313 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:31.3732231Z 2026-03-01 03:29:31 INFO [compose] Phase 2 scored bff0769f51f1: 2/10 (淇℃伅浠呭仠鐣欏湪闂灞傞潰锛岀己灏戝叿浣撲簨浠躲€佽繍琛屽奖鍝嶆垨瀹夊叏鎶€鏈粏鑺傦紝瀵归琛岃繍琛岀殑淇℃伅澧為噺寰堜綆銆? 鈥?鈥滃叏鐞冩渶闀垮晢鐢ㄨ埅绌哄櫒鈥濅负浣曞彲鑳借Airbus鎷呭咖锛?daily-digest	UNKNOWN STEP	2026-02-28T19:29:31.3820366Z 2026-03-01 03:29:31 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2312 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:40.9016127Z 2026-03-01 03:29:40 INFO [llm] LLM 鍝嶅簲: 9.5 绉? 326 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:40.9018878Z 2026-03-01 03:29:40 INFO [compose] Phase 2 scored cc5b7b3135c1: 5/10 (鏂伴椈鎻愪緵浜嗕竴涓槑纭殑杩愯浜嬪疄锛圓merican Airlines璋冩暣DFW鏈哄満鑸彮鏃跺埢锛夛紝涓庤繍琛岀浉鍏充絾缂哄皯鍙墽琛屽眰闈㈢殑鍏蜂綋缁嗚妭銆? 鈥?American Airlines灏嗚皟鏁碊FW鏈哄満鑸彮鏃跺埢瀹夋帓
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:40.9107644Z 2026-03-01 03:29:40 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2316 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:52.0696929Z 2026-03-01 03:29:52 INFO [llm] LLM 鍝嶅簲: 11.2 绉? 373 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:52.0699315Z 2026-03-01 03:29:52 INFO [compose] Phase 2 scored 44c33e02ad96: 3/10 (鏂伴椈鎻愪緵浜嗏€滈鏋惰埅绌哄櫒宸插叕甯?2027骞村惎鍔ㄢ€濊繖涓€鍏蜂綋浜嬪疄锛屼絾瀵归琛岃繍琛屽拰绛炬淳灞傞潰鐨勭洿鎺ュ彲鐢ㄤ俊鎭粛杈冩湁闄愩€? 鈥?Magnifica Air鍦?027骞村惎鍔ㄥ墠鍏竷棣栨灦Airbus ACJ321neo
+daily-digest	UNKNOWN STEP	2026-02-28T19:29:52.0786712Z 2026-03-01 03:29:52 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=1500, prompt=2278 瀛楃, timeout=60s
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7893443Z 2026-03-01 03:30:05 INFO [llm] LLM 鍝嶅簲: 13.7 绉? 328 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7894654Z 2026-03-01 03:30:05 INFO [compose] Phase 2 scored dc0dfcc6fa82: 2/10 (璇ヤ俊鎭粎浣撶幇閫夐鏂瑰悜锛屾湭鎻愪緵鍏蜂綋鏈哄満缁撹鎴栧彲鎵ц杩愯缁嗚妭锛屼俊鎭閲忚緝浣庛€? 鈥?Simple Flying鍙戞枃璁ㄨAirbus A380鑸彮鏈€绻佸繖鏈哄満
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7901258Z 2026-03-01 03:30:05 INFO [compose] Phase 2 filtered (score 2 < 4): b71de9446a00
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7903299Z 2026-03-01 03:30:05 INFO [compose] Phase 2 filtered (score 2 < 4): 233402526944
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7904589Z 2026-03-01 03:30:05 INFO [compose] Phase 2 filtered (score 3 < 4): 1ffe80db11d6
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7907272Z 2026-03-01 03:30:05 INFO [compose] Phase 2 filtered (score 2 < 4): bff0769f51f1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7909291Z 2026-03-01 03:30:05 INFO [compose] Phase 2 filtered (score 3 < 4): 44c33e02ad96
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7910531Z 2026-03-01 03:30:05 INFO [compose] Phase 2 filtered (score 2 < 4): dc0dfcc6fa82
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7911735Z 2026-03-01 03:30:05 INFO [compose] Phase 2 backfill (score 3): Aviation Capital Group鍚慦estJet浜や粯涓ゆ灦Boeing
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7913024Z 2026-03-01 03:30:05 INFO [compose] Phase 2 backfill (score 3): Magnifica Air鍦?027骞村惎鍔ㄥ墠鍏竷棣栨灦Airbus ACJ321n
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7913771Z 2026-03-01 03:30:05 INFO [compose] Phase 2: dropped 4 low-score articles
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:05.7914422Z 2026-03-01 03:30:05 INFO [compose] Phase 2 compose: 10 LLM ok, 4 filtered (score<4), 0 translate-fallback, 0 rules-fallback
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0780382Z 2026-03-01 03:30:06 WARNING [compose] Playwright launch failed: BrowserType.launch: Executable doesn't exist at /home/runner/.cache/ms-playwright/chromium_headless_shell-1161/chrome-linux/headless_shell
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0782271Z 鈺斺晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晽
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0782970Z 鈺?Looks like Playwright was just installed or updated.       鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0783504Z 鈺?Please run the following command to download new browsers: 鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0783941Z 鈺?                                                           鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0784352Z 鈺?    playwright install                                     鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0784760Z 鈺?                                                           鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0785152Z 鈺?<3 Playwright Team                                         鈺?daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0785634Z 鈺氣晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨暆
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0786333Z 2026-03-01 03:30:06 INFO [compose] Google redirect resolution: resolved=0 failed=0
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.0790043Z 2026-03-01 03:30:06 INFO [compose] Compose done. entries=6
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1372181Z ##[group]Run python run.py verify --date "2026-03-01"
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1372620Z [36;1mpython run.py verify --date "2026-03-01"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1421182Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1421449Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1421645Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1421871Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1422090Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1422333Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1422568Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1422813Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1423258Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1423545Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1424065Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1424313Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1424543Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1425193Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1425514Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1426183Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1426480Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1426763Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1427054Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1427300Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1427721Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1428000Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1428396Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1428756Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1429061Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1429419Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1429727Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1430096Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1430535Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1430855Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1431224Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1431577Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1432036Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1432443Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1432680Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1432910Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1433201Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1433653Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1434104Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1434506Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1434914Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1435330Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.1435669Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:06.5966340Z 2026-03-01 03:30:06 INFO [llm] LLM 璇锋眰: model=gpt-5.3-codex, max_tokens=3000, prompt=2183 瀛楃, timeout=90s
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2944869Z 2026-03-01 03:30:23 INFO [llm] LLM 鍝嶅簲: 16.7 绉? 829 瀛楃
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2946290Z 2026-03-01 03:30:23 INFO [verify] 鎬荤紪杈戠粓瀹?鈥?淇濈暀: 97356afbcdfc | 鍐呭鍥寸粫Qantas灏咥321XLR鎶曞叆杈冮暱鍥介檯鑸嚎杩欎竴鍏蜂綋杩愯惀鍙樺寲锛屼俊鎭偣鏄庣‘涓斿彲璇绘€ф甯搞€?daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2947599Z 2026-03-01 03:30:23 INFO [verify] 鎬荤紪杈戠粓瀹?鈥?鍒犻櫎: 971586d4b3b1 | 鐞嗙敱: 閫氱瘒浠呬负鈥滀氦浠樻寜璁″垝鈥濈殑浼佷笟琛ㄦ€侊紝缂哄皯鍏蜂綋浜嬪疄鍜屾柊澧炰俊鎭紝鏂伴椈浠峰€煎亸寮便€?daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2948803Z 2026-03-01 03:30:23 INFO [verify] 鎬荤紪杈戠粓瀹?鈥?淇濈暀: 4484cb077f8d | 鎶ラ亾鐨勬槸鑷村懡浜嬫晠鐩稿叧娉曞緥杩借矗杩涘睍锛屼簨浠跺叿浣撲笖鍏峰叕鍏卞叧娉ㄥ害锛屼笉灞炲浼犳€у唴瀹广€?daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2949965Z 2026-03-01 03:30:23 INFO [verify] 鎬荤紪杈戠粓瀹?鈥?淇濈暀: cc5b7b3135c1 | AA璋冩暣DFW鑸彮鏃跺埢灞炰簬瀹炶川鎬ц繍琛屾柊闂伙紝鏍囬涓庢鏂囦竴鑷翠笖閫昏緫閫氶『銆?daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2951114Z 2026-03-01 03:30:23 INFO [verify] 鎬荤紪杈戠粓瀹?鈥?淇濈暀: 1ffe80db11d6 | 鍖呭惈鏄庣‘鐨勪氦浠樹富浣撱€佹満鍨嬪拰鏁伴噺锛屽睘浜庢湁浜嬪疄鏀拺鐨勮涓氬姩鎬佽€岄潪绌烘硾瀹ｄ紶銆?daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2952177Z 2026-03-01 03:30:23 INFO [verify] 鎬荤紪杈戠粓瀹?鈥?鍒犻櫎: 44c33e02ad96 | 鐞嗙敱: 浠ヤ紒涓氣€滃叕甯冮鏋舵満鈥濅负涓荤殑棰勭儹淇℃伅锛岀己灏戣繍钀ヨ惤鍦版垨鐩戠杩涘睍锛屽浼犲睘鎬ц緝寮恒€?daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2953592Z 2026-03-01 03:30:23 INFO [verify] 鎬荤紪杈戠粓瀹? 鍒犻櫎 2 鏉?(6 鈫?4)
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.2958105Z 2026-03-01 03:30:23 INFO [verify] Verify done. score=83.25 decision=auto_publish reasons=['google_redirect_citation_blocked', 'insufficient_articles', 'llm_editor_rejected', 'source_concentration_exceeded']
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3476194Z ##[group]Run python run.py publish --date "2026-03-01"
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3476654Z [36;1mpython run.py publish --date "2026-03-01"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3525252Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3525503Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3525700Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3526289Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3526656Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3527051Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3527280Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3527529Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3527976Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3528254Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3528588Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3528848Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3529078Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3529724Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3530039Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3530442Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3530740Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3531007Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3531296Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3531536Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3531957Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3532233Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3532628Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3532988Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3533278Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3533639Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3533929Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3534276Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3534699Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3535021Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3535381Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3536005Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3536478Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3536899Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3537141Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3537372Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3537661Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3538105Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3538549Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3538949Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3539352Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3539750Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.3540096Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:23.8939199Z 2026-03-01 03:30:23 WARNING [publish] LLM request failed (attempt 1/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:26.0124740Z 2026-03-01 03:30:26 WARNING [publish] LLM request failed (attempt 2/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:32.3995456Z 2026-03-01 03:30:32 WARNING [publish] LLM request failed (attempt 1/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:34.4940866Z 2026-03-01 03:30:34 WARNING [publish] LLM request failed (attempt 2/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:34.5977500Z 2026-03-01 03:30:34 WARNING [publish] LLM request failed (attempt 1/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:36.7200757Z 2026-03-01 03:30:36 WARNING [publish] LLM request failed (attempt 2/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:40.2421933Z 2026-03-01 03:30:40 WARNING [publish] LLM request failed (attempt 1/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:42.3376106Z 2026-03-01 03:30:42 WARNING [publish] LLM request failed (attempt 2/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:42.8592909Z 2026-03-01 03:30:42 INFO [publish] Cover image downloaded from first article: https://cdn.onemileatatime.com/wp-content/uploads/2025/09/Qantas-A321XLR-Economy
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:42.8598038Z 2026-03-01 03:30:42 INFO [publish] Cover image saved locally: /home/runner/work/fly-podcast/fly-podcast/data/output/cover_2026-03-01.jpg (140072 bytes)
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:46.2656923Z 2026-03-01 03:30:46 INFO [publish] AI image set for: 缇庡浗灏盪PS 2976鑸彮璺槗鏂淮灏斿潬姣佽嚧15浜洪亣闅句簨浠跺Boeing绛夋彁璧锋硶寰?daily-digest	UNKNOWN STEP	2026-02-28T19:30:48.2028742Z 2026-03-01 03:30:48 INFO [publish] AI image set for: American Airlines灏嗚皟鏁碊FW鏈哄満鑸彮鏃跺埢瀹夋帓
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:50.6316935Z 2026-03-01 03:30:50 INFO [publish] AI image set for: Aviation Capital Group鍚慦estJet浜や粯涓ゆ灦Boeing
+daily-digest	UNKNOWN STEP	2026-02-28T19:30:58.7970503Z 2026-03-01 03:30:58 WARNING [publish] LLM request failed (attempt 1/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:01.2092158Z 2026-03-01 03:31:01 WARNING [publish] LLM request failed (attempt 2/2): 404 Client Error: Not Found for url: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:04.2204993Z 2026-03-01 03:31:04 INFO [publish] Cover image uploaded: 2iS0rEPPaYLeZcrS6TrHOH_SNc2-0768cUfaGC1i
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:11.4810630Z 2026-03-01 03:31:11 INFO [publish] Cleaned up 1 old digest draft(s)
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.6501116Z 2026-03-01 03:31:12 INFO [publish] Auto-publish not available, draft saved to WeChat backend
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.6503404Z 2026-03-01 03:31:12 INFO [publish] Web version saved: /home/runner/work/fly-podcast/fly-podcast/data/output/web_2026-03-01.html
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.6518298Z 2026-03-01 03:31:12 INFO [publish] Recent published history saved: 7 days, 4 entries today
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.6519206Z 2026-03-01 03:31:12 INFO [publish] Publish done. status=draft_created score=83.25
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7575022Z ##[group]Run aws s3 cp data/output/ "s3://${R2_BUCKET}/digest/" \
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7575568Z [36;1maws s3 cp data/output/ "s3://${R2_BUCKET}/digest/" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7576455Z [36;1m  --endpoint-url "${R2_ENDPOINT}" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7576779Z [36;1m  --recursive \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7577074Z [36;1m  --exclude "*" --include "web_*.html" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7577449Z [36;1m  --content-type "text/html; charset=utf-8" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7577822Z [36;1m  --cache-control "public, max-age=86400"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7578296Z [36;1maws s3 cp static/copyright.html "s3://${R2_BUCKET}/digest/copyright.html" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7578777Z [36;1m  --endpoint-url "${R2_ENDPOINT}" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7579129Z [36;1m  --content-type "text/html; charset=utf-8" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7579515Z [36;1m  --cache-control "public, max-age=604800"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7579990Z [36;1maws s3 cp static/beian_icon.png "s3://${R2_BUCKET}/digest/beian_icon.png" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7580433Z [36;1m  --endpoint-url "${R2_ENDPOINT}" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7580744Z [36;1m  --content-type "image/png" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7581067Z [36;1m  --cache-control "public, max-age=2592000"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7629543Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7629820Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7630020Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7630248Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7630476Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7630728Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7630951Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7631197Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7631812Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7632093Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7632426Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7632680Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7632914Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7633558Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7633879Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7634239Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7634531Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7634800Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7635086Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7635320Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7635968Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7636350Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7636754Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7637110Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7637406Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7637783Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7638081Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7638436Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7638863Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7639185Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7639545Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7639901Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7640340Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7640753Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7640985Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7641217Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7641501Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7641960Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7642397Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7642813Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7643208Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7643619Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7644008Z   AWS_ACCESS_KEY_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7644588Z   AWS_SECRET_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7645028Z   R2_ENDPOINT: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7645269Z   R2_BUCKET: flying-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:12.7645513Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:14.1446981Z Completed 11.8 KiB/11.8 KiB (17.0 KiB/s) with 1 file(s) remaining
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:14.1447973Z upload: data/output/web_2026-03-01.html to s3://flying-podcast/digest/web_2026-03-01.html
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:15.5471148Z Completed 7.7 KiB/7.7 KiB (11.6 KiB/s) with 1 file(s) remaining
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:15.5472114Z upload: static/copyright.html to s3://flying-podcast/digest/copyright.html
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:16.9341334Z Completed 1.4 KiB/1.4 KiB (2.1 KiB/s) with 1 file(s) remaining
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:16.9342260Z upload: static/beian_icon.png to s3://flying-podcast/digest/beian_icon.png
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0763396Z ##[group]Run aws s3 cp data/history/recent_published.json "s3://${R2_BUCKET}/history/recent_published.json" \
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0764259Z [36;1maws s3 cp data/history/recent_published.json "s3://${R2_BUCKET}/history/recent_published.json" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0764812Z [36;1m  --endpoint-url "${R2_ENDPOINT}" \[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0765157Z [36;1m  --content-type "application/json"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0814892Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0815169Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0815373Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0815610Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0816185Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0816445Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0816673Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0816926Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0817370Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0817847Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0818182Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0818464Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0818697Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0819365Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0819677Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0820048Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0820331Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0820604Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0820887Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0821129Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0821553Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0821833Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0822227Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0822597Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0822904Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0823254Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0823562Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0823904Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0824339Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0824656Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0825021Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0825373Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0826074Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0826486Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0826730Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0826960Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0827248Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0827691Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0828138Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0828537Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0828945Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0829352Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0829742Z   AWS_ACCESS_KEY_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0830152Z   AWS_SECRET_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0830557Z   R2_ENDPOINT: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0830784Z   R2_BUCKET: flying-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:17.0831029Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.4642253Z Completed 33.5 KiB/33.5 KiB (46.5 KiB/s) with 1 file(s) remaining
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.4643513Z upload: data/history/recent_published.json to s3://flying-podcast/history/recent_published.json
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5549827Z ##[group]Run python run.py notify --date "2026-03-01"
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5550249Z [36;1mpython run.py notify --date "2026-03-01"[0m
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5598949Z shell: /usr/bin/bash -e {0}
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5599215Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5599410Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5599636Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5599867Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5600111Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5600339Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5600583Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5601014Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5601290Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5601616Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5601860Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5602090Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5602728Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5603038Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5603431Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5603721Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5603998Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5604280Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5604518Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5604935Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5605402Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5605983Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5606352Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5606651Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5607011Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5607307Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5607644Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5608068Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5608376Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5608737Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5609084Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5609536Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5609941Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5610177Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5610404Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5610691Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5611146Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5611595Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5611991Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5612393Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5612790Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:18.5613125Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1747950Z 2026-03-01 03:31:22 INFO [email_notify] Pipeline report email sent to ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1748880Z 2026-03-01 03:31:22 INFO [notify] [DRY_RUN notify]
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1749538Z Global Aviation Digest 2026-03-01
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1750273Z 璐ㄩ噺鍒? 83.25
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1750719Z 鍐崇瓥: auto_publish
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1751191Z 鎴愮妯″紡: llm_two_phase
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1751663Z 鍙戝竷鐘舵€? draft_created
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1752766Z 鍘熷洜: google_redirect_citation_blocked, insufficient_articles, llm_editor_rejected, source_concentration_exceeded
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.1754076Z 閾炬帴: https://mp.weixin.qq.com
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2336837Z ##[group]Run actions/upload-artifact@v4
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2337160Z with:
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2337377Z   name: daily-digest-22527409931
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2337768Z   path: data/raw/*.json
+daily-digest	UNKNOWN STEP	data/processed/*.json
+daily-digest	UNKNOWN STEP	data/output/publish_*.json
+daily-digest	UNKNOWN STEP	
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2338172Z   if-no-files-found: warn
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2338426Z   compression-level: 6
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2338659Z   overwrite: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2338886Z   include-hidden-files: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2339136Z env:
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2339327Z   TZ: Asia/Shanghai
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2339546Z   DRY_RUN: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2339766Z   TARGET_ARTICLE_COUNT: 15
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2340015Z   DOMESTIC_RATIO: 0.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2340246Z   QUALITY_THRESHOLD: 80
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2340499Z   ALLOW_GOOGLE_REDIRECT_CITATION: false
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2340919Z   LLM_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2341218Z   LLM_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2341535Z   LLM_MODEL: gpt-5.3-codex
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2341814Z   LLM_MAX_TOKENS: 6000
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2342041Z   LLM_TEMPERATURE: 0.1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2342692Z   LLM_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2343001Z   LLM_BACKUP_BASE_URL: https://code.newcli.com/claude/aws
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2343362Z   LLM_BACKUP_MODEL: claude-sonnet-4-6
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2343647Z   WECHAT_ENABLE_PUBLISH: true
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2343923Z   WECHAT_APP_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2344203Z   WECHAT_APP_SECRET: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2344444Z   WECHAT_AUTHOR: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2344864Z   WECHAT_THUMB_MEDIA_ID: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2345148Z   WECHAT_PROXY: http://122.51.187.21:3128
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2345540Z   UNSPLASH_ACCESS_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2346115Z   UNSPLASH_ACCESS_KEY_2: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2346422Z   PIXABAY_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2346779Z   IMAGE_GEN_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2347289Z   IMAGE_GEN_BASE_URL: https://hudawang.zeabur.app/v1
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2347650Z   IMAGE_GEN_MODEL: gemini-3-pro-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2348090Z   IMAGE_GEN_BACKUP_API_KEY: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2348412Z   IMAGE_GEN_BACKUP_BASE_URL: https://aiapi0.getfake.net
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2348776Z   IMAGE_GEN_BACKUP_MODEL: grok-imagine-image
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2349123Z   WEB_DIGEST_BASE_URL: https://cdn.hudawang.cn/digest
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2349568Z   COPYRIGHT_NOTICE_URL: https://mp.weixin.qq.com/s/yPNA3ssMUYWLzdgQ8ITwag
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2349974Z   ALERT_WEBHOOK_URL: 
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2350213Z   EMAIL_USER: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2350441Z   EMAIL_PASS: ***
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2350735Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2351181Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib/pkgconfig
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2351631Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2352031Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2352443Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.14/x64
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2352853Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.14/x64/lib
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.2353190Z ##[endgroup]
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.4516806Z Multiple search paths detected. Calculating the least common ancestor of all paths
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.4521026Z The least common ancestor is /home/runner/work/fly-podcast/fly-podcast/data. This will be the root directory of the artifact
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.4522271Z With the provided path, there will be 5 files uploaded
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.4528959Z Artifact name is valid!
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.4530210Z Root directory input is valid!
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:22.6758372Z Beginning upload of artifact content to blob storage
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.1039374Z Uploaded bytes 231083
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.1621418Z Finished uploading artifact content to blob storage!
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.1625257Z SHA256 digest of uploaded artifact zip is de5933c9853838ea952a77f675ecb9aa5fbfb3793380ce16b708a28c5be1b984
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.1627368Z Finalizing artifact upload
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.2861321Z Artifact daily-digest-22527409931.zip successfully finalized. Artifact ID 5705111103
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.2862752Z Artifact daily-digest-22527409931 has been successfully uploaded! Final size is 231083 bytes. Artifact ID is 5705111103
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.2869248Z Artifact download URL: https://github.com/wangwingzero/fly-podcast/actions/runs/22527409931/artifacts/5705111103
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.3022904Z Post job cleanup.
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.4698942Z Post job cleanup.
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.5660344Z [command]/usr/bin/git version
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.5698264Z git version 2.53.0
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.5744306Z Temporarily overriding HOME='/home/runner/work/_temp/28e7b264-b83f-4984-9eb3-2a7e33503633' before making global git config changes
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.5745962Z Adding repository directory to the temporary git global config as a safe directory
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.5759855Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/fly-podcast/fly-podcast
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.5799305Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.5836693Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.6107687Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.6133934Z http.https://github.com/.extraheader
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.6148696Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.6184875Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.6426124Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.6459341Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+daily-digest	UNKNOWN STEP	2026-02-28T19:31:23.6818552Z Cleaning up orphan processes

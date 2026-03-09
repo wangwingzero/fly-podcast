@@ -1,0 +1,15 @@
+{
+  "date": "2026-03-09",
+  "total_score": 78.19,
+  "factual_score": 90.0,
+  "relevance_score": 51.25,
+  "citation_score": 100.0,
+  "timeliness_score": 82.5,
+  "readability_score": 100.0,
+  "decision": "auto_publish",
+  "reasons": [
+    "insufficient_articles",
+    "quality_below_threshold"
+  ],
+  "blocked_entry_ids": []
+}

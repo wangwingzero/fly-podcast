@@ -1,0 +1,20 @@
+{
+  "date": "2026-03-09",
+  "total_score": 78.0,
+  "factual_score": 90.0,
+  "relevance_score": 50.0,
+  "citation_score": 100.0,
+  "timeliness_score": 85.0,
+  "readability_score": 100.0,
+  "decision": "auto_publish",
+  "reasons": [
+    "insufficient_articles",
+    "llm_editor_rejected",
+    "quality_below_threshold"
+  ],
+  "blocked_entry_ids": [
+    "1dff9229b64b4eddea58215ba037c8b3dd4c0383261a47b04686aa08318224b2",
+    "59d5222c7c54bf9a5e6fb76c23218143f6284c1bb71168adf9875360f9306e5a",
+    "ee36d9585a0e2fe62f41c2bb3085faa09ee563a2993f23f1334ee6419c495f76"
+  ]
+}
