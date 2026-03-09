@@ -1,9 +1,15 @@
+import json
+import importlib
+
 from flying_podcast.core.models import DigestEntry
 from flying_podcast.stages.compose import (
+    _load_recent_published,
     _build_recent_dedup_index,
     _prioritize_non_recent_candidates,
     _replace_recent_duplicates,
 )
+
+compose_module = importlib.import_module("flying_podcast.stages.compose")
 
 
 def _candidate(i: int, title: str, url: str, fp: str = "", region: str = "domestic") -> dict:
@@ -98,3 +104,31 @@ def test_replace_recent_duplicates_prefers_same_region_non_recent_pool_entry():
 
     out = _replace_recent_duplicates(entries, pool, index)
     assert [x.id for x in out] == ["id-3", "id-2"]
+
+
+def test_load_recent_published_ignores_same_day_records(monkeypatch, tmp_path):
+    history_dir = tmp_path / "history"
+    history_dir.mkdir(parents=True)
+    (history_dir / "recent_published.json").write_text(
+        json.dumps(
+            {
+                "days": {
+                    "2026-03-09": [
+                        {"title": "same day", "url": "https://example.com/same", "id": "id-same", "event_fingerprint": "fp-same"}
+                    ],
+                    "2026-03-08": [
+                        {"title": "prev day", "url": "https://example.com/prev", "id": "id-prev", "event_fingerprint": "fp-prev"}
+                    ],
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    fake_settings = type("Settings", (), {"processed_dir": tmp_path / "processed"})()
+    monkeypatch.setattr(compose_module, "settings", fake_settings)
+
+    rows = _load_recent_published(exclude_date="2026-03-09")
+
+    assert [row["id"] for row in rows] == ["id-prev"]

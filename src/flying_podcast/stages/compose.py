@@ -21,7 +21,7 @@ from flying_podcast.core.time_utils import beijing_today_str
 logger = get_logger("compose")
 
 
-def _load_recent_published() -> list[dict]:
+def _load_recent_published(*, exclude_date: str | None = None) -> list[dict]:
     """Load recently published entries from history for cross-day dedup.
 
     Returns a flat list of dicts with fields:
@@ -40,7 +40,11 @@ def _load_recent_published() -> list[dict]:
         raw = json.loads(history_path.read_text(encoding="utf-8"))
         days = raw.get("days", {})
         result = []
+        skipped_same_day = 0
         for date_str, entries in days.items():
+            if exclude_date and str(date_str).strip() == exclude_date:
+                skipped_same_day += len(entries) if isinstance(entries, list) else 0
+                continue
             if not isinstance(entries, list):
                 continue
             for entry in entries:
@@ -61,6 +65,12 @@ def _load_recent_published() -> list[dict]:
                         "event_fingerprint": event_fp,
                     }
                 )
+        if exclude_date and skipped_same_day:
+            logger.info(
+                "Cross-day dedup: ignored %d same-day titles for %s",
+                skipped_same_day,
+                exclude_date,
+            )
         logger.info("Cross-day dedup: %d recent titles loaded", len(result))
         return result
     except Exception as exc:  # noqa: BLE001
@@ -1830,7 +1840,7 @@ def run(target_date: str | None = None) -> Path:
     ranked_path = settings.processed_dir / f"ranked_{day}.json"
     ranked_payload = load_json(ranked_path)
     candidates = ranked_payload.get("articles", [])
-    recent_published = _load_recent_published()
+    recent_published = _load_recent_published(exclude_date=day)
     recent_index = _build_recent_dedup_index(recent_published)
     candidates = _prioritize_non_recent_candidates(candidates, recent_index)
 
