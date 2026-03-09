@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html as html_lib
 import json
 import logging
 import os
@@ -252,7 +253,7 @@ class WeChatClient:
         urls_to_replace: dict[str, str] = {}
 
         for match in img_pattern.finditer(html):
-            src = match.group(2)
+            src = html_lib.unescape(match.group(2))
             parsed = urlparse(src)
             if parsed.scheme in ("http", "https") and "qpic.cn" not in parsed.netloc:
                 if src not in urls_to_replace:
@@ -270,6 +271,7 @@ class WeChatClient:
         for ext_url, wx_url in urls_to_replace.items():
             if wx_url:
                 html = html.replace(ext_url, wx_url)
+                html = html.replace(ext_url.replace("&", "&amp;"), wx_url)
             else:
                 html = re.sub(
                     rf'<img\s[^>]*?src="{re.escape(ext_url)}"[^>]*/?>',

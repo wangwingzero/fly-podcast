@@ -18,6 +18,7 @@ from flying_podcast.core.image_gen import generate_article_image, search_public_
 from flying_podcast.core.io_utils import dump_json, load_json
 from flying_podcast.core.llm_client import LLMError, OpenAICompatibleClient
 from flying_podcast.core.logging_utils import get_logger
+from flying_podcast.core.r2_upload import mirror_image_from_url
 from flying_podcast.core.time_utils import beijing_now, beijing_today_str
 from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
 
@@ -135,6 +136,39 @@ def _is_blocked_wechat_image(url: str) -> bool:
         return any(host.endswith(sfx) for sfx in _WECHAT_IMAGE_HOST_SUFFIXES)
     except Exception:  # noqa: BLE001
         return False
+
+
+def _is_r2_image_url(url: str) -> bool:
+    try:
+        host = (urlparse(str(url)).netloc or "").lower()
+        return bool(settings.r2_domain) and host.endswith(settings.r2_domain.lower())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _mirror_entry_images_to_r2(entries: list[dict], *, r2_prefix: str) -> int:
+    if not settings.r2_access_key_id or not settings.r2_secret_access_key or not settings.r2_endpoint:
+        return 0
+
+    mirrored = 0
+    for entry in entries:
+        image_url = str(entry.get("image_url", "")).strip()
+        if not image_url:
+            continue
+        if _is_blocked_wechat_image(image_url) or _is_r2_image_url(image_url):
+            continue
+        try:
+            mirrored_url = mirror_image_from_url(image_url, r2_prefix=r2_prefix)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Mirror article image to R2 failed for %s: %s", image_url[:80], exc)
+            continue
+        if mirrored_url:
+            entry["image_url"] = mirrored_url
+            mirrored += 1
+
+    if mirrored:
+        logger.info("Mirrored %d article image(s) to R2", mirrored)
+    return mirrored
 
 
 def _resolve_google_news_url(url: str) -> str:
@@ -636,6 +670,8 @@ def _enhance_web_entries(digest: dict) -> dict:
             if translated != title:
                 entry["title"] = translated
                 entry["original_title"] = title
+
+    _mirror_entry_images_to_r2(digest.get("entries", []), r2_prefix="digest/article-images")
 
     return digest
 
@@ -1206,6 +1242,8 @@ def run(target_date: str | None = None) -> Path:
             translated_body = _translate_body(body)
             if translated_body != body:
                 entry["body"] = translated_body
+
+    _mirror_entry_images_to_r2(digest.get("entries", []), r2_prefix="digest/article-images")
 
     md = _render_markdown(digest)
     html = _render_html(digest)

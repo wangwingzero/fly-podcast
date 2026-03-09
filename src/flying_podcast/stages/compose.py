@@ -373,6 +373,88 @@ def _resolve_google_url_single(page: Any, gurl: str, max_attempts: int = 3) -> s
     return ""
 
 
+def _resolve_google_url_requests(gurl: str, timeout: int = 10) -> str:
+    if "news.google.com" not in gurl:
+        return gurl
+    try:
+        resp = requests.get(
+            gurl,
+            timeout=timeout,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+            },
+            allow_redirects=True,
+        )
+        final_url = (resp.url or "").strip()
+        if final_url and "news.google.com" not in final_url:
+            return final_url
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Google redirect requests resolve failed %s: %s", gurl[:80], exc)
+    return ""
+
+
+def _apply_resolved_candidate_url(candidate: dict, final_url: str) -> None:
+    candidate["canonical_url"] = final_url
+    current_url = str(candidate.get("url", "")).strip()
+    if not current_url or "news.google.com" in current_url:
+        candidate["url"] = final_url
+    host = (urlsplit(final_url).netloc or "").lower().strip()
+    if host:
+        candidate["publisher_domain"] = host
+    candidate["is_google_redirect"] = False
+
+
+def _resolve_google_candidate_urls(candidates: list[dict]) -> None:
+    pending: list[tuple[dict, str]] = []
+    resolved_count = 0
+    failed_count = 0
+
+    for candidate in candidates:
+        page_url = str(candidate.get("canonical_url") or candidate.get("url") or "").strip()
+        if "news.google.com" not in page_url:
+            continue
+        final_url = _resolve_google_url_requests(page_url)
+        if final_url:
+            _apply_resolved_candidate_url(candidate, final_url)
+            resolved_count += 1
+        else:
+            pending.append((candidate, page_url))
+
+    if pending:
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            logger.warning("Playwright not available, skipping Google pre-resolution fallback")
+            failed_count += len(pending)
+            pending = []
+
+    if pending:
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                try:
+                    for candidate, gurl in pending:
+                        final_url = _resolve_google_url_single(page, gurl)
+                        if final_url:
+                            _apply_resolved_candidate_url(candidate, final_url)
+                            resolved_count += 1
+                        else:
+                            failed_count += 1
+                finally:
+                    browser.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Google pre-resolution fallback failed: %s", exc)
+            failed_count += len(pending)
+
+    if resolved_count or failed_count:
+        logger.info("Google candidate pre-resolution: resolved=%d failed=%d", resolved_count, failed_count)
+
+
 def _resolve_google_urls_and_fetch_images(entries: list, pool: list[dict]) -> None:
     """Resolve Google News redirect URLs via Playwright, then fetch og:image."""
     google_entries = []
@@ -1788,6 +1870,7 @@ def run(target_date: str | None = None) -> Path:
             # Enrich thin articles (selected only) before Phase 2 compose
             by_id = {c["id"]: c for c in (ai_candidates_pool or selected)}
             selected_cands = [by_id[rid] for rid in selected_ids if rid in by_id]
+            _resolve_google_candidate_urls(selected_cands)
             _enrich_thin_candidates(selected_cands)
 
             # Phase 2: Composition (N parallel isolated LLM calls)
