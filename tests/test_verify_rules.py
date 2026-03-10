@@ -53,6 +53,8 @@ def test_llm_editor_review_prompt_allows_humorous_highlight():
     assert "技术增量" in client.system_prompt
     assert "风险增量" in client.system_prompt
     assert "第一句事实" in client.user_prompt
+    assert "目标读者是飞行员" in client.system_prompt
+    assert "签派" not in client.system_prompt
 
 
 def test_llm_editor_review_keeps_high_value_ops_story_when_reason_is_only_too_thin():
@@ -134,3 +136,22 @@ def test_llm_editor_review_does_not_treat_emirates_as_rat_signal():
     )
 
     assert blocked == ["a1"]
+
+
+def test_llm_editor_review_prompt_rejects_schedule_advisory_style_story():
+    client = _FakeClient()
+    _llm_editor_review(
+        [{
+            "id": "a1",
+            "title": "American Airlines延长Philadelphia-Doha停飞并推迟JFK-Tel Aviv复航",
+            "conclusion": "American Airlines将Philadelphia-Doha停飞延长至5月7日，并把JFK-Tel Aviv恢复时间推迟到4月23日。",
+            "facts": [
+                "调整与中东局势导致大部分空域仍基本无法使用有关。",
+                "文中主要是航班暂停与恢复时间安排，以及旅客改签信息。",
+            ],
+            "body": "American Airlines更新了中东航线暂停与恢复时间安排，正文未提供NOTAM、程序限制或绕飞策略细节。",
+        }],
+        client,
+    )
+
+    assert "航司航线暂停/恢复" in client.system_prompt

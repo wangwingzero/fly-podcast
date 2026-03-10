@@ -195,8 +195,17 @@ _DEFAULT_PILOT_BACKGROUND_ONLY_KEYWORDS = [
     "增班",
     "加班",
     "航线安排",
+    "航线调整",
     "时刻",
     "排班",
+    "停航",
+    "复航",
+    "暂停运营",
+    "恢复运营",
+    "恢复时间",
+    "恢复时间推迟",
+    "延长停飞",
+    "航线停飞",
     "机型安排",
     "执飞",
     "订单",
@@ -207,6 +216,63 @@ _DEFAULT_PILOT_BACKGROUND_ONLY_KEYWORDS = [
     "定检",
     "停场",
     "首航",
+]
+
+_DEFAULT_PILOT_SCHEDULE_ADVISORY_KEYWORDS = [
+    "flight suspension",
+    "service suspension",
+    "suspension of",
+    "suspend flights",
+    "suspends flights",
+    "suspended flights",
+    "return of flights",
+    "return of service",
+    "service return",
+    "pause flights",
+    "pauses flights",
+    "paused flights",
+    "resume flights",
+    "resumes flights",
+    "resumed flights",
+    "resume service",
+    "resumes service",
+    "service resumption",
+    "operations update",
+    "travel waiver",
+    "rebooking",
+    "恢复运营",
+    "恢复航班",
+    "恢复时间",
+    "恢复时间推迟",
+    "暂停运营",
+    "暂停航班",
+    "停飞安排",
+    "延长停飞",
+    "航线停飞",
+]
+
+_DEFAULT_PILOT_SPECIFIC_OPS_KEYWORDS = [
+    "notam",
+    "tfr",
+    "procedure",
+    "procedures",
+    "reroute",
+    "rerouting",
+    "alternate",
+    "slot restriction",
+    "airport closure",
+    "runway closure",
+    "gps interference",
+    "spoofing",
+    "jamming",
+    "atc restriction",
+    "航行通告",
+    "程序限制",
+    "航路变更",
+    "绕飞",
+    "备降机场",
+    "跑道关闭",
+    "机场关闭",
 ]
 
 
@@ -272,6 +338,14 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
         kw_cfg.get("pilot_background_only_keywords"),
         _DEFAULT_PILOT_BACKGROUND_ONLY_KEYWORDS,
     )
+    schedule_advisory_words = _keyword_list(
+        kw_cfg.get("pilot_schedule_advisory_keywords"),
+        _DEFAULT_PILOT_SCHEDULE_ADVISORY_KEYWORDS,
+    )
+    specific_ops_words = _keyword_list(
+        kw_cfg.get("pilot_specific_ops_keywords"),
+        _DEFAULT_PILOT_SPECIFIC_OPS_KEYWORDS,
+    )
     non_aviation_patterns = _keyword_list(
         kw_cfg.get("non_aviation_reject_patterns"), [],
     )
@@ -315,8 +389,12 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
 
     direct_operation_hits = _count_hits(title_l, direct_operation_words) + _count_hits(text_l, direct_operation_words)
     background_only_hits = _count_hits(title_l, background_only_words) + _count_hits(text_l, background_only_words)
+    schedule_advisory_hits = _count_hits(title_l, schedule_advisory_words) + _count_hits(text_l, schedule_advisory_words)
+    specific_ops_hits = _count_hits(title_l, specific_ops_words) + _count_hits(text_l, specific_ops_words)
     if background_only_hits > 0 and direct_operation_hits <= 0:
         return False, "background_only_story"
+    if schedule_advisory_hits > 0 and specific_ops_hits <= 0:
+        return False, "schedule_advisory_story"
 
     return True, "ok"
 
