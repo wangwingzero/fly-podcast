@@ -183,6 +183,17 @@ class OpenAICompatibleClient:
         data = resp.json()
         return data, self._extract_response_text(data)
 
+    @staticmethod
+    def _responses_input_variants(system_prompt: str, user_prompt: str) -> list[Any]:
+        """Try both common Responses API input formats used by proxies."""
+        variants: list[Any] = [user_prompt]
+        message_input: list[dict[str, str]] = []
+        if system_prompt:
+            message_input.append({"role": "system", "content": system_prompt})
+        message_input.append({"role": "user", "content": user_prompt})
+        variants.append(message_input)
+        return variants
+
     def _request_once_anthropic(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float, timeout: int) -> tuple[dict[str, Any], str]:
         """Send request using Anthropic native Messages API format."""
         headers = {
@@ -216,7 +227,7 @@ class OpenAICompatibleClient:
 
         if not content.strip():
             raise LLMError("llm_empty_content")
-        return self._extract_json_object(content), content
+        return data, content
 
     def complete_json(
         self,
@@ -239,9 +250,10 @@ class OpenAICompatibleClient:
                 if self._is_anthropic:
                     # Anthropic native Messages API
                     prompt = system_prompt + "\n请仅输出JSON对象，不要Markdown。"
-                    parsed, content = self._request_once_anthropic(
+                    _, content = self._request_once_anthropic(
                         prompt, user_prompt, max_tokens, temperature, timeout,
                     )
+                    parsed = self._extract_json_object(content)
                     elapsed = time.monotonic() - t0
                     _log.info("LLM 响应: %.1f 秒, %d 字符", elapsed, len(content))
                     return LLMResponse(payload=parsed, raw_text=content)
@@ -255,24 +267,25 @@ class OpenAICompatibleClient:
                     if "JSON" not in json_instruction and "json" not in json_instruction.lower():
                         json_instruction += "\n请仅输出JSON对象，不要Markdown。"
 
-                    response_body = {
-                        "model": self.model,
-                        "instructions": json_instruction,
-                        "input": user_prompt,
-                        "text": {"format": {"type": "json_object"}},
-                        "max_output_tokens": max_tokens,
-                        "temperature": temperature,
-                    }
                     response_errors: list[str] = []
                     for url in self._responses_urls():
-                        try:
-                            data, content = self._request_once_responses(url, headers, response_body, timeout)
-                            parsed = self._extract_json_object(content)
-                            elapsed = time.monotonic() - t0
-                            _log.info("LLM 响应 (responses): %.1f 秒, %d 字符", elapsed, len(content))
-                            return LLMResponse(payload=parsed, raw_text=content)
-                        except LLMError as exc:
-                            response_errors.append(f"{url} -> {exc}")
+                        for input_payload in self._responses_input_variants("", user_prompt):
+                            response_body = {
+                                "model": self.model,
+                                "instructions": json_instruction,
+                                "input": input_payload,
+                                "text": {"format": {"type": "json_object"}},
+                                "max_output_tokens": max_tokens,
+                                "temperature": temperature,
+                            }
+                            try:
+                                data, content = self._request_once_responses(url, headers, response_body, timeout)
+                                parsed = self._extract_json_object(content)
+                                elapsed = time.monotonic() - t0
+                                _log.info("LLM 响应 (responses): %.1f 秒, %d 字符", elapsed, len(content))
+                                return LLMResponse(payload=parsed, raw_text=content)
+                            except LLMError as exc:
+                                response_errors.append(f"{url} -> {exc}")
 
                     base_body = {
                         "model": self.model,
@@ -366,22 +379,23 @@ class OpenAICompatibleClient:
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 }
-                response_body = {
-                    "model": self.model,
-                    "instructions": system_prompt,
-                    "input": user_prompt,
-                    "max_output_tokens": max_tokens,
-                    "temperature": temperature,
-                }
                 response_errors: list[str] = []
                 for url in self._responses_urls():
-                    try:
-                        _, content = self._request_once_responses(url, headers, response_body, timeout)
-                        elapsed = time.monotonic() - t0
-                        _log.info("LLM 文本响应 (responses): %.1f 秒, %d 字符", elapsed, len(content))
-                        return content
-                    except LLMError as exc:
-                        response_errors.append(f"{url} -> {exc}")
+                    for input_payload in self._responses_input_variants("", user_prompt):
+                        response_body = {
+                            "model": self.model,
+                            "instructions": system_prompt,
+                            "input": input_payload,
+                            "max_output_tokens": max_tokens,
+                            "temperature": temperature,
+                        }
+                        try:
+                            _, content = self._request_once_responses(url, headers, response_body, timeout)
+                            elapsed = time.monotonic() - t0
+                            _log.info("LLM 文本响应 (responses): %.1f 秒, %d 字符", elapsed, len(content))
+                            return content
+                        except LLMError as exc:
+                            response_errors.append(f"{url} -> {exc}")
 
                 chat_body = {
                     "model": self.model,

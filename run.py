@@ -17,6 +17,7 @@ from flying_podcast.core.config import ensure_dirs
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.stages.compose import run as compose
+from flying_podcast.stages.healthcheck import run as healthcheck
 from flying_podcast.stages.ingest import run as ingest
 from flying_podcast.stages.notify import run as notify
 from flying_podcast.stages.podcast import run as podcast
@@ -35,6 +36,7 @@ STAGES = {
     "ingest": ingest,
     "rank": rank,
     "compose": compose,
+    "healthcheck": healthcheck,
     "verify": verify,
     "publish": publish,
     "notify": notify,
@@ -61,6 +63,8 @@ def main() -> None:
                         help="Work directory (for podcast-audio)")
     parser.add_argument("--output-dir", dest="output_dir", default=None,
                         help="Output base directory (for podcast-script)")
+    parser.add_argument("--json", dest="json_output", action="store_true",
+                        help="Emit JSON output (for healthcheck)")
     args = parser.parse_args()
 
     ensure_dirs()
@@ -70,6 +74,9 @@ def main() -> None:
             logger.info("Running stage: %s", name)
             STAGES[name](args.date)
         return
+
+    if args.stage == "healthcheck":
+        raise SystemExit(healthcheck(args.date, json_output=args.json_output))
 
     if args.stage == "podcast":
         podcast(args.date, pdf_path=args.pdf)
