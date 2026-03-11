@@ -119,4 +119,30 @@ def test_sanitize_body_text_strips_meta_lead_phrase():
     body = "报道提到，主管部门公布了初步报告。划重点：这事不小。"
     cleaned = _sanitize_body_text(body)
 
-    assert cleaned.startswith("主管部门公布了初步报告。")
+    assert "报道提到" not in cleaned
+    assert cleaned == "划重点：这事不小。"
+
+
+def test_sanitize_body_text_removes_mid_sentence_meta_phrase():
+    body = (
+        "2026年2月初，一架Scandinavian Airlines（SAS）客机在一座大型机场发生严重运行事件。"
+        "报道指出，这起事件发生过程异常，涉及一次本不应出现的重大差错。"
+        "划重点：滑行道当跑道用。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "报道指出" not in cleaned
+    assert "发生严重运行事件" in cleaned
+    assert "重大差错" not in cleaned
+
+
+def test_sanitize_body_text_removes_reported_core_sentence_variant():
+    body = (
+        "2026年3月10日清晨，JetBlue报告发生系统故障。"
+        "报道所述事件核心为航司系统故障报告与美国联邦航空管理局随即实施的短时停飞措施。"
+        "划重点：系统一掉线，飞机先别动。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "报道所述事件核心为" not in cleaned
+    assert "JetBlue报告发生系统故障" in cleaned

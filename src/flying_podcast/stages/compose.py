@@ -791,8 +791,18 @@ _META_SENTENCE_PATTERNS = [
     r"报道标题所述事件核心为[^。！？!?]*[。！？!?]?",
 ]
 
-_META_LEAD_PATTERNS = [
-    r"^(报道提到，?|报道指出，?|报道显示，?|报道称，?|新闻称，?|新闻指出，?|新闻显示，?|据报道，?)",
+_META_SENTENCE_PHRASES = [
+    "报道提到",
+    "报道指出",
+    "报道显示",
+    "报道称",
+    "新闻称",
+    "新闻指出",
+    "新闻显示",
+    "据报道",
+    "报道所述事件核心为",
+    "新闻标题所述事件核心为",
+    "标题所述事件核心为",
 ]
 
 
@@ -816,10 +826,10 @@ def _sanitize_body_text(body: str) -> str:
         sentence = sentence.strip()
         if not sentence:
             continue
-        for pattern in _META_LEAD_PATTERNS:
-            sentence = re.sub(pattern, "", sentence, flags=re.IGNORECASE).strip()
-        if sentence:
-            cleaned_parts.append(sentence)
+        lowered = sentence.lower()
+        if any(phrase.lower() in lowered for phrase in _META_SENTENCE_PHRASES):
+            continue
+        cleaned_parts.append(sentence)
 
     text = "".join(cleaned_parts).strip()
     if comment:
