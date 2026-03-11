@@ -785,6 +785,48 @@ def _build_impact() -> str:
     return "详见原始来源。"
 
 
+_META_SENTENCE_PATTERNS = [
+    r"新闻标题所述事件核心为[^。！？!?]*[。！？!?]?",
+    r"标题所述事件核心为[^。！？!?]*[。！？!?]?",
+    r"报道标题所述事件核心为[^。！？!?]*[。！？!?]?",
+]
+
+_META_LEAD_PATTERNS = [
+    r"^(报道提到，?|报道指出，?|报道显示，?|报道称，?|新闻称，?|新闻指出，?|新闻显示，?|据报道，?)",
+]
+
+
+def _sanitize_body_text(body: str) -> str:
+    text = html.unescape((body or "").strip())
+    if not text:
+        return ""
+
+    comment = ""
+    if "划重点：" in text:
+        main, comment_part = text.split("划重点：", 1)
+        text = main.strip()
+        comment = "划重点：" + comment_part.strip()
+
+    for pattern in _META_SENTENCE_PATTERNS:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+
+    sentences = re.split(r"(?<=[。！？!?])", text)
+    cleaned_parts: list[str] = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        for pattern in _META_LEAD_PATTERNS:
+            sentence = re.sub(pattern, "", sentence, flags=re.IGNORECASE).strip()
+        if sentence:
+            cleaned_parts.append(sentence)
+
+    text = "".join(cleaned_parts).strip()
+    if comment:
+        return f"{text}\n{comment}".strip() if text else comment
+    return text
+
+
 def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
     if domestic_ratio <= 0.0:
         candidates = [c for c in candidates if c.get("region") != "domestic"]
@@ -805,7 +847,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
     )
     impact = impact.strip() or _build_impact()
     # If body is provided but facts are empty, derive facts from body for scoring
-    body = html.unescape(body.strip())
+    body = _sanitize_body_text(body)
     if body and not facts:
         normalized_facts = _ensure_min_facts(
             [s.strip() for s in re.split(r"[。.!?；]\s*", body) if s.strip()],
@@ -1284,6 +1326,7 @@ def _build_composition_prompt(
         "【核心原则】必须且只能基于提供的原文内容改写，不得引入外部事实，不得编造任何信息。\n\n"
         "【绝对禁止的写法】\n"
         "- 禁止写「原文未提供更多细节」「具体原因尚不清楚」「详情有待进一步报道」等元评论\n"
+        "- 禁止写「报道提到」「报道指出」「新闻称」「据报道」「新闻标题所述事件核心为」这类转述原文的元叙述\n"
         "- 禁止评论原文的信息量、质量或完整程度\n"
         "- 禁止添加「值得关注」「引发关注」等空话套话\n"
         "- 只写原文中有的事实，不需要凑字数，但也不要为了求稳把正文压成过短摘要\n\n"
@@ -1368,6 +1411,7 @@ _TRANSLATE_BODY_PROMPT = (
     "3. 飞机型号保留英文（如Boeing 737、Airbus A320等）\n"
     "4. 用3-4句话概括核心事实，纯客观报道，不加评论分析解读；如果原文较完整，优先写到180-260字\n"
     "5. 正文禁止出现「反映出」「体现了」「意味着」「表明」等分析性语言\n"
+    "5.1 禁止出现「报道提到」「报道指出」「新闻称」「据报道」「新闻标题所述事件核心为」这类元叙述\n"
     "6. 正文结构：先写事实摘要（3-4句纯事实），然后另起一行写「划重点：」开头的编辑锐评。\n"
     "   锐评风格：飞了二十年的老机长在群里转发新闻配的一句话，必须带调侃或吐槽，像段子手不像播音员。\n"
     "   禁止写「值得关注」「拭目以待」「值得深思」「积极信号」等官话套话。\n"

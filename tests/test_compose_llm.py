@@ -5,6 +5,7 @@ from flying_podcast.stages.compose import (
     _build_composition_prompt,
     _build_llm_prompts,
     _build_selection_prompt,
+    _sanitize_body_text,
     _validate_llm_entries,
 )
 
@@ -98,3 +99,24 @@ def test_build_composition_prompt_requests_longer_body_for_full_text():
     assert "180-260字" in system_prompt
     assert "不要压缩成两三句" in system_prompt
     assert "3-4句纯事实" in _TRANSLATE_BODY_PROMPT
+    assert "新闻标题所述事件核心为" in system_prompt
+
+
+def test_sanitize_body_text_removes_meta_discourse_sentence():
+    body = (
+        "2026年3月10日凌晨，JetBlue报告出现系统故障。随后，美国联邦航空管理局短暂停止了JetBlue所有离港航班。"
+        "新闻标题所述事件核心为系统故障触发航班出港短暂停摆。\n"
+        "划重点：系统一打喷嚏，全网先趴下。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "新闻标题所述事件核心为" not in cleaned
+    assert "2026年3月10日凌晨" in cleaned
+    assert "划重点：" in cleaned
+
+
+def test_sanitize_body_text_strips_meta_lead_phrase():
+    body = "报道提到，主管部门公布了初步报告。划重点：这事不小。"
+    cleaned = _sanitize_body_text(body)
+
+    assert cleaned.startswith("主管部门公布了初步报告。")
