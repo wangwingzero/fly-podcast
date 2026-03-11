@@ -146,3 +146,18 @@ def test_sanitize_body_text_removes_reported_core_sentence_variant():
 
     assert "报道所述事件核心为" not in cleaned
     assert "JetBlue报告发生系统故障" in cleaned
+
+
+def test_sanitize_body_text_removes_summary_style_sentences():
+    body = (
+        "有关部门现已就此发布初步报告，对事件经过展开说明。"
+        "现有信息显示，这起差错的严重程度很高，且初步报告公布后，事件为何会发生仍令人费解。"
+        "事件核心是航司系统故障触发了临时限制。"
+        "划重点：这事不能只怪运气。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "现有信息显示" not in cleaned
+    assert "仍令人费解" not in cleaned
+    assert "事件核心是" not in cleaned
+    assert "有关部门现已就此发布初步报告" in cleaned
