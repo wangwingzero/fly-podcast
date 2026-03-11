@@ -177,3 +177,19 @@ def test_sanitize_body_text_removes_judgment_style_sentences():
     assert "事件性质为" not in cleaned
     assert "短时运行中断" not in cleaned
     assert "Scandinavian Airlines" in cleaned
+
+
+def test_sanitize_body_text_removes_field_extraction_style_sentences():
+    body = (
+        "相关部门现已发布这起事件的初步报告。"
+        "已明确的时间节点为2026年2月初，主体为SAS，事件地点为一座大型机场，涉及滑行道与起飞操作。"
+        "原始信息中明确的主体包括美国联邦航空管理局和JetBlue，时间点为3月10日早间。"
+        "划重点：这种话别写进正文。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "已明确的时间节点为" not in cleaned
+    assert "主体为" not in cleaned
+    assert "主体包括" not in cleaned
+    assert "时间点为" not in cleaned
+    assert "相关部门现已发布这起事件的初步报告" in cleaned
