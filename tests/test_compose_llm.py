@@ -193,3 +193,18 @@ def test_sanitize_body_text_removes_field_extraction_style_sentences():
     assert "主体包括" not in cleaned
     assert "时间点为" not in cleaned
     assert "相关部门现已发布这起事件的初步报告" in cleaned
+
+
+def test_sanitize_body_text_removes_source_hint_style_sentences():
+    body = (
+        "2026年3月10日早些时候，美国联邦航空管理局短暂停止了JetBlue所有离港航班。"
+        "根据标题信息，该措施发生在JetBlue报告系统故障之后，受影响范围为JetBlue全部离港航班。"
+        "相关主管部门此后结束了这一临时限制。"
+        "划重点：系统掉链子，飞机先等等。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "根据标题信息" not in cleaned
+    assert "受影响范围为" not in cleaned
+    assert "相关主管部门此后" not in cleaned
+    assert "美国联邦航空管理局短暂停止了JetBlue所有离港航班" in cleaned
