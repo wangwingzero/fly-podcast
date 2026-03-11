@@ -1,6 +1,12 @@
 import json
 
-from flying_podcast.stages.compose import _build_selection_prompt, _validate_llm_entries
+from flying_podcast.stages.compose import (
+    _TRANSLATE_BODY_PROMPT,
+    _build_composition_prompt,
+    _build_llm_prompts,
+    _build_selection_prompt,
+    _validate_llm_entries,
+)
 
 
 def _candidate(i: int, region: str = "domestic"):
@@ -71,3 +77,24 @@ def test_build_selection_prompt_targets_pilot_only_and_allows_fewer_entries():
     assert "allow_fewer_entries" in payload["rules"]
     assert all("新航线" not in topic for topic in payload["rules"]["prefer_topics"])
     assert "宁缺毋滥" in system_prompt
+
+
+def test_build_llm_prompts_requests_longer_body():
+    system_prompt, user_prompt = _build_llm_prompts([_candidate(1)], total=10, domestic_quota=0, intl_quota=10)
+    payload = json.loads(user_prompt)
+
+    assert "4-6句话" in system_prompt
+    assert "180-260字" in system_prompt
+    assert "4-6句话" in payload["rules"]["body_style"]
+    assert "180-260字" in payload["rules"]["body_style"]
+
+
+def test_build_composition_prompt_requests_longer_body_for_full_text():
+    candidate = _candidate(1)
+    candidate["raw_text"] = "A" * 500
+    system_prompt, _ = _build_composition_prompt(candidate, "")
+
+    assert "4-6句话" in system_prompt
+    assert "180-260字" in system_prompt
+    assert "不要压缩成两三句" in system_prompt
+    assert "3-4句纯事实" in _TRANSLATE_BODY_PROMPT
