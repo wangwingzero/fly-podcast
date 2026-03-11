@@ -161,3 +161,19 @@ def test_sanitize_body_text_removes_summary_style_sentences():
     assert "仍令人费解" not in cleaned
     assert "事件核心" not in cleaned
     assert "有关部门现已就此发布初步报告" in cleaned
+
+
+def test_sanitize_body_text_removes_judgment_style_sentences():
+    body = (
+        "2026年2月上旬，Scandinavian Airlines（SAS）一架飞机在一座大型机场尝试从滑行道起飞。"
+        "该机在起飞滑跑中速度达到每小时120多英里，事件被形容为险些酿成严重后果。"
+        "随后相关放行限制被解除，事件性质为一次短时运行中断。"
+        "划重点：这事不小。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "被形容为" not in cleaned
+    assert "严重后果" not in cleaned
+    assert "事件性质为" not in cleaned
+    assert "短时运行中断" not in cleaned
+    assert "Scandinavian Airlines" in cleaned
