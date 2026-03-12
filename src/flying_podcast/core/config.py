@@ -38,7 +38,7 @@ class Settings:
     allow_google_redirect_citation: bool = _env_bool("ALLOW_GOOGLE_REDIRECT_CITATION", False)
     strict_web_published_at: bool = _env_bool("STRICT_WEB_PUBLISHED_AT", True)
     max_entries_per_source: int = _env_int("MAX_ENTRIES_PER_SOURCE", 3)
-    max_article_age_hours: int = _env_int("MAX_ARTICLE_AGE_HOURS", 72)
+    max_article_age_hours: int = _env_int("MAX_ARTICLE_AGE_HOURS", 48)
     recent_published_days: int = _env_int("RECENT_PUBLISHED_DAYS", 7)
 
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
