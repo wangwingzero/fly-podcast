@@ -491,7 +491,7 @@ def generate_cover_image(prompt: str, size: str = "1792x1024") -> bytes | None:
     return None
 
 
-def search_public_image_url(title: str) -> str:
+def search_public_image_url(title: str, timeout: int | None = None) -> str:
     """Search for a publicly accessible image URL for an article.
 
     Chain: Unsplash -> Pixabay.  Returns a direct URL string or "".
@@ -499,6 +499,10 @@ def search_public_image_url(title: str) -> str:
     just returns the public URL for embedding in external web pages.
     """
     query = _extract_search_query(title)
+    timeout_seconds = max(
+        1,
+        int(timeout if timeout is not None else getattr(settings, "public_image_search_timeout_seconds", 5) or 5),
+    )
 
     # 1. Unsplash
     keys = [k for k in [settings.unsplash_access_key, settings.unsplash_access_key_2] if k]
@@ -513,7 +517,7 @@ def search_public_image_url(title: str) -> str:
                     "content_filter": "high",
                 },
                 headers={"Authorization": f"Client-ID {key}"},
-                timeout=15,
+                timeout=timeout_seconds,
             )
             if resp.status_code == 403:
                 continue
@@ -540,7 +544,7 @@ def search_public_image_url(title: str) -> str:
                     "per_page": 3,
                     "safesearch": "true",
                 },
-                timeout=15,
+                timeout=timeout_seconds,
             )
             resp.raise_for_status()
             hits = resp.json().get("hits", [])

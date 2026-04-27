@@ -639,6 +639,10 @@ def _enhance_web_entries(digest: dict) -> dict:
     """
     import copy
     digest = copy.deepcopy(digest)
+    image_search_started = time.monotonic()
+    image_search_budget = max(0, int(getattr(settings, "web_image_search_budget_seconds", 20) or 0))
+    image_search_timeout = max(1, int(getattr(settings, "public_image_search_timeout_seconds", 5) or 5))
+    skipped_image_searches = 0
 
     for entry in digest.get("entries", []):
         click_url = _pick_click_url(entry)
@@ -660,7 +664,11 @@ def _enhance_web_entries(digest: dict) -> dict:
 
         # Fill missing images with publicly accessible URLs
         if (not entry.get("image_url")) or _is_blocked_wechat_image(str(entry.get("image_url", ""))):
-            url = search_public_image_url(entry.get("title", ""))
+            if image_search_budget <= 0 or (time.monotonic() - image_search_started) > image_search_budget:
+                skipped_image_searches += 1
+                url = ""
+            else:
+                url = search_public_image_url(entry.get("title", ""), timeout=image_search_timeout)
             if url:
                 entry["image_url"] = url
 
@@ -673,6 +681,12 @@ def _enhance_web_entries(digest: dict) -> dict:
                 entry["original_title"] = title
 
     _mirror_entry_images_to_static(digest.get("entries", []), static_prefix="digest/article-images")
+    if skipped_image_searches:
+        logger.info(
+            "Skipped %d public image search(es) after %ds budget",
+            skipped_image_searches,
+            image_search_budget,
+        )
 
     return digest
 

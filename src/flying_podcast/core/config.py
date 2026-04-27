@@ -100,6 +100,8 @@ class Settings:
     unsplash_access_key: str = os.getenv("UNSPLASH_ACCESS_KEY", "")
     unsplash_access_key_2: str = os.getenv("UNSPLASH_ACCESS_KEY_2", "")
     pixabay_api_key: str = os.getenv("PIXABAY_API_KEY", "")
+    public_image_search_timeout_seconds: int = _env_int("PUBLIC_IMAGE_SEARCH_TIMEOUT_SECONDS", 5)
+    web_image_search_budget_seconds: int = _env_int("WEB_IMAGE_SEARCH_BUDGET_SECONDS", 20)
 
     image_gen_api_key: str = os.getenv("IMAGE_GEN_API_KEY", "")
     image_gen_base_url: str = os.getenv("IMAGE_GEN_BASE_URL", "")

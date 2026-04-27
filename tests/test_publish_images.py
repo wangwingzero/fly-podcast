@@ -50,6 +50,30 @@ def test_replace_external_images_unescapes_query_params():
     assert "https://mmbiz.qpic.cn/fake.jpg" in out
 
 
+def test_enhance_web_entries_can_disable_public_image_search(monkeypatch):
+    fake_settings = SimpleNamespace(
+        web_image_search_budget_seconds=0,
+        public_image_search_timeout_seconds=5,
+        static_root="",
+        static_public_base_url="",
+    )
+    digest = {
+        "entries": [
+            {"title": "中文标题一", "citations": ["https://example.com/1"]},
+            {"title": "中文标题二", "citations": ["https://example.com/2"]},
+        ]
+    }
+    searched = []
+    monkeypatch.setattr(publish, "settings", fake_settings)
+    monkeypatch.setattr(publish, "search_public_image_url", lambda title, timeout=None: searched.append(title) or "https://img.example.com/a.jpg")
+    monkeypatch.setattr(publish, "_mirror_entry_images_to_static", lambda *args, **kwargs: 0)
+
+    out = publish._enhance_web_entries(digest)
+
+    assert searched == []
+    assert all("image_url" not in entry for entry in out["entries"])
+
+
 def test_publish_skips_wechat_when_digest_is_empty(monkeypatch, tmp_path):
     processed_dir = tmp_path / "processed"
     output_dir = tmp_path / "output"
