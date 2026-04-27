@@ -1,4 +1,4 @@
-from flying_podcast.stages.rank import _enforce_source_cap
+from flying_podcast.stages.rank import _dedupe_ranked_events, _enforce_source_cap
 
 
 def _row(i: int, source_id: str, region: str):
@@ -24,3 +24,30 @@ def test_enforce_source_cap_reduces_dominant_source():
     out, applied = _enforce_source_cap(selected, pool, max_per_source=3)
     assert applied is True
     assert sum(1 for x in out if x["source_id"] == "s1") <= 3
+
+
+def test_dedupe_ranked_events_collapses_similar_event_titles():
+    ranked = [
+        {
+            "id": "best",
+            "title": "LaGuardia runway collision inquiry seeks to learn why truck crew unaware of landing CRJ",
+            "canonical_url": "https://example.com/best",
+            "event_fingerprint": "fp1",
+        },
+        {
+            "id": "duplicate",
+            "title": "Fire truck failed to heed stop order before fatal La Guardia CRJ collision",
+            "canonical_url": "https://example.com/duplicate",
+            "event_fingerprint": "fp2",
+        },
+        {
+            "id": "other",
+            "title": "FAA issues new NOTAM for GPS interference procedures",
+            "canonical_url": "https://example.com/other",
+            "event_fingerprint": "fp3",
+        },
+    ]
+
+    out = _dedupe_ranked_events(ranked)
+
+    assert [x["id"] for x in out] == ["best", "other"]

@@ -1,93 +1,211 @@
 relevance_keywords:
-  - safety
+  - accident
   - incident
-  - delay
-  - weather
+  - serious incident
+  - emergency
+  - rejected takeoff
+  - aborted takeoff
+  - go-around
+  - diversion
+  - turnback
+  - evacuation
+  - runway excursion
+  - runway incursion
+  - loss of separation
+  - TCAS
+  - RA
+  - airworthiness directive
+  - safety directive
+  - safety alert
+  - SAFO
+  - InFO
+  - inspection
+  - service bulletin
+  - engine failure
+  - hydraulic
+  - electrical
+  - smoke
+  - fire
+  - pressurization
+  - fuel
+  - brake
+  - landing gear
+  - flight controls
+  - rudder
+  - stabilizer
+  - avionics
+  - CPDLC
+  - unreliable air data
+  - spatial disorientation
+  - fatigue
+  - CRM
+  - training
   - turbulence
-  - atc
-  - operation
-  - notam
-  - compliance
-  - route
-  - network
-  - schedule
-  - demand
-  - expansion
-  - fleet
-  - delivery
-  - boeing
-  - airbus
-  - engine
-  - mro
-  - aircraft
-  - retrofit
-  - order
-  - regulator
-  - policy
-  - faa
-  - easa
-  - iata
-  - rule
-  - standard
-  - certification
+  - windshear
+  - icing
+  - volcanic ash
+  - NOTAM
+  - TFR
+  - GPS interference
+  - spoofing
+  - jamming
+  - runway data
+  - overrun
+  - controlled flight into terrain
+  - CFIT
+  - 事故
+  - 事件
+  - 严重征候
+  - 备降
+  - 返航
+  - 复飞
+  - 中断起飞
+  - 紧急撤离
+  - 跑道侵入
+  - 冲出跑道
+  - 间隔丧失
+  - 适航指令
+  - 安全通告
+  - 检查
+  - 发动机
+  - 液压
+  - 烟雾
+  - 火警
+  - 增压
+  - 起落架
+  - 飞控
+  - 颠簸
+  - 风切变
+  - 结冰
+  - 航行通告
+  - 空域
+  - 导航干扰
 
 sensitive_keywords:
   - crash
   - fatal
   - dead
+  - killed
   - black box
+  - evacuation injury
+  - serious injuries
 
 sensational_words:
-  - breaking
   - shocking
   - bombshell
-  - must-see
+  - terrifying
+  - nightmare
+  - miracle
 
 blocked_domains:
   - freeportjournalstandard.com
 
 pilot_signal_keywords:
-  - aviation
-  - airline
-  - aircraft
-  - flight
-  - airport
-  - airspace
-  - runway
-  - notam
-  - atc
-  - faa
-  - easa
-  - iata
-  - icao
-  - ntsb
-  - airworthiness
-  - service bulletin
+  - accident
   - incident
-  - turbulence
-  - diversion
+  - serious incident
+  - emergency
+  - safety
+  - flight safety
+  - operational safety
+  - airworthiness
+  - directive
+  - airworthiness directive
+  - AD
+  - SAFO
+  - InFO
+  - safety alert
+  - inspection
+  - replacement
+  - service bulletin
+  - failure
+  - fault
+  - defect
+  - crack
+  - rejected takeoff
+  - aborted takeoff
+  - takeoff
+  - landing
   - go-around
+  - diversion
+  - turnback
+  - evacuation
+  - runway
+  - taxiway
+  - separation
+  - TCAS
+  - RA
+  - ATC
+  - NOTAM
+  - TFR
+  - airspace
+  - procedure
+  - route uplink
+  - CPDLC
+  - runway data
+  - overrun
+  - excursion
+  - incursion
+  - turbulence
+  - windshear
+  - icing
+  - volcanic ash
+  - smoke
+  - fire
+  - hydraulic
+  - electrical
+  - engine
+  - fuel
+  - brake
+  - gear
+  - flap
+  - rudder
+  - stabilizer
+  - flight controls
+  - pressurization
+  - unreliable air data
+  - GPS interference
+  - spoofing
+  - jamming
+  - fatigue
+  - spatial disorientation
+  - simulator
+  - training
+  - pilot
+  - cockpit
+  - crew
 
 pilot_entity_keywords:
   - faa
   - easa
-  - icao
-  - iata
   - ntsb
+  - nasa asrs
+  - aviation safety network
+  - the aviation herald
+  - flightglobal
   - boeing
   - airbus
-  - delta air lines
-  - delta airlines
-  - united airlines
-  - american airlines
-  - lufthansa
-  - emirates
-  - singapore airlines
-  - qatar airways
-  - british airways
-  - cathay pacific
-  - ryanair
-  - southwest airlines
+  - embraer
+  - bombardier
+  - atr
+  - de havilland
+  - pratt
+  - whitney
+  - rolls-royce
+  - ge aerospace
+  - cfm
+  - leap
+  - gtf
+  - airbus a319
+  - airbus a320
+  - airbus a321
+  - airbus a330
+  - airbus a350
+  - boeing 737
+  - boeing 757
+  - boeing 767
+  - boeing 777
+  - boeing 787
 
 hard_reject_keywords:
   - stock
@@ -96,12 +214,33 @@ hard_reject_keywords:
   - market cap
   - ipo
   - earnings
-  - celebrity
+  - revenue
+  - profit
+  - quarterly results
+  - shareholder
+  - investor
+  - aftermarket business
+  - maintenance output
+  - maintenance ramp
+  - supply chain cost
+  - war fallout
+  - business guidance
+  - financial guidance
+  - market guidance
   - luxury lounge
+  - lounge opening
   - loyalty program
   - frequent flyer
+  - miles
+  - credit card
   - meal service
+  - meal voucher
+  - passenger experience
+  - onboard dining
   - tourism
+  - hotel
+  - resort
+  - celebrity
   - soccer
   - football match
   - basketball
@@ -110,12 +249,62 @@ hard_reject_keywords:
   - nba
   - premier league
   - world cup
-  - real estate
   - cryptocurrency
   - crypto
   - bitcoin
+  - rocket
+  - spacecraft
+  - launch vehicle
+  - blue origin
+  - new glenn
+  - military aircraft
+  - fighter jet
+  - navy
+  - army
+  - aircraft acquisition
+  - immigration enforcement
+  - dispatch staffing
+  - dispatcher hiring
+  - dispatch system procurement
 
-# Patterns that indicate non-aviation entities (hard-reject on title match)
+strict_hard_reject_keywords:
+  - podcast
+  - episode
+  - meal voucher
+  - loyalty program
+  - frequent flyer
+  - credit card
+  - aftermarket business
+  - maintenance ramp
+  - maintenance output
+  - war fallout
+  - financial guidance
+  - market guidance
+  - maintenance implementation procedures
+  - manufacturing capacity
+  - deliveries surged
+  - funding
+  - modernisation progress
+  - modernization progress
+  - crew rostering
+  - airbus helicopters
+  - helicopter
+  - helicopters
+  - rotorcraft
+  - rocket
+  - spacecraft
+  - launch vehicle
+  - blue origin
+  - new glenn
+  - military aircraft
+  - fighter jet
+  - eurofighter
+  - navy
+  - aircraft acquisition
+  - acquiring
+  - immigration enforcement
+  - ice vehicles
+
 non_aviation_reject_patterns:
   - minnesota united
   - manchester united
@@ -129,45 +318,239 @@ non_aviation_reject_patterns:
   - delta variant
   - delta state
 
-pilot_allowed_source_ids:
-  - iata_press_web
-  - faa_newsroom_web
-  - airbus_newsroom_web
-  - boeing_newsroom_web
-  - flightglobal_news_web
-  - delta_news
-  - aerotime
-  - flightglobal
-  - leeham_news
-  - aviation_source
-  - the_aviationist
-  - simple_flying
-  - view_from_wing
-  - onemileatatime
-  - iata_press
-  - faa_news
-  - easa_news
-  - boeing_news
-  - airbus_news
-  - reuters_aerospace_web
-  - ain_online_web
+pilot_direct_operation_keywords:
+  - accident
+  - incident
+  - emergency
+  - rejected takeoff
+  - aborted takeoff
+  - high speed rejected takeoff
+  - diversion
+  - turnback
+  - go-around
+  - evacuation
+  - runway excursion
+  - runway incursion
+  - runway overrun
+  - loss of separation
+  - TCAS
+  - RA
+  - airworthiness directive
+  - safety directive
+  - safety alert
+  - SAFO
+  - InFO
+  - inspection
+  - replacement
+  - service bulletin
+  - fault
+  - failure
+  - defect
+  - crack
+  - engine issue
+  - engine failure
+  - hydraulic
+  - electrical
+  - smoke
+  - fire
+  - fuel
+  - brake
+  - gear
+  - landing gear
+  - flap
+  - rudder
+  - stabilizer
+  - flight controls
+  - pressurization
+  - unreliable air data
+  - CPDLC
+  - route uplink
+  - runway data
+  - spatial disorientation
+  - fatigue
+  - incapacitated
+  - NOTAM
+  - TFR
+  - airspace closure
+  - airspace restriction
+  - procedure
+  - reroute
+  - alternate
+  - GPS interference
+  - spoofing
+  - jamming
+  - turbulence
+  - windshear
+  - icing
+  - volcanic ash
+  - 事故
+  - 事件
+  - 严重征候
+  - 紧急
+  - 备降
+  - 返航
+  - 复飞
+  - 中断起飞
+  - 紧急撤离
+  - 跑道侵入
+  - 冲出跑道
+  - 间隔丧失
+  - 适航指令
+  - 安全通告
+  - 检查
+  - 更换
+  - 故障
+  - 失效
+  - 裂纹
+  - 发动机
+  - 液压
+  - 电气
+  - 烟雾
+  - 火警
+  - 燃油
+  - 刹车
+  - 起落架
+  - 飞控
+  - 增压
+  - 航行通告
+  - 空域
+  - 程序
+  - 绕飞
+  - 备降机场
+  - 导航干扰
+  - 颠簸
+  - 风切变
+  - 结冰
+
+pilot_background_only_keywords:
+  - new route
+  - new routes
+  - route launch
+  - inaugural
+  - nonstop service
+  - seasonal service
+  - network
+  - schedule
+  - timetable
+  - frequency
+  - additional flights
+  - extra flights
+  - capacity
+  - expansion
+  - demand
+  - market
+  - fleet expansion
+  - order
+  - orders
+  - delivery
+  - deliveries
+  - takes delivery
+  - receives aircraft
+  - livery
+  - award
+  - sustainability partnership
+  - customer experience
+  - airport retail
+  - terminal expansion
+  - passenger flow
+  - baggage handling efficiency
+  - 新航线
+  - 增班
+  - 加班
+  - 航线安排
+  - 航线调整
+  - 时刻
+  - 机型安排
+  - 执飞
+  - 订单
+  - 交付
+  - 机队
+  - 扩张
+  - 首航
+  - 旅客服务
+  - 航站楼扩建
+  - 吞吐量
+
+pilot_schedule_advisory_keywords:
+  - flight suspension
+  - service suspension
+  - suspend flights
+  - suspended flights
+  - return of flights
+  - return of service
+  - pause flights
+  - resume flights
+  - service resumption
+  - operations update
+  - travel waiver
+  - rebooking
+  - customer flexibility
+  - 恢复运营
+  - 恢复航班
+  - 暂停运营
+  - 暂停航班
+  - 停飞安排
+  - 航线停飞
+  - 改签
+
+pilot_specific_ops_keywords:
+  - NOTAM
+  - TFR
+  - procedure
+  - procedures
+  - reroute
+  - rerouting
+  - alternate
+  - slot restriction
+  - airport closure
+  - runway closure
+  - runway data
+  - overrun
+  - GPS interference
+  - spoofing
+  - jamming
+  - CPDLC
+  - route uplink
+  - ATC restriction
+  - 航行通告
+  - 程序限制
+  - 航路变更
+  - 绕飞
+  - 备降机场
+  - 跑道关闭
+  - 机场关闭
+
+pilot_priority_sources:
+  - avherald_web
+  - asn_2026_web
+  - easa_ad_web
+  - faa_safo_web
+  - faa_info_web
+  - nasa_asrs_callback_web
   - ntsb_press_web
-  - easa_newsroom_web
+  - flightglobal_safety
+  - flightglobal_engines
+
+pilot_allowed_source_ids:
+  - avherald_web
+  - asn_2026_web
+  - easa_ad_web
+  - faa_safo_web
+  - faa_info_web
+  - nasa_asrs_callback_web
+  - ntsb_press_web
+  - flightglobal_safety
+  - flightglobal_engines
+  - ain_online_web
 
 pilot_allowed_domains:
-  - iata.org
-  - faa.gov
-  - airbus.com
-  - boeing.com
-  - boeing.mediaroom.com
-  - flightglobal.com
-  - simpleflying.com
-  - aviationsourcenews.com
-  - aerotime.aero
-  - theaviationist.com
-  - onemileatatime.com
-  - viewfromthewing.com
-  - reuters.com
-  - ainonline.com
-  - ntsb.gov
+  - avherald.com
+  - aviation-safety.net
+  - asn.flightsafety.org
+  - ad.easa.europa.eu
   - easa.europa.eu
+  - faa.gov
+  - ntsb.gov
+  - asrs.arc.nasa.gov
+  - flightglobal.com
+  - ainonline.com

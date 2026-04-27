@@ -1,305 +1,54 @@
 sources:
   # ============================================================
-  # 一、国际航空 — Google News 聚合（A 级）
+  # Pilot-first safety and operations sources
   # ============================================================
-  - id: google_intl_aviation
-    name: Google News · Aviation & Airlines
-    url: "https://news.google.com/rss/search?q=airline+aviation+news&hl=en&gl=US&ceid=US:en"
-    type: rss
-    source_tier: A
-    region: international
-    enabled: true
-
-  - id: google_intl_airlines
-    name: Google News · Major Airlines
-    url: "https://news.google.com/rss/search?q=Delta+OR+United+OR+%22American+Airlines%22+OR+Lufthansa+OR+Emirates+OR+%22Singapore+Airlines%22+OR+%22Qatar+Airways%22+OR+%22British+Airways%22+OR+%22Cathay+Pacific%22&hl=en&gl=US&ceid=US:en"
-    type: rss
-    source_tier: A
-    region: international
-    enabled: true
-
-  - id: google_intl_boeing_airbus
-    name: Google News · Boeing & Airbus
-    url: "https://news.google.com/rss/search?q=Boeing+OR+Airbus+aviation&hl=en&gl=US&ceid=US:en"
-    type: rss
-    source_tier: A
-    region: international
-    enabled: true
-
-  # ============================================================
-  # 四、国际航空 — 航司官方新闻 RSS（A 级）
-  # ============================================================
-  - id: delta_news
-    name: Delta News Hub
-    url: https://news.delta.com/rss.xml
-    type: rss
-    source_tier: A
-    region: international
-    enabled: true
-
-  # ============================================================
-  # 五、国际航空 — 独立媒体 RSS（B 级）
-  # ============================================================
-  - id: aerotime
-    name: AeroTime Hub
-    url: https://www.aerotime.aero/rss
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: flightradar24_blog
-    name: Flightradar24 Blog
-    url: https://www.flightradar24.com/blog/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: aerospace_tech
-    name: Aerospace Technology
-    url: https://www.aerospace-technology.com/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: leeham_news
-    name: Leeham News
-    url: https://leehamnews.com/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: aviation_source
-    name: Aviation Source News
-    url: https://aviationsourcenews.com/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: the_aviationist
-    name: The Aviationist
-    url: https://theaviationist.com/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: view_from_wing
-    name: View from the Wing
-    url: https://viewfromthewing.com/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: onemileatatime
-    name: One Mile at a Time
-    url: https://onemileatatime.com/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  - id: simple_flying
-    name: Simple Flying
-    url: https://simpleflying.com/feed/
-    type: rss
-    source_tier: B
-    region: international
-    enabled: true
-
-  # ============================================================
-  # 六、网站列表页爬虫（支持 requests/playwright/nodriver）
-  # ============================================================
-  - id: iata_press_web
-    name: IATA Pressroom Web
-    url: https://www.iata.org/en/pressroom/
+  - id: avherald_web
+    name: The Aviation Herald
+    url: https://avherald.com/
     type: web
     fetch_mode: requests
     source_tier: A
     region: international
     lang: en
-    fallback_order: [playwright, nodriver]
-    xvfb: true
     link_patterns:
-      - "iata\\.org/en/pressroom/.+"
+      - "avherald\\.com/h\\?article="
     published_at_patterns:
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/search"
-      - "#"
-      - "javascript:"
-    article_include_keywords:
-      - airline
-      - aviation
-      - cargo
-      - passenger
-      - airport
-      - safety
-    max_items: 60
-    enabled: true
-
-  - id: faa_newsroom_web
-    name: FAA Newsroom Web
-    url: https://www.faa.gov/newsroom
-    type: web
-    fetch_mode: requests
-    source_tier: A
-    region: international
-    lang: en
-    fallback_order: [playwright, nodriver]
-    xvfb: true
-    link_patterns:
-      - "faa\\.gov/newsroom/.+"
-    published_at_patterns:
-      - "/(20\\d{2})/"
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/about/"
-      - "/contact"
-      - "javascript:"
-      - "#"
-    article_include_keywords:
-      - aviation
-      - aircraft
-      - safety
-      - airport
-      - airlines
-      - flight
-    max_items: 60
-    enabled: true
-
-  - id: airbus_newsroom_web
-    name: Airbus Newsroom Web
-    url: https://www.airbus.com/en/newsroom
-    type: web
-    fetch_mode: requests
-    source_tier: A
-    region: international
-    lang: en
-    fallback_order: [playwright, nodriver]
-    xvfb: true
-    link_patterns:
-      - "airbus\\.com/en/newsroom/.+"
-    published_at_patterns:
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/events"
-      - "/media"
-      - "javascript:"
-      - "#"
-    article_include_keywords:
-      - aircraft
-      - aviation
-      - airbus
-      - airline
-      - fleet
-    max_items: 60
-    enabled: true
-
-  - id: boeing_newsroom_web
-    name: Boeing Newsroom Web
-    url: https://boeing.mediaroom.com/news-releases-statements
-    type: web
-    fetch_mode: requests
-    source_tier: A
-    region: international
-    lang: en
-    fallback_order: [playwright, nodriver]
-    xvfb: true
-    link_patterns:
-      - "boeing\\.mediaroom\\.com/.+"
-    published_at_patterns:
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/photos"
-      - "/videos"
-      - "javascript:"
-      - "#"
-    article_include_keywords:
-      - boeing
-      - aircraft
-      - aviation
-      - airline
-      - fleet
-    max_items: 60
-    enabled: true
-
-  - id: flightglobal_news_web
-    name: FlightGlobal News Web
-    url: https://www.flightglobal.com/news
-    type: web
-    fetch_mode: requests
-    source_tier: B
-    region: international
-    lang: en
-    fallback_order: [playwright, nodriver]
-    xvfb: true
-    link_patterns:
-      - "flightglobal\\.com/.+"
-    published_at_patterns:
-      - "/(20\\d{2})/"
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/topics/"
-      - "/author/"
-      - "javascript:"
-      - "#"
-    article_include_keywords:
-      - aviation
-      - airline
-      - aircraft
-      - airport
-      - engine
-      - fleet
+      - "on\\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+([0-3]?\\d)(?:st|nd|rd|th)?\\s+(20\\d{2})"
+    article_include_keywords: []
     max_items: 80
     enabled: true
 
-  - id: reuters_aerospace_web
-    name: Reuters Aerospace & Defense
-    url: https://www.reuters.com/business/aerospace-defense/
+  - id: asn_2026_web
+    name: Aviation Safety Network 2026
+    url: https://asn.flightsafety.org/asndb/year/2026
     type: web
     fetch_mode: requests
+    verify_ssl: false
     source_tier: A
     region: international
     lang: en
-    fallback_order: [playwright]
     link_patterns:
-      - "reuters\\.com/business/aerospace-defense/.+-20\\d{2}-\\d{2}-\\d{2}"
-    published_at_patterns:
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/video/"
-      - "javascript:"
-      - "#"
+      - "aviation-safety\\.net/wikibase/"
+      - "asn\\.flightsafety\\.org/wikibase/"
+    published_at_patterns: []
     article_include_keywords: []
-    max_items: 40
+    max_items: 80
     enabled: true
 
-  - id: ain_online_web
-    name: AIN Online - Aviation International News
-    url: https://www.ainonline.com/aviation-news/air-transport
-    type: web
-    fetch_mode: requests
+  - id: flightglobal_safety
+    name: FlightGlobal Safety
+    url: https://www.flightglobal.com/category/safety/feed/
+    type: rss
     source_tier: B
     region: international
-    lang: en
-    fallback_order: [playwright]
-    link_patterns:
-      - "ainonline\\.com/aviation-news/.+/20\\d{2}-\\d{2}-\\d{2}/.+"
-    published_at_patterns:
-      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-    exclude_patterns:
-      - "/author/"
-      - "/tag/"
-      - "javascript:"
-      - "#"
-    article_include_keywords: []
-    max_items: 40
+    enabled: true
+
+  - id: flightglobal_engines
+    name: FlightGlobal Engines
+    url: https://www.flightglobal.com/category/engines/feed/
+    type: rss
+    source_tier: B
+    region: international
     enabled: true
 
   - id: ntsb_press_web
@@ -323,83 +72,165 @@ sources:
     max_items: 30
     enabled: true
 
-  - id: easa_newsroom_web
-    name: EASA Newsroom
-    url: https://www.easa.europa.eu/en/newsroom-and-events/press-releases
+  - id: easa_ad_web
+    name: EASA Safety Publications
+    url: https://ad.easa.europa.eu/
     type: web
-    fetch_mode: playwright
+    fetch_mode: requests
     source_tier: A
     region: international
     lang: en
-    fallback_order: [nodriver]
-    xvfb: true
     link_patterns:
-      - "easa\\.europa\\.eu/en/.+"
+      - "ad\\.easa\\.europa\\.eu/ad/"
     published_at_patterns:
       - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
-      - "([0-3]?\\d\\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+20\\d{2})"
-    exclude_patterns:
-      - "/domains/"
-      - "/events/"
-      - "javascript:"
-      - "#"
-    article_include_keywords:
-      - aviation
-      - safety
-      - aircraft
-      - airworthiness
-      - drone
-      - certification
-    max_items: 30
+    article_include_keywords: []
+    max_items: 50
+    enabled: true
+
+  - id: faa_safo_web
+    name: FAA Safety Alerts for Operators
+    url: https://www.faa.gov/other_visit/aviation_industry/airline_operators/airline_safety/safo/all_safos
+    type: web
+    fetch_mode: requests
+    source_tier: A
+    region: international
+    lang: en
+    link_patterns:
+      - "faa\\.gov/.+SAFO\\d+\\.pdf"
+    published_at_patterns: []
+    article_include_keywords: []
+    max_items: 40
+    enabled: true
+
+  - id: faa_info_web
+    name: FAA Information for Operators
+    url: https://www.faa.gov/other_visit/aviation_industry/airline_operators/airline_safety/info/all_infos
+    type: web
+    fetch_mode: requests
+    source_tier: A
+    region: international
+    lang: en
+    link_patterns:
+      - "faa\\.gov/.+InFO\\d+\\.pdf"
+    published_at_patterns: []
+    article_include_keywords: []
+    max_items: 50
+    enabled: true
+
+  - id: nasa_asrs_callback_web
+    name: NASA ASRS CALLBACK
+    url: https://asrs.arc.nasa.gov/publications/callback.html
+    type: web
+    fetch_mode: requests
+    source_tier: A
+    region: international
+    lang: en
+    link_patterns:
+      - "asrs\\.arc\\.nasa\\.gov/publications/callback/cb_\\d+\\.html"
+    published_at_patterns:
+      - "((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+20\\d{2})"
+    article_include_keywords: []
+    max_items: 12
     enabled: true
 
   # ============================================================
-  # 七、已失效源（保留备查，默认禁用）
+  # Secondary pilot-relevant media. Enabled only when they tend to
+  # produce operational or technical items; broad airline business
+  # feeds stay disabled by default.
   # ============================================================
-  - id: iata_press
-    name: IATA Pressroom
-    url: https://www.iata.org/en/pressroom/rss/
-    type: rss
-    source_tier: A
-    region: international
-    enabled: false
-
-  - id: faa_news
-    name: FAA Newsroom
-    url: https://www.faa.gov/newsroom/rss.xml
-    type: rss
-    source_tier: A
-    region: international
-    enabled: false
-
-  - id: easa_news
-    name: EASA News
-    url: https://www.easa.europa.eu/en/newsroom/news.rss
-    type: rss
-    source_tier: A
-    region: international
-    enabled: false
-
-  - id: boeing_news
-    name: Boeing News
-    url: https://boeing.mediaroom.com/rss-feeds?format=xml
-    type: rss
-    source_tier: A
-    region: international
-    enabled: false
-
-  - id: airbus_news
-    name: Airbus Newsroom
-    url: https://www.airbus.com/en/newsroom/rss.xml
-    type: rss
-    source_tier: A
-    region: international
-    enabled: false
-
-  - id: flightglobal
-    name: FlightGlobal
-    url: https://www.flightglobal.com/214.more?cmd=GoToPage&output=RSS
-    type: rss
+  - id: ain_online_web
+    name: AIN Online - Aviation International News
+    url: https://www.ainonline.com/aviation-news/air-transport
+    type: web
+    fetch_mode: requests
     source_tier: B
+    region: international
+    lang: en
+    fallback_order: [playwright]
+    link_patterns:
+      - "ainonline\\.com/aviation-news/.+/20\\d{2}-\\d{2}-\\d{2}/.+"
+    published_at_patterns:
+      - "(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])"
+    exclude_patterns:
+      - "/author/"
+      - "/tag/"
+      - "javascript:"
+      - "#"
+    article_include_keywords: []
+    max_items: 40
+    enabled: true
+
+  # ============================================================
+  # Disabled background/business sources kept for manual fallback.
+  # They are useful for industry context but are not pilot-first.
+  # ============================================================
+  - id: aerotime
+    name: AeroTime Hub
+    url: https://www.aerotime.aero/rss
+    type: rss
+    source_tier: C
+    region: international
+    enabled: false
+
+  - id: aviation_source
+    name: Aviation Source News
+    url: https://aviationsourcenews.com/feed/
+    type: rss
+    source_tier: C
+    region: international
+    enabled: false
+
+  - id: flightglobal_news_web
+    name: FlightGlobal Air Transport
+    url: https://www.flightglobal.com/category/air-transport/feed/
+    type: rss
+    source_tier: C
+    region: international
+    enabled: false
+
+  - id: flightradar24_blog
+    name: Flightradar24 Blog
+    url: https://www.flightradar24.com/blog/feed/
+    type: rss
+    source_tier: C
+    region: international
+    enabled: false
+
+  - id: iata_press_web
+    name: IATA Pressroom Web
+    url: https://www.iata.org/en/pressroom/
+    type: web
+    fetch_mode: requests
+    source_tier: C
+    region: international
+    lang: en
+    enabled: false
+
+  - id: airbus_newsroom_web
+    name: Airbus Newsroom Web
+    url: https://www.airbus.com/en/newsroom
+    type: web
+    fetch_mode: requests
+    source_tier: C
+    region: international
+    lang: en
+    enabled: false
+
+  - id: boeing_newsroom_web
+    name: Boeing Newsroom Web
+    url: https://boeing.mediaroom.com/news-releases-statements
+    type: web
+    fetch_mode: requests
+    source_tier: C
+    region: international
+    lang: en
+    enabled: false
+
+  - id: delta_news
+    name: Delta News Hub
+    url: https://news.delta.com/rss.xml
+    type: rss
+    source_tier: C
     region: international
     enabled: false

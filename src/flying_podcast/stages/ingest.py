@@ -5,6 +5,7 @@ import html
 import re
 import sys
 import os
+import time
 from html.parser import HTMLParser
 from datetime import datetime, timezone
 from pathlib import Path
@@ -229,8 +230,8 @@ class _AnchorParser(HTMLParser):
         self._current_text = []
 
 
-def _fetch_html_requests(url: str, user_agent: str, timeout: int = 20) -> str:
-    resp = requests.get(url, timeout=timeout, headers={"User-Agent": user_agent})
+def _fetch_html_requests(url: str, user_agent: str, timeout: int = 20, verify_ssl: bool = True) -> str:
+    resp = requests.get(url, timeout=timeout, headers={"User-Agent": user_agent}, verify=verify_ssl)
     if not resp.ok:
         raise RuntimeError(f"http_{resp.status_code}")
     if not resp.encoding or resp.encoding.lower() in {"iso-8859-1", "ascii"}:
@@ -304,6 +305,7 @@ def _fetch_html(source: dict[str, Any], url: str) -> str:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     )
+    verify_ssl = bool(source.get("verify_ssl", True))
     use_xvfb = bool(source.get("xvfb", True))
     fallback_order = [str(x).lower() for x in source.get("fallback_order", ["playwright", "nodriver"])]
     if sys.platform.startswith("win") and mode != "nodriver":
@@ -314,7 +316,7 @@ def _fetch_html(source: dict[str, Any], url: str) -> str:
         return _fetch_html_playwright(url)
 
     try:
-        html = _fetch_html_requests(url, user_agent=user_agent)
+        html = _fetch_html_requests(url, user_agent=user_agent, verify_ssl=verify_ssl)
         if mode == "auto" and len(html) < 800:
             last_error = "empty_shell"
             for fallback in fallback_order:
@@ -348,11 +350,13 @@ def _collect_rss_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
     try:
         parsed = feedparser.parse(source["url"])
     except Exception as exc:  # noqa: BLE001
+        source["_last_error"] = str(exc)
         logger.warning("Fetch feed failed %s: %s", source["id"], exc)
         return rows
     if parsed.bozo:
         logger.warning("Feed parse warning %s: %s", source["id"], parsed.bozo_exception)
         if not parsed.entries:
+            source["_last_error"] = str(parsed.bozo_exception)
             return rows
 
     for entry in parsed.entries:
@@ -384,10 +388,12 @@ def _collect_web_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     list_url = source.get("list_url") or source.get("url")
     if not list_url:
+        source["_last_error"] = "missing_list_url"
         return rows
     try:
         html = _fetch_html(source, list_url)
     except Exception as exc:  # noqa: BLE001
+        source["_last_error"] = str(exc)
         logger.warning("Fetch web source failed %s: %s", source.get("id"), exc)
         return rows
 
@@ -449,7 +455,7 @@ def run(target_date: str | None = None) -> Path:
 
     config = load_yaml(settings.sources_config)
     sources = [s for s in config.get("sources", []) if s.get("enabled", True)]
-    seen_ids = read_lines(settings.history_dir / "seen_ids.txt")
+    seen_ids = set() if getattr(settings, "dry_run", False) else read_lines(settings.history_dir / "seen_ids.txt")
 
     existing: dict[str, dict[str, Any]] = {}
     if out.exists():
@@ -458,15 +464,42 @@ def run(target_date: str | None = None) -> Path:
 
     items: list[NewsItem] = []
     new_ids: list[str] = []
+    source_health: list[dict[str, Any]] = []
 
     for source in sources:
+        started = time.monotonic()
+        source["_last_error"] = ""
         stype = str(source.get("type", "rss")).lower()
         if stype == "rss":
             entries = _collect_rss_entries(source)
         elif stype == "web":
             entries = _collect_web_entries(source)
         else:
+            entries = []
+            source["_last_error"] = f"unsupported_source_type:{stype}"
             logger.warning("Skip unsupported source type: %s", source.get("id"))
+        elapsed_s = round(time.monotonic() - started, 2)
+        error = str(source.get("_last_error", "") or "").strip()
+        if entries:
+            status = "ok"
+        elif error:
+            status = "failed"
+        else:
+            status = "empty"
+        source_health.append(
+            {
+                "source_id": source.get("id", ""),
+                "source_name": source.get("name", ""),
+                "type": stype,
+                "source_tier": source.get("source_tier", "C"),
+                "region": source.get("region", "international"),
+                "status": status,
+                "item_count": len(entries),
+                "error": error,
+                "elapsed_s": elapsed_s,
+            }
+        )
+        if stype not in {"rss", "web"}:
             continue
 
         for entry in entries:
@@ -507,8 +540,17 @@ def run(target_date: str | None = None) -> Path:
 
     merged = list(existing.values()) + [i.to_dict() for i in items]
     dump_json(out, merged)
-    append_lines(settings.history_dir / "seen_ids.txt", new_ids)
-    logger.info("Ingest done. sources=%s new_items=%s merged_items=%s", len(sources), len(items), len(merged))
+    dump_json(settings.raw_dir / f"source_health_{day}.json", source_health)
+    if getattr(settings, "dry_run", False):
+        logger.info("Skip seen_ids history append in dry-run mode")
+    else:
+        append_lines(settings.history_dir / "seen_ids.txt", new_ids)
+    failed_sources = sum(1 for s in source_health if s.get("status") == "failed")
+    empty_sources = sum(1 for s in source_health if s.get("status") == "empty")
+    logger.info(
+        "Ingest done. sources=%s new_items=%s merged_items=%s failed_sources=%s empty_sources=%s",
+        len(sources), len(items), len(merged), failed_sources, empty_sources,
+    )
     return out
 
 

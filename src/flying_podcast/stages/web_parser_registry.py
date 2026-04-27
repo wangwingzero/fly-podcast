@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from html.parser import HTMLParser
 from typing import Callable
 from urllib.parse import urljoin, urlparse
@@ -77,6 +78,7 @@ def _extract_date_hint(text: str) -> str:
         r"(20\d{2}/[01]?\d/[0-3]?\d)",
         r"(20\d{2}年[01]?\d月[0-3]?\d日)",
         r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+[0-3]?\d,\s*20\d{2})",
+        r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+[0-3]?\d(?:st|nd|rd|th)?\s+20\d{2})",
         r"(t(20\d{2})(0[1-9]|1[0-2])([0-3]\d)_)",
         r"([0-3]?\d\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+20\d{2})",
         r"((?:NR|MA|MR)(20\d{2})(0[1-9]|1[0-2])([0-3]\d))",
@@ -92,6 +94,23 @@ def _extract_date_hint(text: str) -> str:
         ntsb = re.match(r"(?:NR|MA|MR)(20\d{2})(0[1-9]|1[0-2])([0-3]\d)", token, flags=re.IGNORECASE)
         if ntsb:
             return f"{ntsb.group(1)}-{ntsb.group(2)}-{ntsb.group(3)}"
+        ordinal = re.match(
+            r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*)\s+([0-3]?\d)(?:st|nd|rd|th)?\s+(20\d{2})",
+            token,
+            flags=re.IGNORECASE,
+        )
+        if ordinal:
+            try:
+                parsed = datetime.strptime(
+                    f"{ordinal.group(1)} {int(ordinal.group(2))} {ordinal.group(3)}",
+                    "%b %d %Y",
+                )
+            except ValueError:
+                parsed = datetime.strptime(
+                    f"{ordinal.group(1)[:3]} {int(ordinal.group(2))} {ordinal.group(3)}",
+                    "%b %d %Y",
+                )
+            return parsed.strftime("%Y-%m-%d")
         return token
     return ""
 
@@ -301,6 +320,162 @@ def _parse_easa(list_url: str, html_text: str) -> list[ParsedWebEntry]:
     )
 
 
+def _strip_tags(text: str) -> str:
+    clean = re.sub(r"<[^>]+>", " ", text or "")
+    return _normalize_text(clean)
+
+
+def _parse_avherald(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    parser = _AnchorParser()
+    parser.feed(html_text)
+    out: list[ParsedWebEntry] = []
+    seen: set[str] = set()
+    for href, title in parser.links:
+        title = _normalize_text(title)
+        if not title or "/h?article=" not in href:
+            continue
+        abs_url = _normalize_text(urljoin(list_url, href))
+        if abs_url in seen:
+            continue
+        # AvHerald titles usually contain "on Apr 26th 2026".
+        published_hint = _extract_date_hint(title)
+        out.append(
+            ParsedWebEntry(
+                url=abs_url,
+                title=title,
+                raw_text=f"AvHerald safety event: {title}",
+                published_hint=published_hint,
+            )
+        )
+        seen.add(abs_url)
+    return out
+
+
+def _parse_asn_year(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    out: list[ParsedWebEntry] = []
+    seen: set[str] = set()
+    for row in re.findall(r"<tr[^>]+class=[\"']list[\"'][^>]*>(.*?)</tr>", html_text, flags=re.I | re.S):
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.I | re.S)
+        if len(cells) < 8:
+            continue
+        href_match = re.search(r"href\s*=\s*[\"']?([^\"'\s>]+)", cells[0], flags=re.I)
+        if not href_match:
+            continue
+        url = _normalize_text(urljoin(list_url, href_match.group(1)))
+        if url in seen:
+            continue
+        acc_date = _strip_tags(cells[0])
+        aircraft_type = _strip_tags(cells[1])
+        registration = _strip_tags(cells[2])
+        operator = _strip_tags(cells[3])
+        fatalities = _strip_tags(cells[4])
+        location = _strip_tags(cells[5])
+        damage = _strip_tags(cells[7])
+        title_parts = [
+            "ASN accident record",
+            acc_date,
+            operator,
+            aircraft_type,
+            registration,
+            location,
+        ]
+        title = " - ".join(x for x in title_parts if x)
+        raw_text = (
+            f"Aviation Safety Network accident database entry. Date: {acc_date}. "
+            f"Aircraft: {aircraft_type}. Registration: {registration}. Operator: {operator}. "
+            f"Fatalities: {fatalities}. Location: {location}. Damage: {damage}."
+        )
+        out.append(ParsedWebEntry(url=url, title=title, raw_text=raw_text, published_hint=acc_date))
+        seen.add(url)
+    return out
+
+
+def _parse_easa_ad(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    out: list[ParsedWebEntry] = []
+    seen: set[str] = set()
+    for row in re.findall(r"<tr[^>]*showStatus\('https://ad\.easa\.europa\.eu/ad/[^']+'[^>]*>(.*?)</tr>", html_text, flags=re.I | re.S):
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.I | re.S)
+        if len(cells) < 6:
+            continue
+        link_match = re.search(r"<a[^>]+href=[\"']([^\"']+/ad/[^\"']+)[\"'][^>]*>(.*?)</a>", cells[0], flags=re.I | re.S)
+        if not link_match:
+            continue
+        url = _normalize_text(link_match.group(1))
+        if url in seen:
+            continue
+        ad_number = _strip_tags(link_match.group(2))
+        issue_date = _strip_tags(cells[2])
+        subject = _strip_tags(cells[3])
+        subject = re.sub(r"\bsend comment\b.*$", "", subject, flags=re.I).strip()
+        effective_date = _strip_tags(cells[5]) if len(cells) > 5 else ""
+        tree_text = _strip_tags(cells[4]) if len(cells) > 4 else ""
+        title = f"EASA AD {ad_number}: {subject}"
+        if tree_text:
+            title = f"{title} - {tree_text}"
+        raw_text = (
+            f"EASA safety publication. AD: {ad_number}. Issue date: {issue_date}. "
+            f"Effective date: {effective_date}. Subject: {subject}. Affected products: {tree_text}."
+        )
+        out.append(ParsedWebEntry(url=url, title=title, raw_text=raw_text, published_hint=issue_date))
+        seen.add(url)
+    return out
+
+
+def _parse_faa_operator_bulletins(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    out: list[ParsedWebEntry] = []
+    seen: set[str] = set()
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", html_text, flags=re.I | re.S):
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.I | re.S)
+        if len(cells) < 2:
+            continue
+        link_match = re.search(r"<a[^>]+href=[\"']([^\"']+\.pdf)[\"'][^>]*>(.*?)</a>", cells[0], flags=re.I | re.S)
+        if not link_match:
+            continue
+        href = link_match.group(1)
+        url = _normalize_text(urljoin(list_url, href))
+        if url in seen:
+            continue
+        number = _strip_tags(link_match.group(2))
+        title_text = _strip_tags(cells[1])
+        if not number or not title_text:
+            continue
+        kind = "FAA SAFO" if "safo" in list_url.lower() else "FAA InFO"
+        title = f"{kind} {number}: {title_text}"
+        # FAA bulletin numbers use YYNNN, e.g. 26005 -> 2026.
+        year_hint = ""
+        m = re.match(r"(\d{2})", number)
+        if m:
+            year_hint = f"20{m.group(1)}-01-01"
+        raw_text = f"{kind} operator bulletin. Number: {number}. Title: {title_text}."
+        out.append(ParsedWebEntry(url=url, title=title, raw_text=raw_text, published_hint=year_hint))
+        seen.add(url)
+    return out
+
+
+def _parse_asrs_callback(list_url: str, html_text: str) -> list[ParsedWebEntry]:
+    out: list[ParsedWebEntry] = []
+    seen: set[str] = set()
+    pattern = re.compile(
+        r'<a[^>]+href=["\']([^"\']*callback/cb_\d+\.html)["\'][^>]*>.*?</a>.*?'
+        r'<div class=["\']fileDescription["\']>\s*Issue\s+(\d+)\s*<span>\s*-\s*([^<]+)<br\s*/?>\s*([^<]+)',
+        flags=re.I | re.S,
+    )
+    for href, issue, month_text, title_text in pattern.findall(html_text):
+        url = _normalize_text(urljoin(list_url, href))
+        if url in seen:
+            continue
+        month_text = _normalize_text(month_text)
+        title_text = _normalize_text(title_text)
+        title = f"NASA ASRS CALLBACK Issue {issue}: {title_text}"
+        raw_text = (
+            f"NASA ASRS CALLBACK safety learning bulletin. Issue: {issue}. "
+            f"Date: {month_text}. Topic: {title_text}."
+        )
+        out.append(ParsedWebEntry(url=url, title=title, raw_text=raw_text, published_hint=month_text))
+        seen.add(url)
+    return out
+
+
 Parser = Callable[[str, str], list[ParsedWebEntry]]
 
 _WEB_PARSER_REGISTRY: dict[str, Parser] = {
@@ -316,6 +491,12 @@ _WEB_PARSER_REGISTRY: dict[str, Parser] = {
     "ain_online_web": _parse_ain_online,
     "ntsb_press_web": _parse_ntsb,
     "easa_newsroom_web": _parse_easa,
+    "avherald_web": _parse_avherald,
+    "asn_2026_web": _parse_asn_year,
+    "easa_ad_web": _parse_easa_ad,
+    "faa_safo_web": _parse_faa_operator_bulletins,
+    "faa_info_web": _parse_faa_operator_bulletins,
+    "nasa_asrs_callback_web": _parse_asrs_callback,
 }
 
 

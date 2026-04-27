@@ -78,3 +78,19 @@ def test_accepts_airspace_story_when_notam_and_reroute_detail_exist():
     ok, reason = _is_pilot_relevant(item, text, kw_cfg={})
     assert ok is True
     assert reason == "ok"
+
+
+def test_strict_reject_blocks_podcast_even_with_aviation_signals():
+    item = {
+        "source_id": "flightradar24_blog",
+        "canonical_url": "https://www.flightradar24.com/blog/avtalk-podcast/avtalk-367/",
+        "url": "https://www.flightradar24.com/blog/avtalk-podcast/avtalk-367/",
+    }
+    text = "AvTalk podcast episode discusses airline operations, flight safety, TCAS and summer traffic"
+    ok, reason = _is_pilot_relevant(
+        item,
+        text,
+        kw_cfg={"strict_hard_reject_keywords": ["podcast", "episode"]},
+    )
+    assert ok is False
+    assert reason == "strict_hard_reject_keywords"
