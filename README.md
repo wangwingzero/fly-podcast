@@ -1,6 +1,6 @@
 # Global Aviation Digest
 
-面向航空公司职员的国际航空新闻日更 + 播客自动化系统（GitHub Actions）。
+面向航空公司职员的国际航空新闻日更 + 播客自动化系统（自有服务器 + 宝塔计划任务）。
 
 ## 核心能力
 
@@ -19,91 +19,49 @@
 
 ---
 
-## GitHub Actions Workflows
+## 服务器自动化
 
-### 1. `daily-digest` — 每日新闻日报
+GitHub Actions 已停用，workflow 文件保留在 `.github/workflows.disabled/` 作为历史参考。
+生产运行迁移到宝塔管理的服务器计划任务，详见 `docs/server-deployment.md`。
 
-**触发方式：** 每天北京时间 03:00 自动执行，也支持手动触发。
+### 新闻日报
 
-无需传参，自动运行全部 6 个阶段（ingest → rank → compose → verify → publish → notify）。
+**触发方式：** 每天北京时间 03:00 在服务器自动执行。
 
----
+服务器脚本：
 
-### 2. `podcast-from-pdf` — PDF 转播客（主力工作流）
-
-**触发方式：**
-- **自动触发：** 往 `podcast_pdfs/` 文件夹推送新 PDF 时自动运行（只处理新增的 PDF）。
-- **手动触发：** GitHub Actions 页面点 "Run workflow"（处理 `podcast_pdfs/` 中所有 PDF）。
-
-**完整流程：** PDF → 对话脚本 → 语音合成 → 上传 R2 → 发布微信草稿箱（全自动）。
-
-#### 参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `greeting` | 对话开头的额外提示词（如节日祝福）。会注入到 LLM prompt 中，让主持人在自我介绍后自然说出。 | 空（不加） |
-| `pdf_filter` | 只处理文件名包含该关键词的 PDF。 | 空（处理全部） |
-
-#### 使用示例
-
-**场景 1：推送新 PDF 自动制作**
 ```bash
-# 把 PDF 放进 podcast_pdfs/ 文件夹
-cp 某个法规.pdf podcast_pdfs/
-
-# 推送到 GitHub，自动触发制作 + 发布到微信草稿箱
-git add podcast_pdfs/某个法规.pdf
-git commit -m "add 某个法规"
-git push
+/www/wwwroot/flying-podcast/scripts/server/run_daily_digest.sh
 ```
 
-**场景 2：手动触发，处理所有 PDF**
+流程：
 
-在 GitHub Actions 页面 → `podcast-from-pdf` → "Run workflow"，参数留空即可。
-
-**场景 3：只重新制作某一篇**
-
-在 GitHub Actions 页面 → `podcast-from-pdf` → "Run workflow"：
-- `pdf_filter`: `全天候`（只匹配文件名含"全天候"的 PDF）
-
-**场景 4：节日特别版（带祝福语）**
-
-在 GitHub Actions 页面 → `podcast-from-pdf` → "Run workflow"：
-- `greeting`: `现在是春节期间，在开头自我介绍后，千羽和虎机长自然地互相拜年，祝听众蛇年大吉、飞行顺利、起降安妥，三四句话就好。`
-- `pdf_filter`: `全天候`（可选，限定只处理某一篇）
-
-**场景 5：用 gh CLI 触发**
-```bash
-# 带祝福 + 指定 PDF
-gh workflow run podcast-from-pdf.yml \
-  -f greeting="祝大家蛇年大吉，飞行顺利！" \
-  -f pdf_filter="全天候"
-
-# 重新制作全部
-gh workflow run podcast-from-pdf.yml
+```text
+sync-history -> ingest -> rank -> compose -> verify -> publish -> upload-r2 -> notify
 ```
 
----
-
-### 3. `publish-podcast` — 单独发布播客到微信草稿
-
-**触发方式：** 仅手动触发。用于将已上传到 R2 的播客重新发布到微信草稿箱（正常情况下不需要，`podcast-from-pdf` 已自动发布）。
-
-#### 参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `date` | 目标日期（YYYY-MM-DD），从 R2 下载该日期的播客文件。 | 当天（北京时间） |
-| `episode_dirs` | 逗号分隔的播客目录名，限定只发布这些。 | 空（发布该日期全部） |
-
-#### 使用示例
+日志：
 
 ```bash
-# 重新发布今天的所有播客到微信草稿
-gh workflow run publish-podcast.yml
+/www/wwwlogs/flying-podcast/daily_YYYY-MM-DD.log
+```
 
-# 发布指定日期
-gh workflow run publish-podcast.yml -f date="2025-02-21"
+### 播客
+
+播客仍通过服务器 CLI 运行，必要时可在宝塔计划任务中添加独立 shell 任务。
+
+手动处理单个 PDF：
+
+```bash
+cd /www/wwwroot/flying-podcast
+.venv/bin/python run.py podcast --pdf path/to/file.pdf
+```
+
+批量处理 inbox：
+
+```bash
+cd /www/wwwroot/flying-podcast
+.venv/bin/python run.py podcast-inbox
 ```
 
 ---
