@@ -22,6 +22,6 @@ chmod 700 /www/wwwlogs/flying-podcast
 
 chmod +x scripts/server/run_daily_digest.sh
 chmod +x scripts/server/setup_server.sh
-chmod +x scripts/server/sync_r2_history.py
+chmod +x scripts/server/publish_static_outputs.py
 
 echo "setup complete: $ROOT_DIR"

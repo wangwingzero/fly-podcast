@@ -16,7 +16,6 @@ import json
 import shutil
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote
 
 import requests
 
@@ -128,8 +127,35 @@ def _load_ccar_docs() -> list[dict[str, Any]]:
     return all_docs
 
 
+def _load_static_upload_records() -> dict[str, Any]:
+    ccar_downloads = Path(settings.ccar_downloads_path)
+    for name in ("static_uploads.json", "uploads.json"):
+        path = ccar_downloads.parent / "data" / name
+        if path.exists():
+            data = load_json(path)
+            records = data.get("records", {})
+            return records if isinstance(records, dict) else {}
+    return {}
+
+
+def _find_static_upload_url(doc: dict[str, Any]) -> str:
+    title = doc.get("title", "")
+    if not title:
+        return ""
+    for path, info in _load_static_upload_records().items():
+        if title not in str(path):
+            continue
+        if not isinstance(info, dict):
+            continue
+        for key in ("static_url", "public_url", "url"):
+            value = str(info.get(key, "")).strip()
+            if value:
+                return value
+    return ""
+
+
 def _find_pdf_path(doc: dict[str, Any]) -> Path | None:
-    """Find PDF for a document: try local CCAR-workflow downloads first, then R2."""
+    """Find PDF for a document: local download, direct PDF URL, then static upload index."""
     doc_url = doc.get("url", "")
     ccar_downloads = Path(settings.ccar_downloads_path)
 
@@ -148,15 +174,10 @@ def _find_pdf_path(doc: dict[str, Any]) -> Path | None:
     if pdf_url:
         return _download_from_url(pdf_url, doc)
 
-    # Method 3: Check R2 uploads
-    r2_json = ccar_downloads.parent / "data" / "r2_uploads.json"
-    if r2_json.exists():
-        r2_data = load_json(r2_json)
-        # Match by finding the record whose path contains the doc title
-        title = doc.get("title", "")
-        for rpath, info in r2_data.get("records", {}).items():
-            if title and title in unquote(rpath):
-                return _download_from_url(info["r2_url"], doc)
+    # Method 3: Check static-site uploads
+    static_url = _find_static_upload_url(doc)
+    if static_url:
+        return _download_from_url(static_url, doc)
 
     return None
 
@@ -167,28 +188,6 @@ def _download_from_url(url: str, doc: dict[str, Any]) -> Path | None:
     pending_dir.mkdir(parents=True, exist_ok=True)
 
     title = doc.get("title", "unknown")
-
-
-def _find_download_url(doc: dict[str, Any]) -> str:
-    """Find the best download URL for a document (pdf_url > R2 > page URL)."""
-    ccar_downloads = Path(settings.ccar_downloads_path)
-
-    # Priority 1: Direct pdf_url from doc
-    pdf_url = doc.get("pdf_url", "")
-    if pdf_url:
-        return pdf_url
-
-    # Priority 2: R2 upload URL (direct PDF download)
-    r2_json = ccar_downloads.parent / "data" / "r2_uploads.json"
-    if r2_json.exists():
-        r2_data = load_json(r2_json)
-        title = doc.get("title", "")
-        for rpath, info in r2_data.get("records", {}).items():
-            if title and title in unquote(rpath):
-                return info.get("r2_url", "")
-
-    # Priority 3: CAAC page URL
-    return doc.get("url", "")
     # Clean filename
     safe_name = "".join(c for c in title if c not in r'<>:"/\|?*').strip()
     filename = f"{safe_name}.pdf"
@@ -206,6 +205,19 @@ def _find_download_url(doc: dict[str, Any]) -> str:
     except Exception as e:
         logger.warning("Failed to download PDF for '%s': %s", title, e)
         return None
+
+
+def _find_download_url(doc: dict[str, Any]) -> str:
+    """Find the best download URL for a document (pdf_url > static upload > page URL)."""
+    pdf_url = doc.get("pdf_url", "")
+    if pdf_url:
+        return pdf_url
+
+    static_url = _find_static_upload_url(doc)
+    if static_url:
+        return static_url
+
+    return doc.get("url", "")
 
 
 # ── Main stage ────────────────────────────────────────────────

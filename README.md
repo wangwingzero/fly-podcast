@@ -5,7 +5,7 @@
 ## 核心能力
 
 ### 新闻日报
-- 每日自动发布 1 篇日报到微信公众号，固定 10 条国际航空新闻。
+- 每日自动发布 1 篇日报到微信公众号，默认 8 条国际航空新闻。
 - 质量闸门：总分 >= 80 才允许发布。
 - 阻断规则：来源不可核验、事实冲突、夸张标题、敏感内容、幻觉风险。
 - 支持多厂商 OpenAI 兼容 LLM（仅需配置 `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL`）。
@@ -14,7 +14,7 @@
 
 ### 播客（PDF 转双人对话音频）
 - 将民航法规 PDF 自动转为千羽（女）+ 虎机长（男）双人播客对话。
-- 流程：PDF 文字提取 → LLM 生成对话脚本 → qwen-tts2api 语音合成 → ffmpeg 拼接 + 音量标准化 → 上传 R2 → 发布微信草稿。
+- 流程：PDF 文字提取 → LLM 生成对话脚本 → qwen-tts2api 语音合成 → ffmpeg 拼接 + 音量标准化 → 发布到自托管静态站 → 发布微信草稿。
 - 音量标准化：EBU R128 广播标准（-16 LUFS）。
 
 ---
@@ -37,7 +37,7 @@ GitHub Actions 已停用，workflow 文件保留在 `.github/workflows.disabled/
 流程：
 
 ```text
-sync-history -> ingest -> rank -> compose -> verify -> publish -> upload-r2 -> notify
+ingest -> rank -> compose -> verify -> publish -> publish-static -> notify
 ```
 
 日志：

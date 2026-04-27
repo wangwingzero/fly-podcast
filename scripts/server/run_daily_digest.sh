@@ -36,16 +36,13 @@ export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$ROOT_DIR/.playwrig
 
 PYTHON="$ROOT_DIR/.venv/bin/python"
 
-echo "-- stage: sync-history"
-"$PYTHON" scripts/server/sync_r2_history.py
-
 for stage in ingest rank compose verify publish; do
   echo "-- stage: $stage"
   "$PYTHON" run.py "$stage" --date "$TARGET_DATE"
 done
 
-echo "-- stage: upload-r2"
-"$PYTHON" scripts/server/upload_r2_outputs.py --date "$TARGET_DATE"
+echo "-- stage: publish-static"
+"$PYTHON" scripts/server/publish_static_outputs.py --date "$TARGET_DATE"
 
 echo "-- stage: notify"
 "$PYTHON" run.py notify --date "$TARGET_DATE"

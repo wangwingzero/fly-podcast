@@ -15,7 +15,7 @@ from flying_podcast.core.io_utils import dump_json
 from html import escape
 from flying_podcast.core.llm_client import OpenAICompatibleClient
 from flying_podcast.core.logging_utils import get_logger
-from flying_podcast.core.r2_upload import upload_file as r2_upload_file
+from flying_podcast.core.static_publish import public_url_for_key, publish_file as static_publish_file
 from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.core.tts_client import (
     concatenate_audio,
@@ -725,8 +725,6 @@ def run_audio(*, work_dir: str | Path) -> Path:
     Returns:
         Path to the generated MP3 file.
     """
-    from urllib.parse import quote
-
     work_dir = Path(work_dir)
     if not work_dir.exists():
         raise FileNotFoundError(f"Work directory not found: {work_dir}")
@@ -770,34 +768,28 @@ def run_audio(*, work_dir: str | Path) -> Path:
 
     dir_name = work_dir.name
     mp3_filename = mp3_path.name
-    r2_key = f"podcast/{dir_name}/{mp3_filename}"
+    static_key = f"podcast/{dir_name}/{mp3_filename}"
 
-    # Upload MP3 to R2
+    # Publish MP3 to the self-hosted static site
     try:
-        mp3_cdn_url = r2_upload_file(mp3_path, r2_key)
+        mp3_cdn_url = static_publish_file(mp3_path, static_key)
     except Exception as e:
-        logger.error("R2 upload failed, using constructed URL: %s", e)
-        mp3_cdn_url = (
-            f"https://{settings.r2_domain}/podcast/"
-            f"{quote(dir_name)}/{quote(mp3_filename)}"
-        )
+        logger.error("Static publish failed, using constructed URL: %s", e)
+        mp3_cdn_url = public_url_for_key(static_key)
 
     # Upload narration MP3 if exists
     narration_mp3_files = list(work_dir.glob("*_narration.mp3"))
     narration_mp3_cdn_url = ""
     if narration_mp3_files:
         narration_mp3_path = narration_mp3_files[0]
-        logger.info("Uploading narration MP3 to R2...")
-        narration_r2_key = f"podcast/{dir_name}/{narration_mp3_path.name}"
+        logger.info("Publishing narration MP3 to static site...")
+        narration_static_key = f"podcast/{dir_name}/{narration_mp3_path.name}"
         try:
-            narration_mp3_cdn_url = r2_upload_file(narration_mp3_path, narration_r2_key)
-            logger.info("Narration MP3 uploaded: %s", narration_mp3_cdn_url)
+            narration_mp3_cdn_url = static_publish_file(narration_mp3_path, narration_static_key)
+            logger.info("Narration MP3 published: %s", narration_mp3_cdn_url)
         except Exception as e:
-            logger.error("Narration R2 upload failed: %s", e)
-            narration_mp3_cdn_url = (
-                f"https://{settings.r2_domain}/podcast/"
-                f"{quote(dir_name)}/{quote(narration_mp3_path.name)}"
-            )
+            logger.error("Narration static publish failed: %s", e)
+            narration_mp3_cdn_url = public_url_for_key(narration_static_key)
 
     meta.update({
         "title": title,

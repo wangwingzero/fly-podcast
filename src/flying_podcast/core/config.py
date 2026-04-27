@@ -85,11 +85,8 @@ class Settings:
     # CCAR-workflow integration (podcast inbox)
     ccar_data_path: str = os.getenv("CCAR_DATA_PATH", "D:/CCAR-workflow/data/regulations.json")
     ccar_downloads_path: str = os.getenv("CCAR_DOWNLOADS_PATH", "D:/CCAR-workflow/downloads")
-    r2_access_key_id: str = os.getenv("R2_ACCESS_KEY_ID", "")
-    r2_secret_access_key: str = os.getenv("R2_SECRET_ACCESS_KEY", "")
-    r2_endpoint: str = os.getenv("R2_ENDPOINT", "")
-    r2_bucket: str = os.getenv("R2_BUCKET", "ccar-pdfs")
-    r2_domain: str = os.getenv("R2_DOMAIN", "ccar.hudawang.cn")
+    static_root: str = os.getenv("STATIC_ROOT", "")
+    static_public_base_url: str = os.getenv("STATIC_PUBLIC_BASE_URL", "")
     podcast_inbox_dir: Path = ROOT_DIR / "data" / "podcast_inbox"
 
     email_user: str = os.getenv("EMAIL_USER", "")

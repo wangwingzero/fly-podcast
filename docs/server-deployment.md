@@ -9,6 +9,8 @@ The daily digest now runs on the BaoTa-managed server instead of GitHub Actions.
 - Logs: `/www/wwwlogs/flying-podcast/daily_YYYY-MM-DD.log`
 - Lock file: `/tmp/flying-podcast-daily.lock`
 - Daily runner: `/www/wwwroot/flying-podcast/scripts/server/run_daily_digest.sh`
+- Static site root: `/www/wwwroot/flighttoolbox-static/current`
+- Static public base URL: `https://flighttoolbox.hudawang.cn`
 
 ## Schedule
 
@@ -18,20 +20,23 @@ Run once per day at Beijing 03:00:
 0 3 * * * flock -xn /www/server/cron/flying_podcast_daily.lock -c /www/server/cron/flying_podcast_daily >> /www/server/cron/flying_podcast_daily.log 2>&1
 ```
 
-The runner first downloads `history/recent_published.json` from R2 when available,
-then executes the same logical stages as the old `daily-digest` workflow:
+The runner executes the daily digest stages and then copies public web outputs to
+the self-hosted static site:
 
 ```text
-sync-history -> ingest -> rank -> compose -> verify -> publish -> upload-r2 -> notify
+ingest -> rank -> compose -> verify -> publish -> publish-static -> notify
 ```
 
-`upload-r2` replaces the GitHub Actions R2 upload steps for `web_YYYY-MM-DD.html`,
-`static/copyright.html`, `static/beian_icon.png`, and `recent_published.json`.
+`publish-static` publishes `web_YYYY-MM-DD.html`, `static/copyright.html`,
+`static/beian_icon.png`, and `recent_published.json` under the static root.
 
 ## Production Prerequisites
 
 - Add the server public IP `154.9.27.44` to the WeChat Official Account API IP whitelist.
 - Keep `WECHAT_PROXY=` empty on the server when the server IP is whitelisted; the old proxy can time out from the server.
+- Set `STATIC_ROOT=/www/wwwroot/flighttoolbox-static/current`.
+- Set `STATIC_PUBLIC_BASE_URL=https://flighttoolbox.hudawang.cn`.
+- Set `WEB_DIGEST_BASE_URL=https://flighttoolbox.hudawang.cn/digest`.
 - Run `python run.py healthcheck --json` after changing model, image, or WeChat credentials.
 - Image generation is a warning-level health check. The publish pipeline first tries stock/public images and only uses AI generation for missing images.
 

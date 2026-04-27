@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from urllib.parse import quote
 
 from flying_podcast.core.config import settings
 from flying_podcast.core.io_utils import dump_json, load_json
 from flying_podcast.core.logging_utils import get_logger
+from flying_podcast.core.static_publish import public_url_for_key
 from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.core.wechat import WeChatClient
 
@@ -90,7 +90,7 @@ def _build_article_html(title: str, dialogue_html: str,
 def _resolve_source_url(meta: dict) -> str:
     """Resolve the best source URL for the "阅读原文" link.
 
-    Priority: metadata download_url > R2 normative PDF URL (CAAC docs only).
+    Priority: metadata download_url > static normative PDF URL (CAAC docs only).
     Non-CAAC documents (e.g. Airbus, Boeing) return empty string.
     """
     # 1. Explicit download_url from metadata (set by podcast_inbox)
@@ -98,7 +98,7 @@ def _resolve_source_url(meta: dict) -> str:
     if download_url:
         return download_url
 
-    # 2. For CAAC documents, construct R2 PDF URL from pdf_source
+    # 2. For CAAC documents, construct static PDF URL from pdf_source
     pdf_source = meta.get("pdf_source", "")
     if not pdf_source:
         return ""
@@ -109,10 +109,9 @@ def _resolve_source_url(meta: dict) -> str:
     if not any(pdf_name.startswith(prefix) for prefix in _CAAC_PREFIXES):
         return ""
 
-    # Construct R2 normative URL
-    r2_url = f"https://{settings.r2_domain}/normative/{quote(pdf_name)}"
-    logger.info("Auto-resolved CAAC source URL: %s", r2_url)
-    return r2_url
+    static_url = public_url_for_key(f"normative/{pdf_name}")
+    logger.info("Auto-resolved CAAC source URL: %s", static_url)
+    return static_url
 
 
 def run(target_date: str | None = None, *,

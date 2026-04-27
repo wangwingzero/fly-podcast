@@ -18,7 +18,7 @@ from flying_podcast.core.image_gen import generate_article_image, search_public_
 from flying_podcast.core.io_utils import dump_json, load_json
 from flying_podcast.core.llm_client import LLMError, OpenAICompatibleClient
 from flying_podcast.core.logging_utils import get_logger
-from flying_podcast.core.r2_upload import mirror_image_from_url
+from flying_podcast.core.static_publish import mirror_image_from_url
 from flying_podcast.core.time_utils import beijing_now, beijing_today_str
 from flying_podcast.core.wechat import WeChatClient, WeChatPublishError
 
@@ -138,16 +138,17 @@ def _is_blocked_wechat_image(url: str) -> bool:
         return False
 
 
-def _is_r2_image_url(url: str) -> bool:
+def _is_static_image_url(url: str) -> bool:
     try:
         host = (urlparse(str(url)).netloc or "").lower()
-        return bool(settings.r2_domain) and host.endswith(settings.r2_domain.lower())
+        static_host = (urlparse(settings.static_public_base_url).netloc or "").lower()
+        return bool(static_host) and host.endswith(static_host)
     except Exception:  # noqa: BLE001
         return False
 
 
-def _mirror_entry_images_to_r2(entries: list[dict], *, r2_prefix: str) -> int:
-    if not settings.r2_access_key_id or not settings.r2_secret_access_key or not settings.r2_endpoint:
+def _mirror_entry_images_to_static(entries: list[dict], *, static_prefix: str) -> int:
+    if not settings.static_root or not settings.static_public_base_url:
         return 0
 
     mirrored = 0
@@ -155,19 +156,19 @@ def _mirror_entry_images_to_r2(entries: list[dict], *, r2_prefix: str) -> int:
         image_url = str(entry.get("image_url", "")).strip()
         if not image_url:
             continue
-        if _is_blocked_wechat_image(image_url) or _is_r2_image_url(image_url):
+        if _is_blocked_wechat_image(image_url) or _is_static_image_url(image_url):
             continue
         try:
-            mirrored_url = mirror_image_from_url(image_url, r2_prefix=r2_prefix)
+            mirrored_url = mirror_image_from_url(image_url, static_prefix=static_prefix)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Mirror article image to R2 failed for %s: %s", image_url[:80], exc)
+            logger.warning("Mirror article image to static site failed for %s: %s", image_url[:80], exc)
             continue
         if mirrored_url:
             entry["image_url"] = mirrored_url
             mirrored += 1
 
     if mirrored:
-        logger.info("Mirrored %d article image(s) to R2", mirrored)
+        logger.info("Mirrored %d article image(s) to static site", mirrored)
     return mirrored
 
 
@@ -671,7 +672,7 @@ def _enhance_web_entries(digest: dict) -> dict:
                 entry["title"] = translated
                 entry["original_title"] = title
 
-    _mirror_entry_images_to_r2(digest.get("entries", []), r2_prefix="digest/article-images")
+    _mirror_entry_images_to_static(digest.get("entries", []), static_prefix="digest/article-images")
 
     return digest
 
@@ -1266,7 +1267,7 @@ def run(target_date: str | None = None) -> Path:
             if translated_body != body:
                 entry["body"] = translated_body
 
-    _mirror_entry_images_to_r2(digest.get("entries", []), r2_prefix="digest/article-images")
+    _mirror_entry_images_to_static(digest.get("entries", []), static_prefix="digest/article-images")
 
     md = _render_markdown(digest)
     html = _render_html(digest)

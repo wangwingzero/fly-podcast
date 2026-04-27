@@ -8,29 +8,27 @@ from flying_podcast.core.wechat import WeChatClient
 publish = importlib.import_module("flying_podcast.stages.publish")
 
 
-def test_mirror_entry_images_to_r2_updates_external_urls(monkeypatch):
+def test_mirror_entry_images_to_static_updates_external_urls(monkeypatch, tmp_path):
     entries = [{"image_url": "https://example.com/a.jpg"}]
     fake_settings = type(
         "Settings",
         (),
         {
-            "r2_access_key_id": "ak",
-            "r2_secret_access_key": "sk",
-            "r2_endpoint": "https://r2.example.com",
-            "r2_domain": "cdn.example.com",
+            "static_root": str(tmp_path),
+            "static_public_base_url": "https://static.example.com",
         },
     )()
     monkeypatch.setattr(publish, "settings", fake_settings)
     monkeypatch.setattr(
         publish,
         "mirror_image_from_url",
-        lambda image_url, r2_prefix: f"https://cdn.example.com/{r2_prefix}/cached.jpg",
+        lambda image_url, static_prefix: f"https://static.example.com/{static_prefix}/cached.jpg",
     )
 
-    mirrored = publish._mirror_entry_images_to_r2(entries, r2_prefix="digest/article-images")
+    mirrored = publish._mirror_entry_images_to_static(entries, static_prefix="digest/article-images")
 
     assert mirrored == 1
-    assert entries[0]["image_url"] == "https://cdn.example.com/digest/article-images/cached.jpg"
+    assert entries[0]["image_url"] == "https://static.example.com/digest/article-images/cached.jpg"
 
 
 def test_replace_external_images_unescapes_query_params():
@@ -89,7 +87,7 @@ def test_publish_skips_wechat_when_digest_is_empty(monkeypatch, tmp_path):
     monkeypatch.setattr(publish, "ensure_dirs", lambda: None)
     monkeypatch.setattr(publish, "_load_saved_copyright_notice_url", lambda: "")
     monkeypatch.setattr(publish, "_copyright_web_fallback_url", lambda: "https://example.com/copyright")
-    monkeypatch.setattr(publish, "_mirror_entry_images_to_r2", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(publish, "_mirror_entry_images_to_static", lambda *args, **kwargs: 0)
     monkeypatch.setattr(publish, "_render_markdown", lambda digest: "# empty")
     monkeypatch.setattr(publish, "_render_html", lambda digest: "<html>empty</html>")
     monkeypatch.setattr(publish, "_generate_digest_summary", lambda digest: "empty")
@@ -170,7 +168,7 @@ def test_publish_filters_blocked_entries_and_does_not_save_history_in_dry_run(mo
     monkeypatch.setattr(publish, "ensure_dirs", lambda: None)
     monkeypatch.setattr(publish, "_load_saved_copyright_notice_url", lambda: "")
     monkeypatch.setattr(publish, "_copyright_web_fallback_url", lambda: "https://example.com/copyright")
-    monkeypatch.setattr(publish, "_mirror_entry_images_to_r2", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(publish, "_mirror_entry_images_to_static", lambda *args, **kwargs: 0)
     monkeypatch.setattr(publish, "_render_markdown", lambda digest: "# draft")
     monkeypatch.setattr(publish, "_render_html", lambda digest: rendered_counts.append(len(digest["entries"])) or "<html>draft</html>")
     monkeypatch.setattr(publish, "_generate_digest_summary", lambda digest: "summary")
