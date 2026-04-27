@@ -5,9 +5,12 @@ from flying_podcast.stages.compose import (
     _build_composition_prompt,
     _build_llm_prompts,
     _build_selection_prompt,
+    _blend_selection_with_editorial_anchors,
+    _enforce_constraints,
     _sanitize_body_text,
     _validate_llm_entries,
 )
+from flying_podcast.core.models import DigestEntry
 
 
 def _candidate(i: int, region: str = "domestic"):
@@ -78,6 +81,8 @@ def test_build_selection_prompt_targets_pilot_only_and_allows_fewer_entries():
     assert "allow_fewer_entries" in payload["rules"]
     assert all("新航线" not in topic for topic in payload["rules"]["prefer_topics"])
     assert "宁缺毋滥" in system_prompt
+    assert "max_pure_airworthiness_directives_if_available" in payload["rules"]["balance"]
+    assert "纯适航指令或检查类 AD 最多2条" in system_prompt
 
 
 def test_build_llm_prompts_requests_longer_body():
@@ -98,8 +103,9 @@ def test_build_composition_prompt_requests_longer_body_for_full_text():
     assert "4-6句话" in system_prompt
     assert "180-260字" in system_prompt
     assert "不要压缩成两三句" in system_prompt
-    assert "3-4句纯事实" in _TRANSLATE_BODY_PROMPT
+    assert "原文信息少就短写" in _TRANSLATE_BODY_PROMPT
     assert "新闻标题所述事件核心为" in system_prompt
+    assert "禁止使用「所有」「全部」「均」" in system_prompt
 
 
 def test_sanitize_body_text_removes_meta_discourse_sentence():
@@ -208,3 +214,104 @@ def test_sanitize_body_text_removes_source_hint_style_sentences():
     assert "受影响范围为" not in cleaned
     assert "相关主管部门此后" not in cleaned
     assert "美国联邦航空管理局短暂停止了JetBlue所有离港航班" in cleaned
+
+
+def test_sanitize_body_text_removes_source_meta_variants():
+    body = (
+        "原文列明机上有232名旅客和13名机组。"
+        "标题涉及Leap发动机烟雾事件，原文提到相关问题与发动机有关。"
+        "原文未列出航班号、运营方或受损情况。"
+        "划重点：别把整理口吻写进正文。"
+    )
+    cleaned = _sanitize_body_text(body)
+
+    assert "原文列明" not in cleaned
+    assert "标题涉及" not in cleaned
+    assert "原文提到" not in cleaned
+    assert "原文未列出" not in cleaned
+    assert "232名旅客" in cleaned
+    assert "Leap发动机烟雾事件" in cleaned
+    assert "航班号" not in cleaned
+
+
+def _digest_entry(i: int, *, source_id: str, section: str, title: str) -> DigestEntry:
+    return DigestEntry(
+        id=f"entry-{i}",
+        source_id=source_id,
+        section=section,
+        title=title,
+        conclusion=title,
+        facts=["事实一", "事实二"],
+        impact="",
+        citations=[f"https://example.com/{i}"],
+        source_tier="A",
+        region="international",
+        score_breakdown={
+            "factual": 90,
+            "relevance": 90,
+            "authority": 90,
+            "timeliness": 90,
+            "readability": 100,
+            "total": 92,
+        },
+        body=f"{title}。划重点：测试。",
+    )
+
+
+def test_enforce_constraints_uses_composed_overflow_for_pilot_balance():
+    entries = [
+        _digest_entry(1, source_id="avherald_web", section="safety_event", title="Swiss中断起飞"),
+        _digest_entry(2, source_id="flightglobal_safety", section="safety_event", title="Kenyan冲出跑道"),
+        _digest_entry(3, source_id="easa_ad_web", section="airworthiness_technical", title="EASA发布ATR适航指令"),
+        _digest_entry(4, source_id="easa_ad_web", section="airworthiness_technical", title="EASA发布A320适航指令"),
+        _digest_entry(5, source_id="easa_ad_web", section="airworthiness_technical", title="EASA发布Legacy适航指令"),
+        _digest_entry(6, source_id="easa_ad_web", section="airworthiness_technical", title="EASA发布DHC适航指令"),
+        _digest_entry(7, source_id="flightglobal_safety", section="safety_event", title="A321擦机尾指导"),
+        _digest_entry(8, source_id="flightglobal_engines", section="airworthiness_technical", title="GE9X密封问题"),
+        _digest_entry(9, source_id="faa_info_web", section="ops_environment", title="FAA发布CPDLC航路上行通告"),
+        _digest_entry(10, source_id="nasa_asrs_callback_web", section="safety_event", title="ASRS跑道侵入案例"),
+    ]
+
+    out = _enforce_constraints(entries, [], total=8, domestic_ratio=0.0)
+
+    assert len(out) == 8
+    assert sum(1 for e in out if e.source_id == "easa_ad_web") <= 2
+    assert any(e.section == "ops_environment" for e in out)
+    assert any(e.title == "FAA发布CPDLC航路上行通告" for e in out)
+
+
+def test_blend_selection_keeps_high_value_editorial_anchors():
+    candidates = [_candidate(i, "international") for i in range(1, 8)]
+    candidates[0].update(
+        {
+            "title": "Swiss A330 rejected takeoff due engine failure",
+            "source_id": "avherald_web",
+            "rank_score": 106,
+            "pilot_value": {"category": "safety_event"},
+        }
+    )
+    candidates[1].update(
+        {
+            "title": "LaGuardia runway collision inquiry",
+            "raw_text": "Runway collision inquiry with landing CRJ and airport vehicle.",
+            "source_id": "flightglobal_safety",
+            "rank_score": 103,
+            "pilot_value": {"category": "safety_event"},
+        }
+    )
+    candidates[2].update(
+        {
+            "title": "ASN accident record - thin",
+            "raw_text": "Aviation Safety Network accident database entry.",
+            "source_id": "asn_2026_web",
+            "rank_score": 102,
+            "pilot_value": {"category": "safety_event"},
+        }
+    )
+    selected = [candidates[3]["id"], candidates[4]["id"]]
+
+    out = _blend_selection_with_editorial_anchors(selected, candidates, total=5)
+
+    assert candidates[0]["id"] in out
+    assert candidates[1]["id"] in out
+    assert candidates[2]["id"] not in out

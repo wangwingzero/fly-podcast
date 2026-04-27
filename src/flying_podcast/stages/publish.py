@@ -1028,6 +1028,28 @@ def _download_first_article_image(digest: dict) -> bytes | None:
     return None
 
 
+def _filter_blocked_entries(digest: dict, quality: dict) -> int:
+    """Remove entries that verify marked as blocked before rendering/publishing."""
+    blocked_ids = {
+        str(x).strip()
+        for x in quality.get("blocked_entry_ids", [])
+        if str(x).strip()
+    }
+    if not blocked_ids:
+        return 0
+
+    entries = digest.get("entries", [])
+    if not isinstance(entries, list):
+        return 0
+    kept = [e for e in entries if str(e.get("id", "")).strip() not in blocked_ids]
+    removed = len(entries) - len(kept)
+    if removed:
+        digest["entries"] = kept
+        digest["article_count"] = len(kept)
+        logger.info("Filtered %d verify-blocked entry/entries before publish", removed)
+    return removed
+
+
 def _upload_cover_image(image_data: bytes, client: WeChatClient,
                         file_name: str = "cover.jpg") -> str:
     """Upload cover image bytes to WeChat as permanent material.
@@ -1225,6 +1247,7 @@ def run(target_date: str | None = None) -> Path:
     day = target_date or beijing_today_str()
     digest = load_json(settings.processed_dir / f"composed_{day}.json")
     quality = load_json(settings.processed_dir / f"quality_{day}.json")
+    filtered_blocked_count = _filter_blocked_entries(digest, quality)
     copyright_notice_url = _load_saved_copyright_notice_url() or _copyright_web_fallback_url()
     digest["copyright_notice_url"] = copyright_notice_url
 
@@ -1278,7 +1301,13 @@ def run(target_date: str | None = None) -> Path:
         "url": "",
         "copyright_notice_url": copyright_notice_url,
         "reasons": quality.get("reasons", []),
+        "blocked_entry_ids": quality.get("blocked_entry_ids", []),
+        "filtered_blocked_count": filtered_blocked_count,
     }
+    if filtered_blocked_count:
+        result["reasons"] = sorted(set([*result["reasons"], "blocked_entries_filtered"]))
+
+    has_entries = bool(digest.get("entries"))
 
     def _cleanup_old_drafts(wc: WeChatClient, keep_media_id: str) -> None:
         """Delete old daily-digest drafts, keep podcasts and the one just created."""
@@ -1308,7 +1337,11 @@ def run(target_date: str | None = None) -> Path:
         cover_path.write_bytes(cover_image_data)
         logger.info("Cover image saved locally: %s (%d bytes)", cover_path, len(cover_image_data))
 
-    if settings.dry_run or not settings.wechat_enable_publish:
+    if not has_entries or quality.get("decision") == "skip_publish":
+        result["status"] = "skipped_empty_digest"
+        result["reasons"] = sorted(set([*result["reasons"], "empty_digest"]))
+        logger.warning("Skip WeChat publish for %s: digest has no publishable entries", day)
+    elif settings.dry_run or not settings.wechat_enable_publish:
         result["status"] = "dry_run"
         result["url"] = f"dry-run://flying-podcast/{day}"
     else:
@@ -1382,8 +1415,12 @@ def run(target_date: str | None = None) -> Path:
         "copyright_notice_url": copyright_notice_url,
     })
 
-    # Save published titles for cross-day dedup
-    _save_recent_published(digest, day)
+    # Save only real delivery/draft history for cross-day dedup. Dry-runs should
+    # leave future production dedup untouched.
+    if result["status"] in {"draft_created", "published"}:
+        _save_recent_published(digest, day)
+    else:
+        logger.info("Skip recent published history save for status=%s", result["status"])
 
     logger.info("Publish done. status=%s score=%.2f", result["status"], quality["total_score"])
     return out

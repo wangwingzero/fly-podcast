@@ -82,6 +82,10 @@ _HARD_REJECT_REASON_HINTS = (
 )
 
 
+def _has_chinese(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", str(text or "")))
+
+
 def _is_high_value_ops_entry(entry: dict) -> bool:
     text_parts = [
         str(entry.get("title", "")),
@@ -143,6 +147,7 @@ def _llm_editor_review(
         "只要文章能提供上述任一类具体信息，就应优先保留；文字不必像官样通稿，但必须事实成立、逻辑清楚、中文可读。\n\n"
         "这些文章已经过AI选稿和翻译。文章采用固定结构：前半段是客观新闻正文，最后一行可能是以“划重点：”开头的老机长幽默点评。\n"
         "这个“划重点”是栏目固定风格，不是问题本身。只要它不低俗、不脏话、不与正文事实冲突，就应保留；"
+        "但如果它拿伤亡、严重受伤、紧急撤离或当事机组/旅客开玩笑，或补充了正文没有的原因、责任、调查结论，应删除或标记为不合格。"
         "严禁仅因为口语化、调侃、吐槽或像飞行员群聊转发语气，就删除整篇文章。\n\n"
         "请按以下四条标准逐篇审查：\n\n"
         "1. 不重复：与本期其他文章是否报道同一核心事件？如果重复，删除质量较差的那篇。\n"
@@ -156,7 +161,7 @@ def _llm_editor_review(
         "【重点边界】\n"
         "- 判断时优先看 title + conclusion + facts，再看 body；不要只因为正文篇幅短，就忽视标题和 facts 里的关键运行事实。\n"
         "- 允许结构：2-4句客观事实 + 1句“划重点：”幽默点评。\n"
-        "- 不允许：整篇几乎都是空话、正文没有事实、点评与事实冲突、点评低俗攻击、或正文本身就像机翻/口水话。\n"
+        "- 不允许：整篇几乎都是空话、正文没有事实、点评与事实冲突、点评低俗攻击、拿伤亡开玩笑、点评补充原文没有的事实、或正文本身就像机翻/口水话。\n"
         "- 地缘政治/宏观行业新闻，只有在明确写出航班、机场、空域、运行限制、航司处置等具体运行影响时，才算高价值；只有大而空判断的，可以删除。\n"
         "- 航司航线暂停/恢复、旅客改签豁免、换季排班、运力恢复、市场投放这类运营通告型稿件，即使和空域事件有关，只要没有新增NOTAM、程序限制、绕飞策略、机场/跑道关闭等飞行员可直接使用的细节，也应删除。\n"
         "- 判断时请优先看“划重点：”之前的正文是否合格，再决定是否删除。\n\n"
@@ -211,8 +216,13 @@ def run(target_date: str | None = None) -> Path:
     blocked: list[str] = []
 
     entries = digest.get("entries", [])
+    compose_mode = str(digest.get("meta", {}).get("compose_mode", "")).strip()
     if len(entries) == 0:
         reasons.append("no_entries")
+
+    if settings.require_llm_for_publish and compose_mode != "llm_two_phase":
+        reasons.append("llm_required_for_publish")
+        blocked.extend(str(e.get("id", "")) for e in entries if e.get("id"))
 
     if len(entries) < settings.target_article_count:
         reasons.append("insufficient_articles")
@@ -236,6 +246,20 @@ def run(target_date: str | None = None) -> Path:
         conclusion = (entry.get("conclusion") or "").lower()
         facts = [x.lower() for x in entry.get("facts", [])]
         body = (entry.get("body") or "").lower()
+        visible_text = " ".join(
+            str(x)
+            for x in [
+                entry.get("title", ""),
+                entry.get("conclusion", ""),
+                entry.get("body", ""),
+                " ".join(str(f) for f in entry.get("facts", []) if f),
+            ]
+            if x
+        )
+
+        if not _has_chinese(visible_text):
+            reasons.append("non_chinese_content")
+            blocked.append(eid)
 
         citations = entry.get("citations") or []
         if not citations:
@@ -325,9 +349,19 @@ def run(target_date: str | None = None) -> Path:
                 original_count - len(entries), original_count, len(entries),
             )
 
-    # Always auto_publish — quality issues are logged in reasons for reference
-    # but no longer gate the publish decision.
-    decision = "auto_publish"
+    blocked_set = {x for x in blocked if x}
+    publishable_entries = [e for e in entries if str(e.get("id", "")) not in blocked_set]
+
+    if not entries:
+        reasons.append("empty_digest")
+        decision = "skip_publish"
+    elif not publishable_entries:
+        reasons.append("all_entries_blocked")
+        decision = "skip_publish"
+    else:
+        # Quality issues are logged for reference, but non-empty digests can still
+        # proceed to publish review and delivery.
+        decision = "auto_publish"
 
     report = QualityReport(
         date=day,

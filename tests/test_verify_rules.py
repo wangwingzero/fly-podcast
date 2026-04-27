@@ -1,5 +1,11 @@
+import json
+import importlib
+from types import SimpleNamespace
+
 from flying_podcast.core.scoring import has_source_conflict
 from flying_podcast.stages.verify import _llm_editor_review
+
+verify_module = importlib.import_module("flying_podcast.stages.verify")
 
 
 def test_source_conflict_detected():
@@ -155,3 +161,63 @@ def test_llm_editor_review_prompt_rejects_schedule_advisory_style_story():
     )
 
     assert "航司航线暂停/恢复" in client.system_prompt
+
+
+def test_verify_skips_publish_when_llm_is_required_for_rules_content(monkeypatch, tmp_path):
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    keywords_path = tmp_path / "keywords.yaml"
+    keywords_path.write_text(
+        "sensitive_keywords: []\nsensational_words: []\n",
+        encoding="utf-8",
+    )
+    (processed_dir / "composed_2026-04-26.json").write_text(
+        json.dumps(
+            {
+                "date": "2026-04-26",
+                "article_count": 1,
+                "entries": [
+                    {
+                        "id": "a1",
+                        "title": "FAA issues safety directive",
+                        "conclusion": "FAA issues safety directive",
+                        "facts": ["FAA issues safety directive", "Boeing 737 inspection required"],
+                        "body": "FAA issues a safety directive for Boeing 737 inspection.",
+                        "citations": ["https://www.faa.gov/newsroom/demo"],
+                        "source_tier": "A",
+                        "source_id": "faa_newsroom_web",
+                        "score_breakdown": {
+                            "factual": 90,
+                            "relevance": 90,
+                            "timeliness": 90,
+                            "readability": 100,
+                        },
+                    }
+                ],
+                "meta": {"compose_mode": "rules"},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    fake_settings = SimpleNamespace(
+        processed_dir=processed_dir,
+        keywords_config=keywords_path,
+        target_article_count=1,
+        min_tier_a_ratio=0.7,
+        max_entries_per_source=3,
+        allow_google_redirect_citation=False,
+        quality_threshold=80,
+        require_llm_for_publish=True,
+    )
+    monkeypatch.setattr(verify_module, "settings", fake_settings)
+    monkeypatch.setattr(verify_module.OpenAICompatibleClient, "is_configured", staticmethod(lambda: False))
+
+    out = verify_module.run("2026-04-26")
+    report = json.loads(out.read_text(encoding="utf-8"))
+
+    assert report["decision"] == "skip_publish"
+    assert "llm_required_for_publish" in report["reasons"]
+    assert "non_chinese_content" in report["reasons"]
+    assert "all_entries_blocked" in report["reasons"]
+    assert report["blocked_entry_ids"] == ["a1"]

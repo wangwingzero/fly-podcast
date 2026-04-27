@@ -789,6 +789,8 @@ _META_SENTENCE_PATTERNS = [
     r"新闻标题所述事件核心为[^。！？!?]*[。！？!?]?",
     r"标题所述事件核心为[^。！？!?]*[。！？!?]?",
     r"报道标题所述事件核心为[^。！？!?]*[。！？!?]?",
+    r"原文未(?:列出|提供|说明)[^。！？!?]*[。！？!?]?",
+    r"(?:标题涉及|原文提到|原文列明|原文同时提到|原文称|原文显示)",
 ]
 
 _META_SENTENCE_PHRASES = [
@@ -867,6 +869,8 @@ def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: floa
 
 def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: list[str], impact: str, body: str = "") -> DigestEntry:
     source_name = item.get("source_name", "")
+    pilot_value = item.get("pilot_value") if isinstance(item.get("pilot_value"), dict) else {}
+    section = str(item.get("section") or pilot_value.get("category") or "").strip()
     clean_title = html.unescape(title.strip()) or _clean_title(item.get("title", ""))[0]
     if _is_noisy_title(clean_title):
         clean_title = _clean_title(item.get("title", ""))[0]
@@ -908,7 +912,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
     return DigestEntry(
         id=item["id"],
         source_id=item.get("source_id", ""),
-        section=item.get("section", ""),
+        section=section,
         title=clean_title,
         conclusion=conclusion,
         facts=normalized_facts,
@@ -1082,10 +1086,22 @@ def _fetch_article_text(url: str, timeout: int = 12) -> str:
     if "news.google.com" in url:
         return ""
 
-    def _extract_paragraphs(html: str) -> str:
+    def _extract_paragraphs(html_text: str) -> str:
         """Extract readable text from <p> tags, skip boilerplate."""
-        html = re.sub(r"<(script|style|nav|header|footer|aside)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
-        paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", html, flags=re.DOTALL | re.IGNORECASE)
+        html_text = re.sub(r"<(script|style|nav|header|footer|aside)[^>]*>.*?</\1>", "", html_text, flags=re.DOTALL | re.IGNORECASE)
+        avherald_blocks = re.findall(
+            r'<span[^>]+class=["\']sitetext["\'][^>]*>(.*?)</span>',
+            html_text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if avherald_blocks:
+            text = " ".join(_strip_html(block) for block in avherald_blocks)
+            text = re.sub(r"\s+", " ", html.unescape(text)).strip()
+            if "List by: Filter:" in text:
+                text = text.split("List by: Filter:", 1)[1].strip()
+            if len(text) > 100:
+                return text
+        paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", html_text, flags=re.DOTALL | re.IGNORECASE)
         text_parts = []
         for p in paragraphs:
             clean = _strip_html(p).strip()
@@ -1126,9 +1142,9 @@ def _fetch_article_text(url: str, timeout: int = 12) -> str:
     # Step 2: Fallback to nodriver + Xvfb for JS-rendered pages
     try:
         from flying_podcast.stages.ingest import _fetch_html_nodriver
-        html = _fetch_html_nodriver(url, timeout_ms=20000, use_xvfb=True)
-        if html:
-            text = _extract_paragraphs(html[:100000])
+        html_text = _fetch_html_nodriver(url, timeout_ms=20000, use_xvfb=True)
+        if html_text:
+            text = _extract_paragraphs(html_text[:100000])
             if len(text) >= 100:
                 logger.info("Fetched article text (%d chars) via nodriver from %s", len(text[:3000]), url[:60])
                 return text[:3000]
@@ -1187,6 +1203,8 @@ def _build_selection_prompt(
                 "source_tier": row.get("source_tier", "C"),
                 "source_name": row.get("source_name", ""),
                 "publisher_domain": row.get("publisher_domain", ""),
+                "rank_score": row.get("rank_score", 0),
+                "pilot_value": row.get("pilot_value", {}),
             }
         )
 
@@ -1202,15 +1220,22 @@ def _build_selection_prompt(
 
     system_prompt = (
         "你是服务于飞行员的国际航空新闻编辑。\n"
-        "从候选新闻中选出最有价值的文章。候选列表已经过初步筛选，全部是航空相关新闻。\n\n"
+        "从候选新闻中选出最有价值的文章。候选列表已经过初步筛选，全部是航空相关新闻，但仍可能混入行业背景稿。\n\n"
+        "你的判断标准只有一个：飞行员读完后，是否能获得一个与飞行运行、安全、机型系统、程序或训练有关的具体新事实。\n"
+        "可以充分利用你的理解能力做排序，但不能脑补事实；只根据候选标题和摘要判断。\n\n"
         "【选稿优先级——从高到低】\n"
-        "1. 运行安全：事故/事件/安全通报/紧急着陆/备降/颠簸报告\n"
-        "2. 适航与监管：适航指令AD/安全建议/罚单/强制检查/新规\n"
-        "3. 机队与维护：发动机问题/AD/SB/停飞令/交付延迟\n"
-        "4. 气象与运行：极端天气/火山灰/NOTAM/TFR\n"
-        "5. 训练与资质：训练要求、模拟机、疲劳风险、资质变化\n\n"
-        "【直接排除】新航线开通、机型投放、机队扩张、订单交付、常规排班、计划维护、"
-        "品牌宣传、管理层表态；除非原文明确写到飞行程序、运行限制、训练要求或安全风险。\n\n"
+        "1. 运行安全事件：事故、严重征候、RTO、备降/返航、复飞、跑道侵入/偏出、TCAS、间隔丧失、烟雾/火警、系统故障。\n"
+        "2. 运行环境与程序：NOTAM、TFR、空域限制、绕飞、跑道关闭、CPDLC、GPS干扰、跑道数据、防冲出。\n"
+        "3. 人因与训练：疲劳、空间定向障碍、CRM、模拟机、资质训练，但必须有具体案例或明确训练要求。\n"
+        "4. 机型/适航/技术：AD、SAFO、InFO、SB、强制检查、发动机/液压/飞控/起落架/增压/航电问题。\n\n"
+        "【版面平衡】如果候选足够，必须优先形成飞行员愿意点开的组合：\n"
+        "- 至少3条真实运行安全事件或调查进展。\n"
+        "- 至少1条程序/跑道/CPDLC/空域/人因训练类内容。\n"
+        "- 纯适航指令或检查类 AD 最多2条，除非当天没有足够事件和程序类内容。\n"
+        "- 同一来源不要连续堆太多；详细事件、驾驶舱风险、跑道/程序问题优先于薄数据库记录和纯工卡检查。\n"
+        "- 跑道碰撞、跑道侵入/冲出、客舱/驾驶舱烟雾、CPDLC上行、跑道数据防冲出，都是飞行员高优先级内容。\n\n"
+        "【直接排除】新航线开通、机型投放、机队扩张、订单交付、常规排班、签派/运控后台管理、"
+        "品牌宣传、管理层表态、机场商业服务；除非原文明确写到飞行程序、运行限制、训练要求或安全风险。\n\n"
         "【不选】股价财报、明星娱乐、旅游生活方式、政治宣传、企业软文广告\n\n"
         f"最多选择{total}条。宁缺毋滥，如果没有足够高价值的飞行员相关内容，可以少选。\n"
         "输出必须是 JSON object，且仅包含 entries 字段。"
@@ -1236,14 +1261,17 @@ def _build_selection_prompt(
                 "常规计划维护/机队调配",
             ],
             "prefer_topics": [
-                "运行安全（事故/事件/安全通报/紧急着陆/备降）",
-                "适航与监管（适航指令AD/安全建议/罚单/强制检查）",
-                "空域与航班运行（流控/航路变更/NOTAM/TFR）",
-                "机队与机务维护（故障/AD/SB/停飞令/发动机问题）",
-                "气象与运行影响（极端天气/火山灰/颠簸报告）",
-                "培训与资质要求变更",
-                "机场/空域/程序限制变化",
+                "运行安全事件：事故/征候/RTO/备降返航/跑道事件/TCAS/间隔丧失",
+                "运行环境与程序：NOTAM/TFR/空域限制/绕飞/CPDLC/GPS干扰/跑道数据",
+                "人因与训练：疲劳/空间定向障碍/CRM/模拟机/资质训练，且必须有具体信息",
+                "机型技术与适航：AD/SAFO/InFO/SB/强制检查/发动机和系统故障",
             ],
+            "balance": {
+                "min_safety_event_if_available": 3,
+                "min_ops_or_human_factors_if_available": 1,
+                "max_pure_airworthiness_directives_if_available": 2,
+                "prefer_detailed_events_over_thin_database_records": True,
+            },
         },
         "output_schema": {
             "entries": [
@@ -1309,6 +1337,66 @@ def _llm_select_articles(
     return selected
 
 
+def _is_thin_database_record(candidate: dict) -> bool:
+    source_id = str(candidate.get("source_id", ""))
+    raw_text = _strip_html(candidate.get("raw_text", ""))
+    return source_id.startswith("asn_") and len(raw_text) < 260
+
+
+def _is_editorial_anchor(candidate: dict) -> bool:
+    """High-value line-pilot stories that should not be lost by LLM taste."""
+    if _is_thin_database_record(candidate):
+        return False
+    pilot_value = candidate.get("pilot_value") if isinstance(candidate.get("pilot_value"), dict) else {}
+    category = str(pilot_value.get("category") or candidate.get("section") or "")
+    rank_score = float(candidate.get("rank_score") or 0.0)
+    if category in {"safety_event", "ops_environment", "human_factors_training"} and rank_score >= 85.0:
+        return True
+    text = f"{candidate.get('title', '')} {candidate.get('raw_text', '')}".lower()
+    must_keep_terms = [
+        "runway collision",
+        "runway incursion",
+        "runway excursion",
+        "engine smoke",
+        "cockpit smoke",
+        "cabin smoke",
+        "cpdlc",
+        "runway data",
+        "spatial disorientation",
+    ]
+    return rank_score >= 80.0 and any(term in text for term in must_keep_terms)
+
+
+def _blend_selection_with_editorial_anchors(
+    selected_ids: list[str],
+    candidates_pool: list[dict],
+    total: int,
+) -> list[str]:
+    """Merge LLM taste with deterministic top-ranked pilot-safety anchors."""
+    if not candidates_pool:
+        return selected_ids
+    anchor_limit = min(len(candidates_pool), max(settings.target_article_count + 4, total // 2))
+    anchor_ids = [
+        str(row.get("id", ""))
+        for row in candidates_pool
+        if _is_editorial_anchor(row)
+    ][:anchor_limit]
+    combined: list[str] = []
+    for rid in anchor_ids + selected_ids:
+        if rid and rid not in combined:
+            combined.append(rid)
+        if len(combined) >= total:
+            break
+    if combined != selected_ids[: len(combined)]:
+        logger.info(
+            "Phase 1 editorial anchors merged: anchors=%d selected=%d final=%d",
+            len(anchor_ids),
+            len(selected_ids),
+            len(combined),
+        )
+    return combined
+
+
 def _match_glossary_for_single(candidate: dict, glossary: dict[str, str]) -> str:
     """Match glossary terms for a single candidate article."""
     return _match_glossary_for_candidates([candidate], glossary)
@@ -1336,11 +1424,11 @@ def _build_composition_prompt(
     if is_summary_only:
         mode_instruction = (
             "【内容类型：摘要/标题级】这条新闻只有简短的摘要或标题，没有完整原文。\n"
-            "处理方式：基于已有信息写出3-4句话的中文快报。\n"
+            "处理方式：只基于已有信息写出2-4句话的中文快报。\n"
             "- 第一句概括核心事实\n"
-            "- 后续句子可基于标题和摘要中的线索，补充已知背景、影响对象、处置动作或时间线\n"
-            "- 在不编造细节的前提下，尽量把正文写到140-220字，不要只写成一句半\n"
-            "- 不得编造具体数据、日期、人名等不存在于原文中的细节\n"
+            "- 后续句子只能补充标题或摘要里已经明确出现的时间、地点、机型、系统、处置动作和后果\n"
+            "- 不要为了凑字数扩写。信息少就短写，宁短勿假\n"
+            "- 不得编造具体数据、原因、日期、人名、机组判断、调查结论等不存在于原文中的细节\n"
             "- 不要写「原文未提供更多细节」之类的元评论\n"
             "- 只允许写看得见、点得出的事实：谁、何时、何地、做了什么、结果如何\n"
         )
@@ -1358,10 +1446,16 @@ def _build_composition_prompt(
         "你的任务是将下面这一条英文航空新闻改写为中文摘要，并对其价值打分。\n\n"
         f"{mode_instruction}\n"
         "【核心原则】必须且只能基于提供的原文内容改写，不得引入外部事实，不得编造任何信息。\n\n"
+        "所有具体事实必须能在 source_title 或 raw_text 中找到依据。"
+        "如果原文没有写原因、责任、处置依据、伤情程度、调查结论，就不要写。"
+        "可以把英文事实翻译成中文，但不能把常识、猜测或你知道的背景写进正文。\n\n"
         "把自己当成监控摄像头或事件记录员：只记录看得见、读得到的事实，不下结论，不做评价。\n\n"
+        "【高风险事实】涉及人数、伤亡、撤离方式、速度、高度、跑道、故障原因、处置结果时，"
+        "禁止使用「所有」「全部」「均」「只有」「仅」「已经确认」这类全称或排他性措辞，"
+        "除非这些词在原文中有明确依据。遇到撤离方式、人数口径不完全一致时，按原文分开写，不能合并成一个绝对表述。\n\n"
         "【绝对禁止的写法】\n"
         "- 禁止写「原文未提供更多细节」「具体原因尚不清楚」「详情有待进一步报道」等元评论\n"
-        "- 禁止写「报道提到」「报道指出」「新闻称」「据报道」「新闻标题所述事件核心为」这类转述原文的元叙述\n"
+        "- 禁止写「报道提到」「报道指出」「新闻称」「据报道」「新闻标题所述事件核心为」「原文未列出」「标题涉及」「原文提到」这类转述原文的元叙述\n"
         "- 禁止评论原文的信息量、质量或完整程度\n"
         "- 禁止添加「值得关注」「引发关注」等空话套话\n"
         "- 禁止写总结句、判断句、评价句，例如「事件性质为…」「被形容为…」「险些酿成严重后果」「这说明…」\n"
@@ -1377,13 +1471,13 @@ def _build_composition_prompt(
         "如果「看完像没看」，就是低分。如果获得了新的具体认知，就是高分。\n\n"
         "根据以下维度打score分（1-10分）：\n"
         "- 信息增量（占50%）：飞行员读完后能获得什么新认知？\n"
-        "  高分示例：具体的安全事件细节、新的适航指令、运行限制变更、新技术应用\n"
+        "  高分示例：具体的安全事件细节、新的适航指令、SAFO/InFO、运行限制变更、机型系统问题、程序或训练要求\n"
         "  低分示例（必须给1-3分）：\n"
         "    · 概述性/科普性文章：「航空法律如何塑造全球航空旅行的未来」— 没有具体新事实\n"
         "    · 空洞趋势分析：「XX技术将改变航空业」— 没有具体数据或时间节点\n"
         "    · 企业软文/宣传稿：某航司宣布战略愿景、某机场获奖 — 无运行相关信息\n"
         "    · 会议通稿：领导讲话、签约仪式、合作备忘录 — 飞行员看完等于没看\n"
-        "    · 「某航司订购了飞机」「某航司开了新航线」— 无具体运行影响\n"
+        "    · 「某航司订购了飞机」「某航司开了新航线」「机场提升旅客体验」— 无具体运行影响\n"
         "- 运行相关性（占30%）：与飞行运行、安全、训练和机型操作的关联程度\n"
         "- 类别加分（占20%）：\n"
         "  飞行技术类（新技术、新系统、飞行操作、驾驶舱相关）→ 额外+2分\n"
@@ -1403,26 +1497,29 @@ def _build_composition_prompt(
         "- 正文简洁但不能过短，不写空话套话，不加「总之」「综上」等总结语\n"
         "- 正文中禁止出现：「反映出」「体现了」「意味着」「表明」「显示出」「值得注意的是」「被形容为」「事件性质为」「时间节点为」「主体包括」「根据标题信息」「受影响范围为」等分析、定性、字段抽取或来源提示口吻\n"
         "- 正文只回答：发生了什么事？谁？什么时候？在哪？涉及什么？——仅此而已\n"
-        "- 正文结构：先写事实摘要（完整原文写4-6句，摘要稿写3-4句），然后另起一行写「划重点：」开头的编辑锐评。\n"
+        "- 正文结构：先写事实摘要（完整原文写4-6句，摘要稿写2-4句），然后另起一行写「划重点：」开头的编辑锐评。\n"
         "  【划重点 — 这是本文最重要的部分，必须写好】\n"
         "  风格：你是一个飞了二十年的老机长，在飞行员群里转发新闻时随手配的一句话。\n"
-        "  语气要求：必须带调侃、吐槽、自嘲、或黑色幽默，像段子手而不是新闻播音员。\n"
+        "  语气要求：保留调侃、吐槽、自嘲、或黑色幽默，像飞行员群里的老机长，不像新闻播音员。\n"
+        "  事实边界：点评只能围绕正文已经写出的事实发散，不能补原因、补责任、补处置建议、补调查结论。\n"
+        "  安全边界：涉及伤亡、严重受伤、紧急撤离、火警、失压、跑道事件时，可以冷幽默，但不能拿伤亡开玩笑，不能轻佻嘲笑当事机组或旅客。\n"
         "  可以用的手法：反讽、夸张、类比日常飞行生活、自嘲行业现状、抖机灵、接地气的比喻。\n"
         "  字数：1-2句话，不超过50字，越短越好，像发微博不像写报告。\n\n"
         "  好的示例（学习这种味道）：\n"
         "  「划重点：PW又出幺蛾子了，建议各位查查下个月排班表上有多少NEO，心里好有个数。」\n"
         "  「划重点：地面碰坏轮椅不赔、飞机晚点不赔，就是股价跌了赔得最快。」\n"
         "  「划重点：模拟机都批了，离真飞机交付还远着呢——不过至少以后面试可以多个机型选了。」\n"
-        "  「划重点：一架飞机上查出弹药，这背后安检漏洞的严重程度，比新闻标题吓人多了。」\n"
+        "  「划重点：RTO这种事，字越短心跳越快，尤其还带着发动机和刹车一起上场。」\n"
         "  「划重点：又订飞机了，建议各位先别高兴——你猜谁来飞？」\n"
         "  「划重点：737 MAX的复飞之路，比你早高峰堵在三环上还漫长。」\n"
         "  「划重点：FAA终于动手了，就是这速度，黄花菜都凉了。」\n"
-        "  「划重点：说是自愿检查，但你敢不查试试？」\n\n"
+        "  「划重点：说是自愿检查，但你敢不查试试？」\n"
+        "  「划重点：CPDLC上行路线装错，听起来像小失误，飞起来就是大麻烦。」\n\n"
         "  绝对禁止的写法（出现以下任何一种，整条作废）：\n"
         "  X「此事值得持续关注」X「让我们拭目以待」X「这一趋势值得深思」\n"
         "  X「这无疑是一个积极信号」X「未来发展值得期待」X「业界应高度重视」\n"
         "  X「这对行业具有重要意义」X「这一举措将产生深远影响」\n"
-        "  X 任何以「这」开头的总结性句子 X 任何官话套话新闻腔\n"
+        "  X 任何以「这」开头的总结性句子 X 任何官话套话新闻腔 X 对伤亡和受伤开玩笑\n"
         + glossary_block
         + "\n\n输出JSON：{\"title\": \"...\", \"conclusion\": \"...\", \"body\": \"...\", \"score\": 8, \"score_reason\": \"...\"}"
     )
@@ -1437,7 +1534,7 @@ def _build_composition_prompt(
 
 
 # Minimum score threshold for articles to be published
-_MIN_PUBLISH_SCORE = 4
+_MIN_PUBLISH_SCORE = 7
 _MIN_BACKFILL_SCORE = 3
 
 
@@ -1447,14 +1544,15 @@ _TRANSLATE_BODY_PROMPT = (
     "1. 航空专业术语使用ICAO/民航标准中文译法\n"
     "2. 外国航空公司名称保留英文原名（如Delta、United、Lufthansa等）\n"
     "3. 飞机型号保留英文（如Boeing 737、Airbus A320等）\n"
-    "4. 用3-4句话概括核心事实，纯客观报道，不加评论分析解读；如果原文较完整，优先写到180-260字\n"
+    "4. 只基于原文写核心事实，纯客观报道，不加评论分析解读；原文信息少就短写，宁短勿假\n"
     "5. 正文禁止出现「反映出」「体现了」「意味着」「表明」「被形容为」「事件性质为」等分析、总结或定性语言\n"
-    "5.1 禁止出现「报道提到」「报道指出」「新闻称」「据报道」「新闻标题所述事件核心为」这类元叙述\n"
+    "5.1 禁止出现「报道提到」「报道指出」「新闻称」「据报道」「新闻标题所述事件核心为」「原文未列出」「标题涉及」「原文提到」这类元叙述\n"
     "5.2 只写客观事实，不要替原文下结论，不要写「险些酿成严重后果」「短时运行中断」这类概括性判断\n"
     "5.3 禁止写字段抽取口吻，不要出现「时间节点为…」「时间点为…」「主体为…」「主体包括…」\n"
     "5.4 禁止写来源提示语或整理素材口吻，不要出现「根据标题信息…」「受影响范围为…」「相关措施发生在…」\n"
-    "6. 正文结构：先写事实摘要（3-4句纯事实），然后另起一行写「划重点：」开头的编辑锐评。\n"
-    "   锐评风格：飞了二十年的老机长在群里转发新闻配的一句话，必须带调侃或吐槽，像段子手不像播音员。\n"
+    "6. 正文结构：先写事实摘要，然后另起一行写「划重点：」开头的编辑锐评。\n"
+    "   锐评风格：飞了二十年的老机长在群里转发新闻配的一句话，可以调侃或吐槽，但必须围绕原文事实。\n"
+    "   涉及伤亡、严重受伤、紧急撤离、火警、失压、跑道事件时，不得拿伤亡开玩笑，不得嘲笑当事机组或旅客。\n"
     "   禁止写「值得关注」「拭目以待」「值得深思」「积极信号」等官话套话。\n"
     "只输出JSON，不要任何其他内容。\n\n"
     "标题：{title}\n内容：{text}"
@@ -1479,9 +1577,9 @@ def _llm_translate_fallback(
         response = client.complete_json(
             system_prompt=(
                 "你是航空新闻翻译。输出JSON：{\"title\": \"中文标题\", \"body\": \"中文正文\"}\n"
-                "body格式：先写3-4句纯客观事实（不加评论分析），如果原文较完整优先写到180-260字，然后另起一行写「划重点：」开头的编辑锐评。"
+                "body格式：先写纯客观事实（不加评论分析，原文信息少就短写），然后另起一行写「划重点：」开头的编辑锐评。"
                 "正文只写事实，禁止「反映出」「体现了」「意味着」等分析性语言。"
-                "锐评风格：老机长在群里配的一句话，必须带调侃或吐槽。"
+                "锐评风格：老机长在群里配的一句话，可以调侃或吐槽，但不能补事实；涉及伤亡或严重安全事件时不得轻佻。"
             ),
             user_prompt=prompt,
             max_tokens=800,
@@ -1730,9 +1828,12 @@ def _enforce_constraints(
     required_sections: list[str] = []
     max_per_source = settings.max_entries_per_source
 
-    # Only allow pool entries with Chinese titles (avoid replacing LLM-translated entries
-    # with untranslated English entries from the rules-based pool).
-    pool = [p for p in pool if _has_chinese(p.title)]
+    # Use already-composed overflow entries first, then rules entries as a last resort.
+    # Rules entries often keep English source titles, so only Chinese rules entries are
+    # eligible as replacements.
+    composed_pool = [e for e in entries if _has_chinese(e.title)]
+    rules_pool = [p for p in pool if _has_chinese(p.title)]
+    pool = composed_pool + [p for p in rules_pool if p.id not in {e.id for e in composed_pool}]
 
     # Filter domestic entries from pool when domestic_ratio is 0
     if domestic_ratio <= 0.0:
@@ -1748,6 +1849,7 @@ def _enforce_constraints(
         uniq.append(e)
         used_ids.add(e.id)
     out = uniq[:total]
+    used_ids = {e.id for e in out}
 
     for p in pool:
         if len(out) >= total:
@@ -1827,6 +1929,84 @@ def _enforce_constraints(
         used_ids.discard(out[victim_idx].id)
         out[victim_idx] = replacement
         used_ids.add(replacement.id)
+
+    def _entry_category(row: DigestEntry) -> str:
+        return (row.section or "").strip()
+
+    def _is_pure_airworthiness_ad(row: DigestEntry) -> bool:
+        title_l = row.title.lower()
+        return row.source_id == "easa_ad_web" or (
+            "适航指令" in row.title and not any(word in title_l for word in ["safo", "info", "info"])
+        )
+
+    def _replace_last_matching(
+        victim_predicate: Any,
+        replacement_predicate: Any,
+    ) -> bool:
+        nonlocal out, used_ids
+        victim_idx = None
+        for i in range(len(out) - 1, -1, -1):
+            if victim_predicate(out[i]):
+                victim_idx = i
+                break
+        if victim_idx is None:
+            return False
+        replacement = next(
+            (
+                p
+                for p in pool
+                if p.id not in used_ids
+                and replacement_predicate(p)
+            ),
+            None,
+        )
+        if replacement is None:
+            return False
+        used_ids.discard(out[victim_idx].id)
+        out[victim_idx] = replacement
+        used_ids.add(replacement.id)
+        return True
+
+    def _has_available(replacement_predicate: Any) -> bool:
+        return any(p.id not in used_ids and replacement_predicate(p) for p in pool)
+
+    max_pure_ad = min(2, max_per_source, max(1, total // 4))
+    guard = 0
+    while guard < 20 and sum(1 for e in out if _is_pure_airworthiness_ad(e)) > max_pure_ad:
+        guard += 1
+        if not _replace_last_matching(
+            _is_pure_airworthiness_ad,
+            lambda p: not _is_pure_airworthiness_ad(p)
+            and _entry_category(p) in {"safety_event", "ops_environment", "human_factors_training"},
+        ):
+            break
+
+    ops_or_human = {"ops_environment", "human_factors_training"}
+    min_ops_or_human = min(2, total)
+    guard = 0
+    while (
+        guard < 20
+        and sum(1 for e in out if _entry_category(e) in ops_or_human) < min_ops_or_human
+        and _has_available(lambda p: _entry_category(p) in ops_or_human)
+    ):
+        guard += 1
+        if not _replace_last_matching(
+            lambda e: _is_pure_airworthiness_ad(e) or _entry_category(e) == "airworthiness_technical",
+            lambda p: _entry_category(p) in ops_or_human,
+        ):
+            break
+
+    min_safety_events = min(3, total)
+    safety_count = sum(1 for e in out if _entry_category(e) == "safety_event")
+    guard = 0
+    while guard < 20 and safety_count < min_safety_events and _has_available(lambda p: _entry_category(p) == "safety_event"):
+        guard += 1
+        if not _replace_last_matching(
+            lambda e: _is_pure_airworthiness_ad(e) or _entry_category(e) in {"airworthiness_technical", "human_factors_training"},
+            lambda p: _entry_category(p) == "safety_event",
+        ):
+            break
+        safety_count = sum(1 for e in out if _entry_category(e) == "safety_event")
 
     return out[:effective_total]
 
@@ -1932,7 +2112,7 @@ def run(target_date: str | None = None) -> Path:
     recent_index = _build_recent_dedup_index(recent_published)
     candidates = _prioritize_non_recent_candidates(candidates, recent_index)
 
-    ai_pool_size = max(settings.target_article_count * 4, 40)
+    ai_pool_size = max(settings.target_article_count * 5, 60)
     ai_candidates_pool = candidates[:ai_pool_size] if candidates else []
     if len(ai_candidates_pool) < settings.target_article_count:
         ai_candidates_pool = list(candidates)
@@ -1962,6 +2142,9 @@ def run(target_date: str | None = None) -> Path:
             # Phase 1: Selection (1 LLM call — lightweight)
             selected_ids = _llm_select_articles(
                 llm_client, ai_candidates_pool or selected, llm_total, recent_published,
+            )
+            selected_ids = _blend_selection_with_editorial_anchors(
+                selected_ids, ai_candidates_pool or selected, llm_total,
             )
             compose_meta_extra["phase1_ids"] = selected_ids
 
