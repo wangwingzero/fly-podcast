@@ -61,6 +61,7 @@ class Settings:
     llm_fallback_model: str = os.getenv("LLM_FALLBACK_MODEL", "")
 
     wechat_enable_publish: bool = _env_bool("WECHAT_ENABLE_PUBLISH", False)
+    wechat_auto_publish: bool = _env_bool("WECHAT_AUTO_PUBLISH", False)
     wechat_app_id: str = os.getenv("WECHAT_APP_ID", "")
     wechat_app_secret: str = os.getenv("WECHAT_APP_SECRET", "")
     wechat_author: str = os.getenv("WECHAT_AUTHOR", "Global Aviation Digest")

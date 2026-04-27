@@ -215,3 +215,93 @@ def test_publish_filters_blocked_entries_and_does_not_save_history_in_dry_run(mo
     assert "blocked_entries_filtered" in result["reasons"]
     assert rendered_counts == [1]
     assert saved_history == []
+
+
+def test_publish_creates_draft_without_auto_publish(monkeypatch, tmp_path):
+    processed_dir = tmp_path / "processed"
+    output_dir = tmp_path / "output"
+    processed_dir.mkdir()
+    output_dir.mkdir()
+
+    (processed_dir / "composed_2026-03-14.json").write_text(
+        json.dumps({
+            "date": "2026-03-14",
+            "article_count": 1,
+            "entries": [
+                {
+                    "id": "kept",
+                    "title": "保留",
+                    "body": "中文正文",
+                    "citations": ["https://example.com/kept"],
+                }
+            ],
+            "meta": {"compose_mode": "llm_two_phase"},
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (processed_dir / "quality_2026-03-14.json").write_text(
+        json.dumps({
+            "date": "2026-03-14",
+            "decision": "auto_publish",
+            "total_score": 91.0,
+            "reasons": [],
+            "blocked_entry_ids": [],
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    fake_settings = SimpleNamespace(
+        processed_dir=processed_dir,
+        output_dir=output_dir,
+        web_digest_base_url="https://flighttoolbox.example.com/digest",
+        dry_run=False,
+        wechat_enable_publish=True,
+        wechat_auto_publish=False,
+        wechat_author="飞行播客",
+    )
+    saved_history = []
+
+    class FakeWeChatClient:
+        def replace_external_images(self, html):
+            return html
+
+        def create_draft(self, **kwargs):
+            assert kwargs["source_url"] == "https://flighttoolbox.example.com/digest/web_2026-03-14.html"
+            return "draft-media-id"
+
+        def list_drafts(self, count=20):
+            return []
+
+        def delete_draft(self, media_id):
+            raise AssertionError("no drafts should be deleted")
+
+        def publish_draft(self, media_id):
+            raise AssertionError("auto publish should be disabled")
+
+    monkeypatch.setattr(publish, "settings", fake_settings)
+    monkeypatch.setattr(publish, "ensure_dirs", lambda: None)
+    monkeypatch.setattr(publish, "_load_saved_copyright_notice_url", lambda: "")
+    monkeypatch.setattr(publish, "_copyright_web_fallback_url", lambda: "https://example.com/copyright")
+    monkeypatch.setattr(publish, "_ensure_wechat_copyright_notice_url", lambda client: "https://example.com/copyright")
+    monkeypatch.setattr(publish, "_mirror_entry_images_to_static", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(publish, "_render_markdown", lambda digest: "# draft")
+    monkeypatch.setattr(publish, "_render_html", lambda digest: "<html>draft</html>")
+    monkeypatch.setattr(publish, "_generate_digest_summary", lambda digest: "summary")
+    monkeypatch.setattr(publish, "_generate_web_intro", lambda digest: "intro")
+    monkeypatch.setattr(publish, "_enhance_web_entries", lambda digest: digest)
+    monkeypatch.setattr(
+        publish,
+        "_render_web_html",
+        lambda digest, summary, intro, copyright_notice_url: "<html>web</html>",
+    )
+    monkeypatch.setattr(publish, "_download_first_article_image", lambda digest: None)
+    monkeypatch.setattr(publish, "_fill_missing_images", lambda digest, client: digest)
+    monkeypatch.setattr(publish, "_save_recent_published", lambda digest, day: saved_history.append(day))
+    monkeypatch.setattr(publish, "WeChatClient", FakeWeChatClient)
+
+    out_path = publish.run("2026-03-14")
+    result = json.loads(Path(out_path).read_text(encoding="utf-8"))
+
+    assert result["status"] == "draft_created"
+    assert result["publish_id"] == "draft-media-id"
+    assert saved_history == ["2026-03-14"]

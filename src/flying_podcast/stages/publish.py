@@ -1402,13 +1402,16 @@ def run(target_date: str | None = None) -> Path:
             result["url"] = f"https://mp.weixin.qq.com"
             # Clean up old drafts, keep only the one just created
             _cleanup_old_drafts(client, keep_media_id=media_id)
-            try:
-                publish = client.publish_draft(media_id)
-                result["status"] = "published"
-                result["publish_id"] = publish.publish_id
-                result["url"] = f"wechat://publish/{publish.publish_id}"
-            except WeChatPublishError:
-                logger.info("Auto-publish not available, draft saved to WeChat backend")
+            if getattr(settings, "wechat_auto_publish", False):
+                try:
+                    publish = client.publish_draft(media_id)
+                    result["status"] = "published"
+                    result["publish_id"] = publish.publish_id
+                    result["url"] = f"wechat://publish/{publish.publish_id}"
+                except WeChatPublishError:
+                    logger.info("Auto-publish not available, draft saved to WeChat backend")
+            else:
+                logger.info("Draft created; auto-publish disabled")
         except WeChatPublishError as exc:
             result["status"] = "failed"
             result["reasons"].append(str(exc))
