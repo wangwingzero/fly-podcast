@@ -1,5 +1,6 @@
 import json
 import importlib
+from types import SimpleNamespace
 
 from flying_podcast.core.models import DigestEntry
 from flying_podcast.stages.compose import (
@@ -41,7 +42,7 @@ def _entry(i: int, title: str, url: str, fp: str = "", region: str = "domestic")
     )
 
 
-def test_prioritize_non_recent_candidates_moves_repeated_url_to_tail():
+def test_prioritize_non_recent_candidates_removes_repeated_url_in_unlimited_mode():
     recent = [
         {
             "date": "2026-02-18",
@@ -58,10 +59,10 @@ def test_prioritize_non_recent_candidates_moves_repeated_url_to_tail():
     ]
 
     out = _prioritize_non_recent_candidates(candidates, index)
-    assert [x["id"] for x in out] == ["id-2", "id-1"]
+    assert [x["id"] for x in out] == ["id-2"]
 
 
-def test_prioritize_non_recent_candidates_matches_normalized_title():
+def test_prioritize_non_recent_candidates_matches_normalized_title_in_unlimited_mode():
     recent = [
         {
             "date": "2026-02-18",
@@ -78,6 +79,28 @@ def test_prioritize_non_recent_candidates_matches_normalized_title():
     ]
 
     out = _prioritize_non_recent_candidates(candidates, index)
+    assert [x["id"] for x in out] == ["id-2"]
+
+
+def test_prioritize_non_recent_candidates_only_backfills_for_positive_target(monkeypatch):
+    recent = [
+        {
+            "date": "2026-02-18",
+            "title": "old",
+            "url": "https://example.com/a?utm=1",
+            "id": "",
+            "event_fingerprint": "",
+        }
+    ]
+    index = _build_recent_dedup_index(recent)
+    candidates = [
+        _candidate(1, "repeat", "https://example.com/a"),
+        _candidate(2, "fresh", "https://example.com/b"),
+    ]
+    monkeypatch.setattr(compose_module, "settings", SimpleNamespace(target_article_count=2))
+
+    out = _prioritize_non_recent_candidates(candidates, index)
+
     assert [x["id"] for x in out] == ["id-2", "id-1"]
 
 

@@ -302,8 +302,10 @@ def _prioritize_non_recent_candidates(candidates: list[dict], recent_index: dict
             len(fresh),
             len(candidates),
         )
-    # Only fall back to repeated entries when fresh pool is critically small
-    min_needed = settings.target_article_count
+    # Only fall back to repeated entries when a positive article-count target is configured.
+    min_needed = max(0, int(getattr(settings, "target_article_count", 0) or 0))
+    if min_needed <= 0:
+        return fresh
     if len(fresh) >= min_needed:
         return fresh
     logger.warning(
@@ -864,6 +866,8 @@ def _sanitize_body_text(body: str) -> str:
 def _pick_final_entries(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
     if domestic_ratio <= 0.0:
         candidates = [c for c in candidates if c.get("region") != "domestic"]
+    if total <= 0:
+        return candidates
     return candidates[:total]
 
 
@@ -1237,15 +1241,19 @@ def _build_selection_prompt(
         "【直接排除】新航线开通、机型投放、机队扩张、订单交付、常规排班、签派/运控后台管理、"
         "品牌宣传、管理层表态、机场商业服务；除非原文明确写到飞行程序、运行限制、训练要求或安全风险。\n\n"
         "【不选】股价财报、明星娱乐、旅游生活方式、政治宣传、企业软文广告\n\n"
-        f"最多选择{total}条。宁缺毋滥，如果没有足够高价值的飞行员相关内容，可以少选。\n"
-        "输出必须是 JSON object，且仅包含 entries 字段。"
+        + (
+            f"最多选择{total}条。宁缺毋滥，如果没有足够高价值的飞行员相关内容，可以少选。\n"
+            if total > 0
+            else "不设数量上限。选择所有达到高价值标准的文章；没有价值就不选，禁止凑数。\n"
+        )
+        + "输出必须是 JSON object，且仅包含 entries 字段。"
         + dedup_instruction
     )
     user_data: dict[str, Any] = {
         "task": "从候选国际航空新闻中选出最有价值的文章",
         "audience": "飞行员",
         "rules": {
-            "total": total,
+            "total": total if total > 0 else "unlimited",
             "must_keep_ref_id": True,
             "pilot_relevance_first": True,
             "selection_only": "只需返回选中文章的ref_id，不需要翻译或改写任何内容",
@@ -1375,7 +1383,11 @@ def _blend_selection_with_editorial_anchors(
     """Merge LLM taste with deterministic top-ranked pilot-safety anchors."""
     if not candidates_pool:
         return selected_ids
-    anchor_limit = min(len(candidates_pool), max(settings.target_article_count + 4, total // 2))
+    if total <= 0:
+        anchor_limit = len(candidates_pool)
+    else:
+        target = max(0, int(getattr(settings, "target_article_count", 0) or 0))
+        anchor_limit = min(len(candidates_pool), max(target + 4, total // 2))
     anchor_ids = [
         str(row.get("id", ""))
         for row in candidates_pool
@@ -1385,7 +1397,7 @@ def _blend_selection_with_editorial_anchors(
     for rid in anchor_ids + selected_ids:
         if rid and rid not in combined:
             combined.append(rid)
-        if len(combined) >= total:
+        if total > 0 and len(combined) >= total:
             break
     if combined != selected_ids[: len(combined)]:
         logger.info(
@@ -1741,12 +1753,13 @@ def _llm_compose_entries(
                 continue
             entries.append(entry)
 
-    # Limited backfill: only score=3 articles that are NOT cross-day duplicates.
-    # Score <= 2 are truly irrelevant and never re-admitted.
-    if len(entries) < settings.target_article_count and filtered_entries:
+    # Limited backfill only applies when a positive article-count target is configured.
+    # In unlimited mode, low-score articles stay filtered; the issue publishes fewer items.
+    article_limit = max(0, int(getattr(settings, "target_article_count", 0) or 0))
+    if article_limit > 0 and len(entries) < article_limit and filtered_entries:
         filtered_entries.sort(key=lambda x: x[0], reverse=True)
         for score, entry in filtered_entries:
-            if len(entries) >= settings.target_article_count:
+            if len(entries) >= article_limit:
                 break
             if score < _MIN_BACKFILL_SCORE:
                 continue
@@ -1826,7 +1839,8 @@ def _enforce_constraints(
     domestic_ratio: float,
 ) -> list[DigestEntry]:
     required_sections: list[str] = []
-    max_per_source = settings.max_entries_per_source
+    max_per_source = max(0, int(getattr(settings, "max_entries_per_source", 0) or 0))
+    unlimited = total <= 0
 
     # Use already-composed overflow entries first, then rules entries as a last resort.
     # Rules entries often keep English source titles, so only Chinese rules entries are
@@ -1848,15 +1862,16 @@ def _enforce_constraints(
             continue
         uniq.append(e)
         used_ids.add(e.id)
-    out = uniq[:total]
+    out = uniq if unlimited else uniq[:total]
     used_ids = {e.id for e in out}
 
-    for p in pool:
-        if len(out) >= total:
-            break
-        if p.id not in used_ids:
-            out.append(p)
-            used_ids.add(p.id)
+    if not unlimited:
+        for p in pool:
+            if len(out) >= total:
+                break
+            if p.id not in used_ids:
+                out.append(p)
+                used_ids.add(p.id)
     effective_total = len(out)
 
     def _section_counts(rows: list[DigestEntry]) -> dict[str, int]:
@@ -1894,41 +1909,42 @@ def _enforce_constraints(
         used_ids.add(replacement.id)
 
     # source concentration cap
-    source_guard = 0
-    while source_guard < 80:
-        source_guard += 1
-        s_counts = _source_counts(out)
-        over = next((k for k, v in s_counts.items() if v > max_per_source), "")
-        if not over:
-            break
-        section_counts = _section_counts(out)
-        victim_idx = None
-        for i in range(len(out) - 1, -1, -1):
-            key = out[i].source_id or out[i].source_name
-            if key != over:
-                continue
-            victim_idx = i
-            break
-        if victim_idx is None:
-            break
-        victim = out[victim_idx]
-        replacement = next(
-            (
-                p
-                for p in pool
-                if p.id not in used_ids
-                and (p.source_id or p.source_name) != over
-                and s_counts.get((p.source_id or p.source_name), 0) < max_per_source
-            ),
-            None,
-        )
-        if replacement is not None and section_counts.get(victim.section, 0) <= 1 and replacement.section != victim.section:
-            replacement = None
-        if replacement is None:
-            break
-        used_ids.discard(out[victim_idx].id)
-        out[victim_idx] = replacement
-        used_ids.add(replacement.id)
+    if max_per_source > 0:
+        source_guard = 0
+        while source_guard < 80:
+            source_guard += 1
+            s_counts = _source_counts(out)
+            over = next((k for k, v in s_counts.items() if v > max_per_source), "")
+            if not over:
+                break
+            section_counts = _section_counts(out)
+            victim_idx = None
+            for i in range(len(out) - 1, -1, -1):
+                key = out[i].source_id or out[i].source_name
+                if key != over:
+                    continue
+                victim_idx = i
+                break
+            if victim_idx is None:
+                break
+            victim = out[victim_idx]
+            replacement = next(
+                (
+                    p
+                    for p in pool
+                    if p.id not in used_ids
+                    and (p.source_id or p.source_name) != over
+                    and s_counts.get((p.source_id or p.source_name), 0) < max_per_source
+                ),
+                None,
+            )
+            if replacement is not None and section_counts.get(victim.section, 0) <= 1 and replacement.section != victim.section:
+                replacement = None
+            if replacement is None:
+                break
+            used_ids.discard(out[victim_idx].id)
+            out[victim_idx] = replacement
+            used_ids.add(replacement.id)
 
     def _entry_category(row: DigestEntry) -> str:
         return (row.section or "").strip()
@@ -1970,7 +1986,10 @@ def _enforce_constraints(
     def _has_available(replacement_predicate: Any) -> bool:
         return any(p.id not in used_ids and replacement_predicate(p) for p in pool)
 
-    max_pure_ad = min(2, max_per_source, max(1, total // 4))
+    balance_total = len(out) if unlimited else total
+    max_pure_ad = min(2, max(1, balance_total // 4))
+    if max_per_source > 0:
+        max_pure_ad = min(max_pure_ad, max_per_source)
     guard = 0
     while guard < 20 and sum(1 for e in out if _is_pure_airworthiness_ad(e)) > max_pure_ad:
         guard += 1
@@ -1982,7 +2001,7 @@ def _enforce_constraints(
             break
 
     ops_or_human = {"ops_environment", "human_factors_training"}
-    min_ops_or_human = min(2, total)
+    min_ops_or_human = min(2, balance_total)
     guard = 0
     while (
         guard < 20
@@ -1996,7 +2015,7 @@ def _enforce_constraints(
         ):
             break
 
-    min_safety_events = min(3, total)
+    min_safety_events = min(3, balance_total)
     safety_count = sum(1 for e in out if _entry_category(e) == "safety_event")
     guard = 0
     while guard < 20 and safety_count < min_safety_events and _has_available(lambda p: _entry_category(p) == "safety_event"):
@@ -2008,7 +2027,7 @@ def _enforce_constraints(
             break
         safety_count = sum(1 for e in out if _entry_category(e) == "safety_event")
 
-    return out[:effective_total]
+    return out if unlimited else out[:effective_total]
 
 
 def _replace_recent_duplicates(
@@ -2111,15 +2130,16 @@ def run(target_date: str | None = None) -> Path:
     recent_published = _load_recent_published(exclude_date=day)
     recent_index = _build_recent_dedup_index(recent_published)
     candidates = _prioritize_non_recent_candidates(candidates, recent_index)
+    article_limit = max(0, int(getattr(settings, "target_article_count", 0) or 0))
 
-    ai_pool_size = max(settings.target_article_count * 5, 60)
+    ai_pool_size = len(candidates) if article_limit <= 0 else max(article_limit * 5, 60)
     ai_candidates_pool = candidates[:ai_pool_size] if candidates else []
-    if len(ai_candidates_pool) < settings.target_article_count:
+    if article_limit > 0 and len(ai_candidates_pool) < article_limit:
         ai_candidates_pool = list(candidates)
 
     selected = _pick_final_entries(
         ai_candidates_pool,
-        total=settings.target_article_count,
+        total=article_limit,
         domestic_ratio=settings.domestic_ratio,
     )
     pool_entries = _build_entries_with_rules(ai_candidates_pool or candidates)
@@ -2130,8 +2150,8 @@ def run(target_date: str | None = None) -> Path:
     compose_meta_extra: dict[str, Any] = {}
     llm_client = None
     if OpenAICompatibleClient.is_configured():
-        # Request extra entries from LLM as buffer for enforce_constraints
-        llm_total = settings.target_article_count * 2
+        # Positive target: request buffer entries. Unlimited mode: let value gates decide.
+        llm_total = article_limit * 2 if article_limit > 0 else len(ai_candidates_pool or selected)
         glossary = _load_aviation_glossary()
         llm_client = OpenAICompatibleClient(
             api_key=settings.llm_api_key,
@@ -2168,7 +2188,7 @@ def run(target_date: str | None = None) -> Path:
     else:
         entries = _build_entries_with_rules(selected)
 
-    entries = _enforce_constraints(entries, pool_entries, settings.target_article_count, settings.domestic_ratio)
+    entries = _enforce_constraints(entries, pool_entries, article_limit, settings.domestic_ratio)
     entries = _replace_recent_duplicates(entries, pool_entries, recent_index)
 
     # Final LLM review: ensure all entries have Chinese body content
@@ -2190,6 +2210,8 @@ def run(target_date: str | None = None) -> Path:
         "compose_mode": compose_mode,
         "compose_reason": compose_reason,
         "model": settings.llm_model if OpenAICompatibleClient.is_configured() else "",
+        "article_count_limit": article_limit,
+        "min_publish_score": _MIN_PUBLISH_SCORE,
         **compose_meta_extra,
     }
     dump_json(out, payload)

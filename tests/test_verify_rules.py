@@ -221,3 +221,63 @@ def test_verify_skips_publish_when_llm_is_required_for_rules_content(monkeypatch
     assert "non_chinese_content" in report["reasons"]
     assert "all_entries_blocked" in report["reasons"]
     assert report["blocked_entry_ids"] == ["a1"]
+
+
+def test_verify_target_zero_does_not_require_fixed_article_count(monkeypatch, tmp_path):
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    keywords_path = tmp_path / "keywords.yaml"
+    keywords_path.write_text(
+        "sensitive_keywords: []\nsensational_words: []\n",
+        encoding="utf-8",
+    )
+    (processed_dir / "composed_2026-04-27.json").write_text(
+        json.dumps(
+            {
+                "date": "2026-04-27",
+                "article_count": 1,
+                "entries": [
+                    {
+                        "id": "a1",
+                        "title": "FAA发布跑道安全通报",
+                        "conclusion": "FAA发布跑道安全通报。",
+                        "facts": ["FAA发布跑道安全通报。", "通报要求运行单位复核风险控制。"],
+                        "body": "FAA发布跑道安全通报，要求运行单位复核风险控制。划重点：少一条也不凑数。",
+                        "citations": ["https://www.faa.gov/newsroom/demo"],
+                        "source_tier": "A",
+                        "source_id": "faa_newsroom_web",
+                        "event_fingerprint": "fp-a1",
+                        "score_breakdown": {
+                            "factual": 90,
+                            "relevance": 90,
+                            "timeliness": 90,
+                            "readability": 100,
+                        },
+                    }
+                ],
+                "meta": {"compose_mode": "llm_two_phase"},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    fake_settings = SimpleNamespace(
+        processed_dir=processed_dir,
+        keywords_config=keywords_path,
+        target_article_count=0,
+        min_tier_a_ratio=0.0,
+        max_entries_per_source=0,
+        allow_google_redirect_citation=False,
+        quality_threshold=80,
+        require_llm_for_publish=False,
+    )
+    monkeypatch.setattr(verify_module, "settings", fake_settings)
+    monkeypatch.setattr(verify_module.OpenAICompatibleClient, "is_configured", staticmethod(lambda: False))
+
+    out = verify_module.run("2026-04-27")
+    report = json.loads(out.read_text(encoding="utf-8"))
+
+    assert report["decision"] == "auto_publish"
+    assert "insufficient_articles" not in report["reasons"]
+    assert "tier_a_ratio_too_low" not in report["reasons"]
+    assert "source_concentration_exceeded" not in report["reasons"]

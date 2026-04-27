@@ -21,6 +21,13 @@ def test_pick_returns_all_when_fewer_than_total():
     assert len(result) == 5
 
 
+def test_pick_total_zero_returns_all_high_value_international_entries():
+    candidates = [_item(i, "international") for i in range(12)]
+    result = _pick_final_entries(candidates, total=0, domestic_ratio=0.0)
+    assert len(result) == 12
+    assert [x["id"] for x in result] == [str(i) for i in range(12)]
+
+
 def test_pick_preserves_order():
     candidates = [_item(i, "international") for i in range(20)]
     result = _pick_final_entries(candidates, total=10, domestic_ratio=0.0)

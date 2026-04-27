@@ -26,6 +26,20 @@ def test_enforce_source_cap_reduces_dominant_source():
     assert sum(1 for x in out if x["source_id"] == "s1") <= 3
 
 
+def test_enforce_source_cap_zero_disables_limit():
+    selected = [
+        _row(1, "s1", "domestic"),
+        _row(2, "s1", "domestic"),
+        _row(3, "s1", "domestic"),
+        _row(4, "s1", "domestic"),
+    ]
+
+    out, applied = _enforce_source_cap(selected, selected, max_per_source=0)
+
+    assert applied is False
+    assert out == selected
+
+
 def test_dedupe_ranked_events_collapses_similar_event_titles():
     ranked = [
         {

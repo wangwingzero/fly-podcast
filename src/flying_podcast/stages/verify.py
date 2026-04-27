@@ -224,11 +224,13 @@ def run(target_date: str | None = None) -> Path:
         reasons.append("llm_required_for_publish")
         blocked.extend(str(e.get("id", "")) for e in entries if e.get("id"))
 
-    if len(entries) < settings.target_article_count:
+    article_limit = max(0, int(getattr(settings, "target_article_count", 0) or 0))
+    if article_limit > 0 and len(entries) < article_limit:
         reasons.append("insufficient_articles")
 
     tier_a_ratio = sum(1 for x in entries if x.get("source_tier") == "A") / max(len(entries), 1)
-    if tier_a_ratio < settings.min_tier_a_ratio:
+    min_tier_a_ratio = float(getattr(settings, "min_tier_a_ratio", 0.0) or 0.0)
+    if min_tier_a_ratio > 0.0 and tier_a_ratio < min_tier_a_ratio:
         reasons.append("tier_a_ratio_too_low")
 
     factual_scores = []
@@ -290,7 +292,8 @@ def run(target_date: str | None = None) -> Path:
             blocked.append(eid)
         source_key = str(entry.get("source_id") or entry.get("source_name") or "")
         source_counts[source_key] = source_counts.get(source_key, 0) + 1
-        if source_key and source_counts[source_key] > settings.max_entries_per_source:
+        max_entries_per_source = max(0, int(getattr(settings, "max_entries_per_source", 0) or 0))
+        if max_entries_per_source > 0 and source_key and source_counts[source_key] > max_entries_per_source:
             reasons.append("source_concentration_exceeded")
             blocked.append(eid)
         fp = entry.get("event_fingerprint", "")

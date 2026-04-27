@@ -626,10 +626,15 @@ def _max_age_for_item(item: dict) -> int:
 def _pick_by_quota(candidates: list[dict], total: int, domestic_ratio: float) -> list[dict]:
     if domestic_ratio <= 0.0:
         candidates = [c for c in candidates if c.get("region") != "domestic"]
+    if total <= 0:
+        return candidates
     return candidates[:total]
 
 
 def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per_source: int) -> tuple[list[dict], bool]:
+    if max_per_source <= 0:
+        return list(candidates), False
+
     out = list(candidates)
     used_ids = {x.get("id") for x in out}
     applied = False
@@ -806,19 +811,26 @@ def run(target_date: str | None = None) -> Path:
     ranked.sort(key=lambda x: x["rank_score"], reverse=True)
     deduped = _dedupe_ranked_events(ranked)
 
-    candidate_total = max(settings.target_article_count * 6, 50)
-    top_candidates = _pick_by_quota(deduped, total=candidate_total, domestic_ratio=settings.domestic_ratio)
+    min_rank_score = float(getattr(settings, "min_rank_score_for_compose", 80.0) or 0.0)
+    compose_candidates = [
+        row for row in deduped
+        if min_rank_score <= 0.0 or float(row.get("rank_score") or 0.0) >= min_rank_score
+    ]
+    article_limit = max(0, int(getattr(settings, "target_article_count", 0) or 0))
+    candidate_total = max(article_limit * 6, 50) if article_limit > 0 else 0
+    top_candidates = _pick_by_quota(compose_candidates, total=candidate_total, domestic_ratio=settings.domestic_ratio)
     top_candidates, source_cap_applied = _enforce_source_cap(
         top_candidates,
-        deduped,
-        max_per_source=settings.max_entries_per_source,
+        compose_candidates,
+        max_per_source=getattr(settings, "max_entries_per_source", 0),
     )
 
     # Ensure A-tier ratio >= configured threshold when possible.
-    min_a = int(len(top_candidates) * settings.min_tier_a_ratio)
+    min_tier_a_ratio = float(getattr(settings, "min_tier_a_ratio", 0.0) or 0.0)
+    min_a = int(len(top_candidates) * min_tier_a_ratio)
     current_a = sum(1 for x in top_candidates if x.get("source_tier") == "A")
-    if current_a < min_a:
-        alt_a = [x for x in deduped if x.get("source_tier") == "A" and x not in top_candidates]
+    if min_tier_a_ratio > 0.0 and current_a < min_a:
+        alt_a = [x for x in compose_candidates if x.get("source_tier") == "A" and x not in top_candidates]
         for replacement in alt_a:
             replace_idx = next(
                 (i for i, v in enumerate(top_candidates[::-1]) if v.get("source_tier") != "A"),
@@ -833,8 +845,8 @@ def run(target_date: str | None = None) -> Path:
                 break
         top_candidates, a_tier_source_cap_applied = _enforce_source_cap(
             top_candidates,
-            deduped,
-            max_per_source=settings.max_entries_per_source,
+            compose_candidates,
+            max_per_source=getattr(settings, "max_entries_per_source", 0),
         )
         source_cap_applied = source_cap_applied or a_tier_source_cap_applied
     top_candidates.sort(key=lambda x: x["rank_score"], reverse=True)
@@ -866,6 +878,9 @@ def run(target_date: str | None = None) -> Path:
             "dropped_too_old": dropped_too_old,
             "max_article_age_hours": settings.max_article_age_hours,
             "max_tier_a_article_age_hours": settings.max_tier_a_article_age_hours,
+            "min_rank_score_for_compose": min_rank_score,
+            "ranked_after_value_gate": len(compose_candidates),
+            "article_count_limit": article_limit,
             "selected_for_compose": len(top_candidates),
             "source_cap_applied": source_cap_applied,
             "source_distribution": dict(source_distribution.most_common(10)),

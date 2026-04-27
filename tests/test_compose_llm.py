@@ -85,6 +85,16 @@ def test_build_selection_prompt_targets_pilot_only_and_allows_fewer_entries():
     assert "纯适航指令或检查类 AD 最多2条" in system_prompt
 
 
+def test_build_selection_prompt_zero_total_is_unlimited_high_value_mode():
+    system_prompt, user_prompt = _build_selection_prompt([_candidate(1)], total=0)
+    payload = json.loads(user_prompt)
+
+    assert "不设数量上限" in system_prompt
+    assert "禁止凑数" in system_prompt
+    assert payload["rules"]["total"] == "unlimited"
+    assert "allow_fewer_entries" in payload["rules"]
+
+
 def test_build_llm_prompts_requests_longer_body():
     system_prompt, user_prompt = _build_llm_prompts([_candidate(1)], total=10, domestic_quota=0, intl_quota=10)
     payload = json.loads(user_prompt)
@@ -280,6 +290,18 @@ def test_enforce_constraints_uses_composed_overflow_for_pilot_balance():
     assert any(e.title == "FAA发布CPDLC航路上行通告" for e in out)
 
 
+def test_enforce_constraints_zero_total_does_not_truncate_entries():
+    entries = [
+        _digest_entry(i, source_id=f"source_{i}", section="safety_event", title=f"高价值安全事件{i}")
+        for i in range(1, 7)
+    ]
+
+    out = _enforce_constraints(entries, [], total=0, domestic_ratio=0.0)
+
+    assert len(out) == len(entries)
+    assert [e.id for e in out] == [e.id for e in entries]
+
+
 def test_blend_selection_keeps_high_value_editorial_anchors():
     candidates = [_candidate(i, "international") for i in range(1, 8)]
     candidates[0].update(
@@ -315,3 +337,21 @@ def test_blend_selection_keeps_high_value_editorial_anchors():
     assert candidates[0]["id"] in out
     assert candidates[1]["id"] in out
     assert candidates[2]["id"] not in out
+
+
+def test_blend_selection_zero_total_keeps_all_editorial_anchors():
+    candidates = [_candidate(i, "international") for i in range(1, 8)]
+    for i, candidate in enumerate(candidates, start=1):
+        candidate.update(
+            {
+                "title": f"Runway incursion safety report {i}",
+                "source_id": "flightglobal_safety",
+                "rank_score": 85 + i,
+                "pilot_value": {"category": "safety_event"},
+            }
+        )
+    selected = [candidates[-1]["id"]]
+
+    out = _blend_selection_with_editorial_anchors(selected, candidates, total=0)
+
+    assert [c["id"] for c in candidates] == out
