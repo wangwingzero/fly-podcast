@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from flying_podcast.core.config import settings
-from flying_podcast.core.image_gen import _call_gemini_api, _call_grok_api
+from flying_podcast.core.image_gen import _call_image_api
 from flying_podcast.core.llm_client import OpenAICompatibleClient
 
 
@@ -84,12 +84,10 @@ def _image_check(name: str, *, required: bool, provider: str) -> CheckResult:
         api_key = settings.image_gen_api_key
         base_url = settings.image_gen_base_url
         model = settings.image_gen_model
-        caller = _call_gemini_api
     else:
         api_key = settings.image_gen_backup_api_key
         base_url = settings.image_gen_backup_base_url
         model = settings.image_gen_backup_model
-        caller = _call_grok_api
 
     meta = {
         "model": model,
@@ -97,7 +95,7 @@ def _image_check(name: str, *, required: bool, provider: str) -> CheckResult:
         "api_key": _mask_secret(api_key),
     }
     try:
-        data = caller(
+        data = _call_image_api(
             base_url,
             api_key,
             model,
@@ -133,9 +131,31 @@ def run(_: str, *, json_output: bool = False) -> int:
             settings.llm_backup_model,
             required=True,
         ),
-        _image_check("primary_image_gen", required=True, provider="primary"),
-        _image_check("backup_image_gen", required=False, provider="backup"),
     ]
+    if OpenAICompatibleClient.secondary_backup_configured():
+        checks.append(
+            _llm_check(
+                "secondary_backup_llm",
+                settings.llm_secondary_backup_api_key,
+                settings.llm_secondary_backup_base_url,
+                settings.llm_secondary_backup_model,
+                required=True,
+            )
+        )
+    if OpenAICompatibleClient.fallback_configured():
+        checks.append(
+            _llm_check(
+                "fallback_llm",
+                settings.llm_fallback_api_key,
+                settings.llm_fallback_base_url,
+                settings.llm_fallback_model,
+                required=False,
+            )
+        )
+    checks.extend([
+        _image_check("primary_image_gen", required=False, provider="primary"),
+        _image_check("backup_image_gen", required=False, provider="backup"),
+    ])
 
     if json_output:
         print(json.dumps([asdict(item) for item in checks], ensure_ascii=False, indent=2))

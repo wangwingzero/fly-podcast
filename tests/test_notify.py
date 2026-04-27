@@ -50,13 +50,15 @@ def test_notify_logs_dry_run_only_when_dry_run(monkeypatch, tmp_path, caplog):
     fake_settings.alert_webhook_url = "https://example.com/webhook"
 
     caplog.set_level("INFO")
+    sent_reports = []
     monkeypatch.setattr(notify_module, "settings", fake_settings)
-    monkeypatch.setattr(notify_module, "send_pipeline_report", lambda *args, **kwargs: None)
+    monkeypatch.setattr(notify_module, "send_pipeline_report", lambda *args, **kwargs: sent_reports.append(args))
 
     notify_module.run("2026-03-09")
 
     assert "[DRY_RUN notify]" in caplog.text
     assert "[SKIP notify]" not in caplog.text
+    assert sent_reports == []
 
 
 def test_notify_logs_skip_when_webhook_missing(monkeypatch, tmp_path, caplog):

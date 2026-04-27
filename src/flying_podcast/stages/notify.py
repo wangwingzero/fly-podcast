@@ -32,6 +32,11 @@ def run(target_date: str | None = None) -> None:
     composed = load_json(settings.processed_dir / f"composed_{day}.json")
     publish["compose_mode"] = composed.get("meta", {}).get("compose_mode", "-")
 
+    msg = _build_message(day, quality, publish)
+    if settings.dry_run:
+        logger.info("[DRY_RUN notify]\n%s", msg)
+        return
+
     # --- Email: pipeline process report ---
     raw = load_json(settings.raw_dir / f"{day}.json")
     ingest_count = len(raw) if isinstance(raw, list) else 0
@@ -47,10 +52,6 @@ def run(target_date: str | None = None) -> None:
     send_pipeline_report(day, ingest_count, rank_meta, compose_meta, quality, publish)
 
     # --- Webhook notification ---
-    msg = _build_message(day, quality, publish)
-    if settings.dry_run:
-        logger.info("[DRY_RUN notify]\n%s", msg)
-        return
     if not settings.alert_webhook_url:
         logger.info("[SKIP notify] ALERT_WEBHOOK_URL is not configured\n%s", msg)
         return

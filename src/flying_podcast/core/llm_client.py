@@ -12,6 +12,10 @@ from flying_podcast.core.logging_utils import get_logger
 
 _log = get_logger("llm")
 
+_ANTHROPIC_MIN_EMPTY_TEXT_RETRY_TOKENS = 80
+_ANTHROPIC_MAX_EMPTY_TEXT_RETRY_TOKENS = 160
+_ANTHROPIC_LAST_EMPTY_TEXT_RETRY_TOKENS = 640
+
 
 class LLMError(RuntimeError):
     pass
@@ -57,7 +61,34 @@ class OpenAICompatibleClient:
 
     @staticmethod
     def backup_configured() -> bool:
-        return bool(settings.llm_backup_api_key and settings.llm_backup_base_url and settings.llm_backup_model)
+        return bool(
+            getattr(settings, "llm_backup_api_key", "")
+            and getattr(settings, "llm_backup_base_url", "")
+            and getattr(settings, "llm_backup_model", "")
+        )
+
+    @staticmethod
+    def secondary_backup_configured() -> bool:
+        return bool(
+            getattr(settings, "llm_secondary_backup_api_key", "")
+            and getattr(settings, "llm_secondary_backup_base_url", "")
+            and getattr(settings, "llm_secondary_backup_model", "")
+        )
+
+    @staticmethod
+    def fallback_configured() -> bool:
+        return bool(
+            getattr(settings, "llm_fallback_api_key", "")
+            and getattr(settings, "llm_fallback_base_url", "")
+            and getattr(settings, "llm_fallback_model", "")
+        )
+
+    def _is_same_config(self, api_key: str, base_url: str, model: str) -> bool:
+        return (
+            self.api_key == api_key.strip()
+            and self.base_url.rstrip("/") == base_url.strip().rstrip("/")
+            and self.model == model.strip()
+        )
 
     def _chat_url(self) -> str:
         base = self.base_url.rstrip("/")
@@ -140,11 +171,8 @@ class OpenAICompatibleClient:
             return text
         raise LLMError("llm_empty_content")
 
-    def _request_once_openai(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> tuple[dict[str, Any], str]:
-        resp = requests.post(url, headers=headers, json=body, timeout=(10, timeout))
-        if not resp.ok:
-            raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
-        data = resp.json()
+    @staticmethod
+    def _extract_openai_message_content(data: dict[str, Any]) -> str:
         choices = data.get("choices") or []
         if not choices:
             raise LLMError("llm_empty_choices")
@@ -174,13 +202,30 @@ class OpenAICompatibleClient:
 
         if not str(content).strip():
             raise LLMError("llm_empty_content")
-        return self._extract_json_object(str(content)), str(content)
+        return str(content)
+
+    def _request_once_openai_text(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> tuple[dict[str, Any], str]:
+        resp = requests.post(url, headers=headers, json=body, timeout=(10, timeout))
+        if not resp.ok:
+            raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise LLMError(f"llm_invalid_json_response: {resp.text[:200]}") from exc
+        return data, self._extract_openai_message_content(data)
+
+    def _request_once_openai(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> tuple[dict[str, Any], str]:
+        _, content = self._request_once_openai_text(url, headers, body, timeout)
+        return self._extract_json_object(content), content
 
     def _request_once_responses(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> tuple[dict[str, Any], str]:
         resp = requests.post(url, headers=headers, json=body, timeout=(10, timeout))
         if not resp.ok:
             raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise LLMError(f"llm_invalid_json_response: {resp.text[:200]}") from exc
         return data, self._extract_response_text(data)
 
     @staticmethod
@@ -194,8 +239,44 @@ class OpenAICompatibleClient:
         variants.append(message_input)
         return variants
 
-    def _request_once_anthropic(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float, timeout: int) -> tuple[dict[str, Any], str]:
-        """Send request using Anthropic native Messages API format."""
+    @staticmethod
+    def _extract_anthropic_text(data: dict[str, Any]) -> str:
+        content_blocks = data.get("content") or []
+        text_parts: list[str] = []
+        for block in content_blocks:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text_parts.append(block.get("text", ""))
+            elif isinstance(block, str):
+                text_parts.append(block)
+        return "\n".join([x for x in text_parts if x.strip()])
+
+    @staticmethod
+    def _has_anthropic_reasoning_block(data: dict[str, Any]) -> bool:
+        content_blocks = data.get("content") or []
+        for block in content_blocks:
+            if not isinstance(block, dict):
+                continue
+            block_type = str(block.get("type") or "").lower()
+            if block_type in {"thinking", "redacted_thinking", "reasoning"}:
+                return True
+            if "thinking" in block or "reasoning_content" in block:
+                return True
+        return False
+
+    @staticmethod
+    def _anthropic_empty_text_retry_tokens(max_tokens: int) -> list[int]:
+        """Small token budgets can be consumed by thinking blocks before text."""
+        tokens = [max_tokens]
+        for candidate in (
+            _ANTHROPIC_MIN_EMPTY_TEXT_RETRY_TOKENS,
+            _ANTHROPIC_MAX_EMPTY_TEXT_RETRY_TOKENS,
+            _ANTHROPIC_LAST_EMPTY_TEXT_RETRY_TOKENS,
+        ):
+            if max_tokens < candidate:
+                tokens.append(candidate)
+        return tokens
+
+    def _post_anthropic(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float, timeout: int) -> dict[str, Any]:
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -213,21 +294,83 @@ class OpenAICompatibleClient:
         resp = requests.post(self._chat_url(), headers=headers, json=body, timeout=(10, timeout))
         if not resp.ok:
             raise LLMError(f"llm_http_{resp.status_code}: {resp.text[:500]}")
-        data = resp.json()
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise LLMError(f"llm_invalid_json_response: {resp.text[:200]}") from exc
 
-        # Anthropic response: {"content": [{"type": "text", "text": "..."}], ...}
-        content_blocks = data.get("content") or []
-        text_parts: list[str] = []
-        for block in content_blocks:
-            if isinstance(block, dict) and block.get("type") == "text":
-                text_parts.append(block.get("text", ""))
-            elif isinstance(block, str):
-                text_parts.append(block)
-        content = "\n".join([x for x in text_parts if x.strip()])
+    def _request_once_anthropic(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float, timeout: int) -> tuple[dict[str, Any], str]:
+        """Send request using Anthropic native Messages API format."""
+        retry_tokens = self._anthropic_empty_text_retry_tokens(max_tokens)
+        last_data: dict[str, Any] | None = None
+        for idx, token_budget in enumerate(retry_tokens):
+            data = self._post_anthropic(system_prompt, user_prompt, token_budget, temperature, timeout)
+            last_data = data
 
-        if not content.strip():
-            raise LLMError("llm_empty_content")
-        return data, content
+            # Anthropic response: {"content": [{"type": "text", "text": "..."}], ...}
+            content = self._extract_anthropic_text(data)
+            if content.strip():
+                return data, content
+
+            should_retry_empty_text = (
+                idx < len(retry_tokens) - 1
+                and (
+                    data.get("stop_reason") == "max_tokens"
+                    or self._has_anthropic_reasoning_block(data)
+                )
+            )
+            if should_retry_empty_text:
+                _log.warning(
+                    "[LLM] Anthropic response had no text at max_tokens=%d; retry with max_tokens=%d",
+                    token_budget,
+                    retry_tokens[idx + 1],
+                )
+                continue
+            break
+
+        detail = "llm_empty_content"
+        if last_data and self._has_anthropic_reasoning_block(last_data):
+            detail = "llm_empty_content_after_thinking"
+        raise LLMError(detail)
+
+    def _request_once_anthropic_json(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float, timeout: int) -> tuple[dict[str, Any], str]:
+        """Anthropic JSON calls need token retries for thinking and truncated text."""
+        retry_tokens = self._anthropic_empty_text_retry_tokens(max_tokens)
+        last_error = "llm_empty_content"
+        for idx, token_budget in enumerate(retry_tokens):
+            data = self._post_anthropic(system_prompt, user_prompt, token_budget, temperature, timeout)
+            content = self._extract_anthropic_text(data)
+            if content.strip():
+                try:
+                    return self._extract_json_object(content), content
+                except LLMError as exc:
+                    last_error = str(exc)
+                    if idx < len(retry_tokens) - 1:
+                        _log.warning(
+                            "[LLM] Anthropic JSON was not parseable at max_tokens=%d; retry with max_tokens=%d",
+                            token_budget,
+                            retry_tokens[idx + 1],
+                        )
+                        continue
+                    raise
+
+            last_error = "llm_empty_content_after_thinking" if self._has_anthropic_reasoning_block(data) else "llm_empty_content"
+            should_retry_empty_text = (
+                idx < len(retry_tokens) - 1
+                and (
+                    data.get("stop_reason") == "max_tokens"
+                    or self._has_anthropic_reasoning_block(data)
+                )
+            )
+            if should_retry_empty_text:
+                _log.warning(
+                    "[LLM] Anthropic response had no JSON text at max_tokens=%d; retry with max_tokens=%d",
+                    token_budget,
+                    retry_tokens[idx + 1],
+                )
+                continue
+            break
+        raise LLMError(last_error)
 
     def complete_json(
         self,
@@ -250,10 +393,9 @@ class OpenAICompatibleClient:
                 if self._is_anthropic:
                     # Anthropic native Messages API
                     prompt = system_prompt + "\n请仅输出JSON对象，不要Markdown。"
-                    _, content = self._request_once_anthropic(
+                    parsed, content = self._request_once_anthropic_json(
                         prompt, user_prompt, max_tokens, temperature, timeout,
                     )
-                    parsed = self._extract_json_object(content)
                     elapsed = time.monotonic() - t0
                     _log.info("LLM 响应: %.1f 秒, %d 字符", elapsed, len(content))
                     return LLMResponse(payload=parsed, raw_text=content)
@@ -277,6 +419,7 @@ class OpenAICompatibleClient:
                                 "text": {"format": {"type": "json_object"}},
                                 "max_output_tokens": max_tokens,
                                 "temperature": temperature,
+                                "stream": False,
                             }
                             try:
                                 data, content = self._request_once_responses(url, headers, response_body, timeout)
@@ -295,6 +438,7 @@ class OpenAICompatibleClient:
                         ],
                         "temperature": temperature,
                         "max_tokens": max_tokens,
+                        "stream": False,
                     }
                     body = dict(base_body)
                     body["response_format"] = {"type": "json_object"}
@@ -329,24 +473,83 @@ class OpenAICompatibleClient:
                     _log.warning("[LLM] attempt %d/%d failed: %s, retry in %ds",
                                 attempt, retries, last_error[:120], wait)
                     time.sleep(wait)
-        # Primary model exhausted all retries – try backup model if configured
-        if _allow_backup and self.backup_configured():
-            _log.warning("[LLM] 主模型 %s 全部重试失败，切换备用模型 %s",
-                        self.model, settings.llm_backup_model)
-            backup = OpenAICompatibleClient(
-                api_key=settings.llm_backup_api_key,
-                base_url=settings.llm_backup_base_url,
-                model=settings.llm_backup_model,
-            )
-            return backup.complete_json(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                retries=retries,
-                timeout=timeout,
-                _allow_backup=False,
-            )
+        if _allow_backup:
+            fallback_errors: list[str] = []
+            if self.backup_configured() and not self._is_same_config(
+                settings.llm_backup_api_key,
+                settings.llm_backup_base_url,
+                settings.llm_backup_model,
+            ):
+                _log.warning("[LLM] 模型 %s 全部重试失败，切换备用模型 %s",
+                            self.model, settings.llm_backup_model)
+                backup = OpenAICompatibleClient(
+                    api_key=settings.llm_backup_api_key,
+                    base_url=settings.llm_backup_base_url,
+                    model=settings.llm_backup_model,
+                )
+                try:
+                    return backup.complete_json(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        retries=retries,
+                        timeout=timeout,
+                        _allow_backup=False,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    fallback_errors.append(f"{settings.llm_backup_model}: {exc}")
+
+            if self.secondary_backup_configured() and not self._is_same_config(
+                settings.llm_secondary_backup_api_key,
+                settings.llm_secondary_backup_base_url,
+                settings.llm_secondary_backup_model,
+            ):
+                _log.warning("[LLM] 切换第二备用模型 %s", settings.llm_secondary_backup_model)
+                secondary_backup = OpenAICompatibleClient(
+                    api_key=settings.llm_secondary_backup_api_key,
+                    base_url=settings.llm_secondary_backup_base_url,
+                    model=settings.llm_secondary_backup_model,
+                )
+                try:
+                    return secondary_backup.complete_json(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        retries=retries,
+                        timeout=timeout,
+                        _allow_backup=False,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    fallback_errors.append(f"{settings.llm_secondary_backup_model}: {exc}")
+
+            if self.fallback_configured() and not self._is_same_config(
+                settings.llm_fallback_api_key,
+                settings.llm_fallback_base_url,
+                settings.llm_fallback_model,
+            ):
+                _log.warning("[LLM] 切换保底模型 %s", settings.llm_fallback_model)
+                fallback = OpenAICompatibleClient(
+                    api_key=settings.llm_fallback_api_key,
+                    base_url=settings.llm_fallback_base_url,
+                    model=settings.llm_fallback_model,
+                )
+                try:
+                    return fallback.complete_json(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        retries=retries,
+                        timeout=timeout,
+                        _allow_backup=False,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    fallback_errors.append(f"{settings.llm_fallback_model}: {exc}")
+
+            if fallback_errors:
+                last_error = f"{last_error}; " + "; ".join(fallback_errors)
         raise LLMError(last_error)
 
     def complete_text(
@@ -388,6 +591,7 @@ class OpenAICompatibleClient:
                             "input": input_payload,
                             "max_output_tokens": max_tokens,
                             "temperature": temperature,
+                            "stream": False,
                         }
                         try:
                             _, content = self._request_once_responses(url, headers, response_body, timeout)
@@ -405,11 +609,12 @@ class OpenAICompatibleClient:
                     ],
                     "temperature": temperature,
                     "max_tokens": max_tokens,
+                    "stream": False,
                 }
                 chat_errors: list[str] = []
                 for url in self._chat_urls():
                     try:
-                        _, content = self._request_once_openai(url, headers, chat_body, timeout)
+                        _, content = self._request_once_openai_text(url, headers, chat_body, timeout)
                         elapsed = time.monotonic() - t0
                         _log.info("LLM 文本响应 (chat): %.1f 秒, %d 字符", elapsed, len(content))
                         return content
@@ -425,21 +630,81 @@ class OpenAICompatibleClient:
                     _log.warning("[LLM] text attempt %d/%d failed: %s, retry in %ds",
                                  attempt, retries, last_error[:120], wait)
                     time.sleep(wait)
-        if _allow_backup and self.backup_configured():
-            _log.warning("[LLM] 主模型 %s 全部重试失败，切换备用模型 %s",
-                         self.model, settings.llm_backup_model)
-            backup = OpenAICompatibleClient(
-                api_key=settings.llm_backup_api_key,
-                base_url=settings.llm_backup_base_url,
-                model=settings.llm_backup_model,
-            )
-            return backup.complete_text(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                retries=retries,
-                timeout=timeout,
-                _allow_backup=False,
-            )
+        if _allow_backup:
+            fallback_errors: list[str] = []
+            if self.backup_configured() and not self._is_same_config(
+                settings.llm_backup_api_key,
+                settings.llm_backup_base_url,
+                settings.llm_backup_model,
+            ):
+                _log.warning("[LLM] 模型 %s 全部重试失败，切换备用模型 %s",
+                             self.model, settings.llm_backup_model)
+                backup = OpenAICompatibleClient(
+                    api_key=settings.llm_backup_api_key,
+                    base_url=settings.llm_backup_base_url,
+                    model=settings.llm_backup_model,
+                )
+                try:
+                    return backup.complete_text(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        retries=retries,
+                        timeout=timeout,
+                        _allow_backup=False,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    fallback_errors.append(f"{settings.llm_backup_model}: {exc}")
+
+            if self.secondary_backup_configured() and not self._is_same_config(
+                settings.llm_secondary_backup_api_key,
+                settings.llm_secondary_backup_base_url,
+                settings.llm_secondary_backup_model,
+            ):
+                _log.warning("[LLM] 切换第二备用模型 %s", settings.llm_secondary_backup_model)
+                secondary_backup = OpenAICompatibleClient(
+                    api_key=settings.llm_secondary_backup_api_key,
+                    base_url=settings.llm_secondary_backup_base_url,
+                    model=settings.llm_secondary_backup_model,
+                )
+                try:
+                    return secondary_backup.complete_text(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        retries=retries,
+                        timeout=timeout,
+                        _allow_backup=False,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    fallback_errors.append(f"{settings.llm_secondary_backup_model}: {exc}")
+
+            if self.fallback_configured() and not self._is_same_config(
+                settings.llm_fallback_api_key,
+                settings.llm_fallback_base_url,
+                settings.llm_fallback_model,
+            ):
+                _log.warning("[LLM] 切换保底模型 %s", settings.llm_fallback_model)
+                fallback = OpenAICompatibleClient(
+                    api_key=settings.llm_fallback_api_key,
+                    base_url=settings.llm_fallback_base_url,
+                    model=settings.llm_fallback_model,
+                )
+                try:
+                    return fallback.complete_text(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        retries=retries,
+                        timeout=timeout,
+                        _allow_backup=False,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    fallback_errors.append(f"{settings.llm_fallback_model}: {exc}")
+
+            if fallback_errors:
+                last_error = f"{last_error}; " + "; ".join(fallback_errors)
         raise LLMError(last_error)

@@ -67,6 +67,27 @@ def _build_report_html(
     src_dist = rank_meta.get("source_distribution", {})
     top_sources = sorted(src_dist.items(), key=lambda x: x[1], reverse=True)[:5]
     src_html = ", ".join(f"{s}({n})" for s, n in top_sources) if top_sources else "-"
+    source_health = rank_meta.get("source_health_summary", {})
+    source_failures = rank_meta.get("source_failures", [])
+    source_health_html = ""
+    if source_health:
+        source_health_html = (
+            '<div style="font-size:12px;color:#888;margin-top:4px;">'
+            f"源健康: OK {source_health.get('ok', 0)} / "
+            f"空 {source_health.get('empty', 0)} / "
+            f"失败 {source_health.get('failed', 0)}</div>"
+        )
+    if source_failures:
+        bad = ", ".join(
+            f"{x.get('source_id', '-')}"
+            for x in source_failures[:6]
+        )
+        source_health_html += (
+            '<div class="reasons">源异常: '
+            + bad
+            + (" ..." if len(source_failures) > 6 else "")
+            + "</div>"
+        )
 
     # --- Compose stage ---
     entry_count = compose_meta.get("entry_count", "?")
@@ -110,6 +131,7 @@ def _build_report_html(
     <span class="metric ok">入选 <b>{selected}</b></span><br>
     {drops_html}
     <div style="font-size:12px;color:#888;margin-top:4px;">来源 TOP5: {src_html}</div>
+    {source_health_html}
   </div>
 
   <div class="stage">

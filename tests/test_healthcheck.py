@@ -43,6 +43,8 @@ def test_healthcheck_json_output_and_exit_code(monkeypatch, capsys) -> None:
 
     assert code == 0
     assert len(payload) == 4
+    assert payload[-2]["name"] == "primary_image_gen"
+    assert payload[-2]["required"] is False
     assert payload[-1]["name"] == "backup_image_gen"
     assert payload[-1]["required"] is False
     assert payload[-1]["ok"] is False

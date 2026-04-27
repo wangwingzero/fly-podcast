@@ -1,12 +1,13 @@
 """Image sourcing for article illustrations.
 
-Priority: Unsplash -> Pixabay -> Gemini AI (primary) -> Grok AI (backup).
+Priority: Unsplash -> Pixabay -> configured AI image generator -> optional backup.
 """
 from __future__ import annotations
 
 import base64
 import logging
 import re
+import time
 
 import requests
 
@@ -285,30 +286,58 @@ def _build_prompt(title: str, body: str) -> str:
 
 def _call_grok_api(base_url: str, api_key: str, model: str, prompt: str,
                     size: str = "1024x1024") -> bytes | None:
-    try:
-        resp = requests.post(
-            f"{base_url.rstrip('/')}/v1/images/generations",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model, "prompt": prompt, "n": 1, "size": size},
-            timeout=90,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        items = data.get("data", [])
-        if not items:
-            return None
+    sizes = [size]
+    if size != "1024x1024":
+        sizes.append("1024x1024")
 
-        item = items[0]
-        if "url" in item and item["url"]:
-            img_resp = requests.get(item["url"], timeout=30)
-            img_resp.raise_for_status()
-            return img_resp.content
-        if "b64_json" in item and item["b64_json"]:
-            return base64.b64decode(item["b64_json"])
-        return None
-    except Exception as exc:
-        logger.warning("Grok API failed (%s): %s", base_url[:40], exc)
-        return None
+    for candidate_size in sizes:
+        for attempt in range(1, 3):
+            try:
+                resp = requests.post(
+                    f"{base_url.rstrip('/')}/v1/images/generations",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={"model": model, "prompt": prompt, "n": 1, "size": candidate_size},
+                    timeout=90,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                items = data.get("data", [])
+                if not items:
+                    return None
+
+                item = items[0]
+                if "url" in item and item["url"]:
+                    img_resp = requests.get(item["url"], timeout=30)
+                    img_resp.raise_for_status()
+                    return img_resp.content
+                if "b64_json" in item and item["b64_json"]:
+                    return base64.b64decode(item["b64_json"])
+                return None
+            except Exception as exc:
+                logger.warning(
+                    "Grok API failed (%s, size=%s, attempt=%d): %s",
+                    base_url[:40],
+                    candidate_size,
+                    attempt,
+                    exc,
+                )
+                if attempt < 2:
+                    time.sleep(2)
+                continue
+
+    return None
+
+
+def _is_grok_image_model(base_url: str, model: str) -> bool:
+    value = f"{base_url} {model}".lower()
+    return "grok" in value or "imagine" in value
+
+
+def _call_image_api(base_url: str, api_key: str, model: str, prompt: str,
+                    size: str = "1024x1024") -> bytes | None:
+    if _is_grok_image_model(base_url, model):
+        return _call_grok_api(base_url, api_key, model, prompt, size=size)
+    return _call_gemini_api(base_url, api_key, model, prompt, size=size)
 
 
 # ── LLM-designed image prompts ────────────────────────────
@@ -363,13 +392,13 @@ def _build_llm_image_prompt(title: str, body: str) -> str:
     return _build_prompt(title, body)
 
 
-# ── AI image generation (Gemini primary, Grok backup) ────
+# ── AI image generation ──────────────────────────────────
 
 
 def _generate_with_ai(title: str, body: str) -> bytes | None:
     """Generate an article image using AI.
 
-    Chain: Gemini (primary) -> Grok (backup).
+    Chain: configured primary -> configured backup.
     Uses LLM-designed prompt when available, static fallback otherwise.
     """
     if not settings.image_gen_api_key:
@@ -378,21 +407,19 @@ def _generate_with_ai(title: str, body: str) -> bytes | None:
     prompt = _build_llm_image_prompt(title, body)
     logger.info("AI image: generating for '%s'", title[:40])
 
-    # Primary: Gemini (chat completions format)
-    result = _call_gemini_api(
+    result = _call_image_api(
         settings.image_gen_base_url,
         settings.image_gen_api_key,
         settings.image_gen_model,
         prompt,
     )
     if result:
-        logger.info("Gemini: image generated for '%s'", title[:40])
+        logger.info("AI image generated for '%s'", title[:40])
         return result
 
-    # Backup: Grok (images/generations format)
     if settings.image_gen_backup_api_key:
-        logger.info("Gemini failed, trying Grok backup")
-        result = _call_grok_api(
+        logger.info("Primary image generation failed, trying backup")
+        result = _call_image_api(
             settings.image_gen_backup_base_url,
             settings.image_gen_backup_api_key,
             settings.image_gen_backup_model,
@@ -410,7 +437,7 @@ def _generate_with_ai(title: str, body: str) -> bytes | None:
 def generate_article_image(title: str, body: str = "") -> bytes | None:
     """Find or generate an illustration for an article.
 
-    Chain: Unsplash -> Pixabay -> Gemini AI (primary) -> Grok AI (backup).
+    Chain: Unsplash -> Pixabay -> configured AI generator -> optional backup.
     Returns image bytes or None.
     """
     query = _extract_search_query(title)
@@ -426,21 +453,20 @@ def generate_article_image(title: str, body: str = "") -> bytes | None:
     if data:
         return data
 
-    # 3. AI generation (Gemini primary, Grok backup)
+    # 3. AI generation
     return _generate_with_ai(title, body)
 
 
 def generate_cover_image(prompt: str, size: str = "1792x1024") -> bytes | None:
     """Generate a cover image from a pre-built prompt.
 
-    Chain: Gemini (primary) -> Grok (backup).
+    Chain: configured primary -> configured backup.
     Called from publish.py with an LLM-designed prompt.
     """
     if not settings.image_gen_api_key:
         return None
 
-    # Primary: Gemini
-    result = _call_gemini_api(
+    result = _call_image_api(
         settings.image_gen_base_url,
         settings.image_gen_api_key,
         settings.image_gen_model,
@@ -450,10 +476,9 @@ def generate_cover_image(prompt: str, size: str = "1792x1024") -> bytes | None:
     if result:
         return result
 
-    # Backup: Grok
     if settings.image_gen_backup_api_key:
-        logger.info("Cover: Gemini failed, trying Grok backup")
-        result = _call_grok_api(
+        logger.info("Cover: primary image generation failed, trying backup")
+        result = _call_image_api(
             settings.image_gen_backup_base_url,
             settings.image_gen_backup_api_key,
             settings.image_gen_backup_model,
