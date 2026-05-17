@@ -182,7 +182,7 @@ sources:
     source_role: primary_industry
     source_tier: B
     region: international
-    enabled: true
+    enabled: false
 
   - id: airinsight_rss
     name: AirInsight
