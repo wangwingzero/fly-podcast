@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import subprocess
 import time
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -46,12 +44,12 @@ VOICE_MAP = {
     "男": {"voice": VOICE_MALE, "instructions": INSTRUCTIONS_MALE},
 }
 
-# Qwen direct API voice mapping (Cherry/Ethan original voices)
-QWEN_DIRECT_VOICE_MAP = {
-    "女": "Cherry / 芊悦",
-    "男": "Ethan / 晨煦",
-    "千羽": "Cherry / 芊悦",
-    "虎机长": "Ethan / 晨煦",
+# qwen-tts2api voice mapping (self-hosted OpenAI-compatible endpoint)
+QWEN_API_VOICE_MAP = {
+    "女": "cherry",
+    "男": "ethan",
+    "千羽": "cherry",
+    "虎机长": "ethan",
 }
 
 # Edge TTS voice mapping
@@ -66,137 +64,62 @@ EDGE_VOICE_MAP = {
 
 MODEL = "qwen3-tts-instruct-flash"
 MAX_CHARS_PER_REQUEST = 2000
+TTS_SEGMENT_FADE_IN_SECONDS = 0.035
+TTS_SEGMENT_FADE_OUT_SECONDS = 0.025
+QWEN_LEADING_ARTIFACT_TRIM_SECONDS = 0.12
+QWEN_POST_TRIM_FADE_IN_SECONDS = 0.025
 
 
 # ── WAV → MP3 conversion ──────────────────────────────────────
 
-def _wav_to_mp3(wav_bytes: bytes) -> bytes:
+def _wav_to_mp3(wav_bytes: bytes, *, trim_start_seconds: float = 0.0) -> bytes:
     """Convert WAV audio bytes to MP3 using ffmpeg stdin/stdout pipe."""
-    result = subprocess.run(
-        ["ffmpeg", "-y", "-i", "pipe:0", "-b:a", "128k", "-f", "mp3", "pipe:1"],
-        input=wav_bytes,
-        capture_output=True,
-    )
+    cmd = ["ffmpeg", "-y", "-i", "pipe:0"]
+    if trim_start_seconds > 0:
+        cmd.extend([
+            "-af",
+            (
+                f"atrim=start={trim_start_seconds:.3f},"
+                "asetpts=PTS-STARTPTS,"
+                f"afade=t=in:st=0:d={QWEN_POST_TRIM_FADE_IN_SECONDS:.3f}"
+            ),
+        ])
+    cmd.extend(["-b:a", "128k", "-f", "mp3", "pipe:1"])
+    result = subprocess.run(cmd, input=wav_bytes, capture_output=True)
     if result.returncode != 0:
         raise TTSError(f"ffmpeg wav→mp3 failed: {result.stderr[-300:]}")
     return result.stdout
 
 
-# ── Tier 1: Qwen direct API (free, Cherry/Ethan original) ────
+# ── Tier 1: qwen-tts2api (self-hosted, OpenAI-compatible, free) ─
 
-_QWEN_GRADIO_BASE = "https://qwen-qwen3-tts-demo.ms.show/gradio_api"
-_NO_PROXY = {"http": "", "https": "", "all": ""}
-_QWEN_GRADIO_HEADERS = {
-    "accept": "*/*",
-    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-    "content-type": "application/json",
-    "sec-ch-ua": '"Chromium";v="144", "Google Chrome";v="144"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Linux"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "x-studio-token": "",
-    "Referer": "https://qwen-qwen3-tts-demo.ms.show/",
-}
+def _synthesize_via_qwen_api(text: str, role: str) -> bytes:
+    """Synthesize via self-hosted qwen-tts2api (OpenAI-compatible endpoint).
 
+    Uses the QWEN_TTS_URL env var (default http://72.249.203.10:8825).
+    Returns MP3 bytes converted from the WAV response.
+    """
+    voice = QWEN_API_VOICE_MAP.get(role, "cherry")
+    api_url = f"{settings.qwen_tts_url.rstrip('/')}/v1/audio/speech"
 
-def _synthesize_via_qwen_direct(text: str, role: str) -> bytes:
-    """Synthesize via Qwen Gradio API directly (no Gradio Client). Returns MP3."""
-    voice = QWEN_DIRECT_VOICE_MAP.get(role, "Cherry / 芊悦")
-    session_hash = uuid.uuid4().hex[:12]
+    headers = {"Content-Type": "application/json"}
+    if settings.qwen_tts_api_key:
+        headers["Authorization"] = f"Bearer {settings.qwen_tts_api_key}"
 
-    # Step 1: Initialize predict
     resp = requests.post(
-        f"{_QWEN_GRADIO_BASE}/run/predict",
-        headers=_QWEN_GRADIO_HEADERS,
-        json={
-            "data": [0],
-            "event_data": None,
-            "fn_index": 0,
-            "trigger_id": 11,
-            "dataType": ["dataset"],
-            "session_hash": session_hash,
-        },
-        timeout=30,
-        proxies=_NO_PROXY,
+        api_url,
+        headers=headers,
+        json={"voice": voice, "input": text[:MAX_CHARS_PER_REQUEST]},
+        timeout=300,
     )
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        detail = resp.text[:300]
+        raise TTSError(f"qwen-tts2api returned {resp.status_code}: {detail}")
 
-    # Step 2: Join queue
-    resp = requests.post(
-        f"{_QWEN_GRADIO_BASE}/queue/join",
-        headers=_QWEN_GRADIO_HEADERS,
-        json={
-            "data": [text[:MAX_CHARS_PER_REQUEST], voice, "Auto / 自动"],
-            "event_data": None,
-            "fn_index": 1,
-            "trigger_id": 7,
-            "dataType": ["textbox", "dropdown", "dropdown"],
-            "session_hash": session_hash,
-        },
-        timeout=30,
-        proxies=_NO_PROXY,
-    )
-    resp.raise_for_status()
+    if len(resp.content) < 100:
+        raise TTSError(f"qwen-tts2api returned too little audio ({len(resp.content)} bytes)")
 
-    # Step 3: Stream queue data (SSE) and wait for audio URL
-    sse_headers = {**_QWEN_GRADIO_HEADERS, "accept": "text/event-stream"}
-    resp = requests.get(
-        f"{_QWEN_GRADIO_BASE}/queue/data",
-        headers=sse_headers,
-        params={"session_hash": session_hash, "studio_token": ""},
-        stream=True,
-        timeout=180,
-        proxies=_NO_PROXY,
-    )
-    resp.raise_for_status()
-
-    audio_url = None
-    for line in resp.iter_lines():
-        if not line:
-            continue
-        line_str = line.decode("utf-8")
-        if not line_str.startswith("data: "):
-            continue
-        try:
-            event = json.loads(line_str[6:])
-        except json.JSONDecodeError:
-            continue
-
-        msg = event.get("msg")
-        if msg == "estimation":
-            rank = event.get("rank", 0)
-            eta = event.get("rank_eta", 0)
-            logger.debug("[Qwen] queue position %d, eta %.0fs", rank + 1, eta)
-        elif msg == "process_starts":
-            logger.debug("[Qwen] processing started")
-        elif msg == "process_completed":
-            output = event.get("output", {})
-            data = output.get("data", [])
-            if data:
-                audio_url = data[0].get("url")
-            break
-        elif msg == "close_stream":
-            break
-
-    if not audio_url:
-        raise TTSError("Qwen direct API returned no audio URL")
-
-    # Step 4: Download audio (WAV) and convert to MP3
-    audio_resp = requests.get(
-        audio_url,
-        headers={k: v for k, v in _QWEN_GRADIO_HEADERS.items()
-                 if k != "content-type"},
-        timeout=60,
-        proxies=_NO_PROXY,
-    )
-    audio_resp.raise_for_status()
-
-    if len(audio_resp.content) < 100:
-        raise TTSError(f"Qwen returned too little audio ({len(audio_resp.content)} bytes)")
-
-    return _wav_to_mp3(audio_resp.content)
+    return _wav_to_mp3(resp.content, trim_start_seconds=QWEN_LEADING_ARTIFACT_TRIM_SECONDS)
 
 
 # ── Tier 2: Edge TTS (free, Microsoft Edge API) ──────────────
@@ -262,7 +185,7 @@ def _synthesize_via_dashscope(text: str, voice: str, instructions: str) -> bytes
 
 # ── Backend chain (session-level: entire dialogue uses ONE backend) ──
 
-BACKEND_CHAIN = ["qwen", "edge", "dashscope"]
+BACKEND_CHAIN = ["qwen_api", "edge", "dashscope"]
 
 
 def _synthesize_one(
@@ -277,8 +200,8 @@ def _synthesize_one(
     """Synthesize a single segment using exactly ONE backend (with retries)."""
     for attempt in range(1, retries + 1):
         try:
-            if backend == "qwen":
-                return _synthesize_via_qwen_direct(text, role)
+            if backend == "qwen_api":
+                return _synthesize_via_qwen_api(text, role)
             elif backend == "edge":
                 return _synthesize_via_edge_tts(text, role)
             elif backend == "dashscope":
@@ -288,7 +211,7 @@ def _synthesize_one(
         except Exception as exc:
             if attempt >= retries:
                 raise TTSError(f"{backend} failed after {retries} attempts: {exc}") from exc
-            wait = {"qwen": min(5 * attempt, 15), "dashscope": min(2 ** attempt, 8)}.get(backend, 2)
+            wait = {"qwen_api": min(5 * attempt, 15), "dashscope": min(2 ** attempt, 8)}.get(backend, 2)
             logger.warning("[TTS] %s attempt %d/%d failed: %s, retry in %ds",
                            backend, attempt, retries, exc, wait)
             time.sleep(wait)
@@ -306,7 +229,7 @@ def synthesize_segment(
     """
     Synthesize a single text segment to MP3 bytes.
 
-    Tries each backend in order: Qwen → Edge → DashScope.
+    Tries each backend in order: qwen-tts2api → Edge → DashScope.
     NOTE: For dialogue, use synthesize_dialogue() which locks the entire
     conversation to one backend to avoid mixing different voices.
     """
@@ -438,15 +361,15 @@ def synthesize_dialogue(
     Synthesize dialogue with smart voice-consistent fallback.
 
     Backend availability controlled by settings:
-    - Qwen (free): always enabled
+    - qwen-tts2api (self-hosted, free): always enabled
     - DashScope (paid): only if TTS_ENABLE_DASHSCOPE=true
     - Edge (free, different voice): only if TTS_ENABLE_EDGE=true
 
-    Qwen + DashScope share Cherry/Ethan voices → partial patching OK.
+    qwen-tts2api + DashScope share Cherry/Ethan voices → partial patching OK.
     Edge uses different voices → requires clean slate, all-or-nothing.
 
     Fallback chain:
-      1. Qwen all → if partial fail and DashScope enabled → patches gaps
+      1. qwen-tts2api all → if partial fail and DashScope enabled → patches gaps
       2. Edge all  (if enabled, clean slate, different voice)
       3. DashScope all (if enabled, clean slate, paid)
     """
@@ -455,24 +378,24 @@ def synthesize_dialogue(
     use_dashscope = settings.tts_enable_dashscope and settings.dashscope_api_key
     use_edge = settings.tts_enable_edge
 
-    # ── Phase 1: Qwen (free, Cherry/Ethan) ──
-    logger.info("[TTS] Phase 1: Qwen direct for all %d lines", len(dialogue))
-    files, failed = _try_all_segments(dialogue, output_dir, "qwen")
+    # ── Phase 1: qwen-tts2api (self-hosted, free, Cherry/Ethan) ──
+    logger.info("[TTS] Phase 1: qwen-tts2api for all %d lines", len(dialogue))
+    files, failed = _try_all_segments(dialogue, output_dir, "qwen_api")
 
     if not failed:
-        logger.info("[TTS] All %d segments done via Qwen", len(files))
+        logger.info("[TTS] All %d segments done via qwen-tts2api", len(files))
         return [f for f in files if f is not None]
 
     qwen_ok = sum(1 for f in files if f is not None)
-    logger.warning("[TTS] Qwen: %d succeeded, %d failed", qwen_ok, len(failed))
+    logger.warning("[TTS] qwen-tts2api: %d succeeded, %d failed", qwen_ok, len(failed))
 
     if qwen_ok > 0 and use_dashscope:
-        # ── Phase 1b: DashScope patches Qwen gaps (same voice) ──
+        # ── Phase 1b: DashScope patches qwen-tts2api gaps (same voice) ──
         logger.info("[TTS] Phase 1b: Patching %d gaps with DashScope", len(failed))
         files = _patch_failed_segments(files, failed, "dashscope")
         still_missing = sum(1 for f in files if f is None)
         if not still_missing:
-            logger.info("[TTS] All segments complete (Qwen + DashScope patch)")
+            logger.info("[TTS] All segments complete (qwen-tts2api + DashScope patch)")
             return [f for f in files if f is not None]
         logger.warning("[TTS] Still %d segments missing after DashScope patch", still_missing)
 
@@ -514,6 +437,21 @@ def _get_duration(path: Path) -> float:
     if result.returncode != 0:
         raise TTSError(f"ffprobe failed on {path.name}: {result.stderr[-200:]}")
     return float(result.stdout.strip())
+
+
+def _tts_boundary_fade_filter(duration: float) -> str:
+    """Return a short fade filter to smooth per-segment TTS clicks."""
+    duration = max(0.0, duration)
+    fade_in = min(TTS_SEGMENT_FADE_IN_SECONDS, duration / 4)
+    fade_out = min(TTS_SEGMENT_FADE_OUT_SECONDS, duration / 4)
+
+    filters: list[str] = []
+    if fade_in > 0.001:
+        filters.append(f"afade=t=in:st=0:d={fade_in:.3f}")
+    if fade_out > 0.001:
+        fade_out_start = max(0.0, duration - fade_out)
+        filters.append(f"afade=t=out:st={fade_out_start:.3f}:d={fade_out:.3f}")
+    return ",".join(filters)
 
 
 def _find_audio_assets() -> dict[str, Path]:
@@ -604,15 +542,23 @@ def concatenate_audio(
 def _concatenate_simple(segment_files: list[Path], output_path: Path) -> list[dict]:
     """Original concatenation: simple concat + loudnorm."""
     inputs: list[str] = []
-    filter_parts: list[str] = []
+    filter_steps: list[str] = []
+    concat_inputs: list[str] = []
 
     for i, seg_file in enumerate(segment_files):
         inputs.extend(["-i", str(seg_file)])
-        filter_parts.append(f"[{i}:a]")
+        fade_filter = _tts_boundary_fade_filter(_get_duration(seg_file))
+        if fade_filter:
+            label = f"seg{i}"
+            filter_steps.append(f"[{i}:a]{fade_filter}[{label}];")
+            concat_inputs.append(f"[{label}]")
+        else:
+            concat_inputs.append(f"[{i}:a]")
 
     # Concat then boost volume via loudnorm (EBU R128 broadcast standard)
     filter_str = (
-        "".join(filter_parts)
+        "".join(filter_steps)
+        + "".join(concat_inputs)
         + f"concat=n={len(segment_files)}:v=0:a=1[raw];"
         + "[raw]loudnorm=I=-16:TP=-1.5:LRA=11[out]"
     )
@@ -744,7 +690,11 @@ def _concatenate_with_music(
             segs = line_map[line_idx] if line_idx < len(line_map) else []
             for seg_file in segs:
                 seg_wav = next_piece_path(f"seg{line_idx}")
-                _normalize_to_wav(seg_file, seg_wav)
+                _normalize_to_wav(
+                    seg_file,
+                    seg_wav,
+                    fade=_tts_boundary_fade_filter(_get_duration(seg_file)),
+                )
                 pieces.append(seg_wav)
 
             # 0.1s gap between lines

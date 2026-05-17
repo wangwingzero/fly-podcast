@@ -1,3 +1,4 @@
+import importlib
 import json
 
 from flying_podcast.stages.compose import (
@@ -7,10 +8,13 @@ from flying_podcast.stages.compose import (
     _build_selection_prompt,
     _blend_selection_with_editorial_anchors,
     _enforce_constraints,
+    _resolve_google_urls_and_fetch_images,
     _sanitize_body_text,
     _validate_llm_entries,
 )
 from flying_podcast.core.models import DigestEntry
+
+compose = importlib.import_module("flying_podcast.stages.compose")
 
 
 def _candidate(i: int, region: str = "domestic"):
@@ -242,6 +246,63 @@ def test_sanitize_body_text_removes_source_meta_variants():
     assert "232名旅客" in cleaned
     assert "Leap发动机烟雾事件" in cleaned
     assert "航班号" not in cleaned
+
+
+def test_resolve_images_inherits_candidate_image_before_og_logo(monkeypatch):
+    url = "https://www.flightglobal.com/archive/2026/05/il-114-300-flown-close-to-north-pole-to-test-arctic-navigation-capabilities/"
+    entry = DigestEntry(
+        id="fg-cli",
+        source_id="flightglobal_cli",
+        section="",
+        title="Il-114-300飞近北极测试北极导航能力",
+        conclusion="",
+        facts=["事实一", "事实二"],
+        impact="",
+        citations=[url],
+        source_tier="A",
+        region="international",
+        score_breakdown={"factual": 90, "relevance": 90, "authority": 90, "timeliness": 90, "readability": 90, "total": 90},
+        url=url,
+        canonical_url=url,
+        image_url="",
+    )
+    real_image = "https://www.flightglobal.com/wp-content/uploads/2026/05/Il-114-300-Arctic-c-United-Aircraft-480x324.jpeg"
+    monkeypatch.setattr(compose, "_fetch_og_image", lambda _: "https://www.flightglobal.com/wp-content/uploads/2026/01/114818_fglogo_452564.jpg")
+
+    _resolve_google_urls_and_fetch_images(
+        [entry],
+        [
+            {"canonical_url": url, "url": url, "image_url": ""},
+            {"canonical_url": url, "url": url, "image_url": real_image},
+        ],
+    )
+
+    assert entry.image_url == real_image
+
+
+def test_resolve_images_rejects_site_logo_og_image(monkeypatch):
+    url = "https://www.flightglobal.com/archive/2026/05/il-114-300-flown-close-to-north-pole-to-test-arctic-navigation-capabilities/"
+    entry = DigestEntry(
+        id="fg-cli",
+        source_id="flightglobal_cli",
+        section="",
+        title="Il-114-300飞近北极测试北极导航能力",
+        conclusion="",
+        facts=["事实一", "事实二"],
+        impact="",
+        citations=[url],
+        source_tier="A",
+        region="international",
+        score_breakdown={"factual": 90, "relevance": 90, "authority": 90, "timeliness": 90, "readability": 90, "total": 90},
+        url=url,
+        canonical_url=url,
+        image_url="",
+    )
+    monkeypatch.setattr(compose, "_fetch_og_image", lambda _: "https://www.flightglobal.com/wp-content/uploads/2026/01/114818_fglogo_452564.jpg")
+
+    _resolve_google_urls_and_fetch_images([entry], [])
+
+    assert entry.image_url == ""
 
 
 def _digest_entry(i: int, *, source_id: str, section: str, title: str) -> DigestEntry:

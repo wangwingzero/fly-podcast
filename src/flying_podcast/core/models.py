@@ -24,6 +24,11 @@ class NewsItem:
     is_google_redirect: bool = False
     event_fingerprint: str = ""
     image_url: str = ""
+    source_role: str = ""
+    crawl_method: str = ""
+    article_text: str = ""
+    article_excerpt: str = ""
+    playwright_snapshot_path: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -49,6 +54,7 @@ class DigestEntry:
     event_fingerprint: str = ""
     published_at: str = ""
     image_url: str = ""
+    source_role: str = ""
     body: str = ""
 
     def to_dict(self) -> dict[str, Any]:

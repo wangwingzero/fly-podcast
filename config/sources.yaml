@@ -1,13 +1,131 @@
 sources:
   # ============================================================
-  # Pilot-first safety and operations sources
+  # International aviation industry news sources
+  # ============================================================
+  - id: flightglobal_air_transport_cli
+    name: FlightGlobal Air Transport
+    url: https://www.flightglobal.com/air-transport
+    type: web
+    fetch_mode: playwright_cli
+    source_role: primary_industry
+    source_tier: A
+    region: international
+    lang: en
+    link_patterns:
+      - "flightglobal\\.com/.+"
+    exclude_patterns:
+      - "/author/"
+      - "/events/"
+      - "/jobs/"
+      - "/reports/"
+      - "javascript:"
+      - "#"
+    max_items: 35
+    playwright_timeout: 60
+    enabled: true
+
+  - id: aviation_week_air_transport_cli
+    name: Aviation Week Air Transport
+    url: https://aviationweek.com/air-transport
+    type: web
+    fetch_mode: playwright_cli
+    source_role: primary_industry
+    source_tier: A
+    region: international
+    lang: en
+    link_patterns:
+      - "aviationweek\\.com/air-transport/.+"
+    exclude_patterns:
+      - "/author/"
+      - "/events/"
+      - "/marketplace/"
+      - "javascript:"
+      - "#"
+    max_items: 35
+    playwright_timeout: 60
+    enabled: true
+
+  - id: simple_flying_cli
+    name: Simple Flying Aviation News
+    url: https://simpleflying.com/category/aviation-news/
+    type: web
+    fetch_mode: playwright_cli
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    lang: en
+    link_patterns:
+      - "simpleflying\\.com/.+"
+    exclude_patterns:
+      - "/author/"
+      - "/tag/"
+      - "/category/"
+      - "javascript:"
+      - "#"
+    max_items: 45
+    playwright_timeout: 60
+    enabled: true
+
+  - id: ch_aviation_cli
+    name: ch-aviation News
+    url: https://www.ch-aviation.com/news
+    type: web
+    fetch_mode: playwright_cli
+    source_role: primary_industry
+    source_tier: A
+    region: international
+    lang: en
+    link_patterns:
+      - "ch-aviation\\.com/news/.+"
+    exclude_patterns:
+      - "/portal/"
+      - "/about/"
+      - "javascript:"
+      - "#"
+    max_items: 30
+    playwright_timeout: 60
+    enabled: true
+
+  - id: reuters_aerospace_cli
+    name: Reuters Aerospace and Defense
+    url: https://www.reuters.com/business/aerospace-defense/
+    type: web
+    fetch_mode: playwright_cli
+    source_role: macro_supplement
+    source_tier: B
+    region: international
+    lang: en
+    link_patterns:
+      - "reuters\\.com/.+"
+    max_items: 12
+    playwright_timeout: 60
+    enabled: true
+
+  - id: bloomberg_airlines_cli
+    name: Bloomberg Airlines
+    url: https://www.bloomberg.com/industries/airlines
+    type: web
+    fetch_mode: playwright_cli
+    source_role: macro_supplement
+    source_tier: B
+    region: international
+    lang: en
+    link_patterns:
+      - "bloomberg\\.com/.+"
+    max_items: 8
+    playwright_timeout: 60
+    enabled: true
+
+  # ============================================================
+  # Accident / safety exception sources
   # ============================================================
   - id: avherald_web
     name: The Aviation Herald
     url: https://avherald.com/
     type: web
     fetch_mode: requests
-    source_tier: A
+    source_role: accident_exception
+    source_tier: B
     region: international
     lang: en
     link_patterns:
@@ -24,7 +142,8 @@ sources:
     type: web
     fetch_mode: requests
     verify_ssl: false
-    source_tier: A
+    source_role: accident_exception
+    source_tier: B
     region: international
     lang: en
     link_patterns:
@@ -39,6 +158,7 @@ sources:
     name: FlightGlobal Safety
     url: https://www.flightglobal.com/category/safety/feed/
     type: rss
+    source_role: accident_exception
     source_tier: B
     region: international
     enabled: true
@@ -47,6 +167,7 @@ sources:
     name: FlightGlobal Engines
     url: https://www.flightglobal.com/category/engines/feed/
     type: rss
+    source_role: primary_industry
     source_tier: B
     region: international
     enabled: true
@@ -56,7 +177,8 @@ sources:
     url: https://www.ntsb.gov/news/press-releases/Pages/default.aspx
     type: web
     fetch_mode: requests
-    source_tier: A
+    source_role: accident_exception
+    source_tier: B
     region: international
     lang: en
     fallback_order: [playwright]
@@ -77,6 +199,7 @@ sources:
     url: https://ad.easa.europa.eu/
     type: web
     fetch_mode: requests
+    source_role: primary_industry
     source_tier: A
     region: international
     lang: en
@@ -93,6 +216,7 @@ sources:
     url: https://www.faa.gov/other_visit/aviation_industry/airline_operators/airline_safety/safo/all_safos
     type: web
     fetch_mode: requests
+    source_role: primary_industry
     source_tier: A
     region: international
     lang: en
@@ -101,6 +225,7 @@ sources:
     published_at_patterns: []
     article_include_keywords: []
     max_items: 40
+    playwright_timeout: 60
     enabled: true
 
   - id: faa_info_web
@@ -108,6 +233,7 @@ sources:
     url: https://www.faa.gov/other_visit/aviation_industry/airline_operators/airline_safety/info/all_infos
     type: web
     fetch_mode: requests
+    source_role: primary_industry
     source_tier: A
     region: international
     lang: en
@@ -123,7 +249,8 @@ sources:
     url: https://asrs.arc.nasa.gov/publications/callback.html
     type: web
     fetch_mode: requests
-    source_tier: A
+    source_role: accident_exception
+    source_tier: B
     region: international
     lang: en
     link_patterns:
@@ -143,8 +270,9 @@ sources:
     name: AIN Online - Aviation International News
     url: https://www.ainonline.com/aviation-news/air-transport
     type: web
-    fetch_mode: requests
-    source_tier: B
+    fetch_mode: playwright_cli
+    source_role: primary_industry
+    source_tier: A
     region: international
     lang: en
     fallback_order: [playwright]
@@ -162,46 +290,53 @@ sources:
     enabled: true
 
   # ============================================================
-  # Disabled background/business sources kept for manual fallback.
-  # They are useful for industry context but are not pilot-first.
+  # Industry / novelty sources for pilot-friendly variety
+  # （首飞、取证里程碑、复古涂装、罕见航线、特殊任务等）。
+  # 启用时配合 hard_reject_keywords / strict_hard_reject_keywords
+  # 过滤股价、会员积分、营销软文等噪声。
   # ============================================================
   - id: aerotime
     name: AeroTime Hub
     url: https://www.aerotime.aero/rss
     type: rss
+    source_role: primary_industry
     source_tier: C
     region: international
-    enabled: false
+    enabled: true
 
   - id: aviation_source
     name: Aviation Source News
     url: https://aviationsourcenews.com/feed/
     type: rss
+    source_role: primary_industry
     source_tier: C
     region: international
-    enabled: false
+    enabled: true
 
   - id: flightglobal_news_web
     name: FlightGlobal Air Transport
     url: https://www.flightglobal.com/category/air-transport/feed/
     type: rss
-    source_tier: C
+    source_role: primary_industry
+    source_tier: B
     region: international
-    enabled: false
+    enabled: true
 
   - id: flightradar24_blog
     name: Flightradar24 Blog
     url: https://www.flightradar24.com/blog/feed/
     type: rss
+    source_role: primary_industry
     source_tier: C
     region: international
-    enabled: false
+    enabled: true
 
   - id: iata_press_web
     name: IATA Pressroom Web
     url: https://www.iata.org/en/pressroom/
     type: web
     fetch_mode: requests
+    source_role: primary_industry
     source_tier: C
     region: international
     lang: en
@@ -212,6 +347,7 @@ sources:
     url: https://www.airbus.com/en/newsroom
     type: web
     fetch_mode: requests
+    source_role: corporate_newsroom
     source_tier: C
     region: international
     lang: en
@@ -222,6 +358,7 @@ sources:
     url: https://boeing.mediaroom.com/news-releases-statements
     type: web
     fetch_mode: requests
+    source_role: corporate_newsroom
     source_tier: C
     region: international
     lang: en
@@ -231,6 +368,7 @@ sources:
     name: Delta News Hub
     url: https://news.delta.com/rss.xml
     type: rss
+    source_role: corporate_newsroom
     source_tier: C
     region: international
     enabled: false

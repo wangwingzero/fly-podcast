@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html as html_lib
+import hashlib
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlencode
 
@@ -120,12 +122,75 @@ class WeChatClient:
         self._cached_token: str = ""
         self._token_expires: float = 0
 
-    def _access_token(self) -> str:
-        if self._cached_token and time.time() < self._token_expires:
-            return self._cached_token
-        if not settings.wechat_app_id or not settings.wechat_app_secret:
-            raise WeChatPublishError("Missing WECHAT_APP_ID/WECHAT_APP_SECRET")
-        data = _curl_get(
+    def _token_cache_path(self) -> Path:
+        cache_path = getattr(settings, "wechat_token_cache_path", None)
+        if cache_path:
+            return Path(cache_path)
+        return settings.history_dir / "wechat_stable_token.json"
+
+    def _app_secret_fingerprint(self) -> str:
+        return hashlib.sha256(settings.wechat_app_secret.encode("utf-8")).hexdigest()
+
+    def _load_cached_access_token(self) -> str:
+        try:
+            cache_path = self._token_cache_path()
+            if not cache_path.exists():
+                return ""
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+        except Exception:
+            logger.warning("Failed to read WeChat token cache; requesting a new token")
+            return ""
+
+        if data.get("appid") != settings.wechat_app_id:
+            return ""
+        if data.get("secret_sha256") != self._app_secret_fingerprint():
+            return ""
+        token = str(data.get("access_token", "")).strip()
+        expires_at = float(data.get("expires_at", 0) or 0)
+        if not token or time.time() >= expires_at - 300:
+            return ""
+
+        self._cached_token = token
+        self._token_expires = expires_at - 300
+        return token
+
+    def _save_cached_access_token(self, token: str, expires_in: int, *, source: str) -> None:
+        expires_at = time.time() + max(int(expires_in), 0)
+        self._cached_token = token
+        self._token_expires = expires_at - 300
+
+        payload = {
+            "appid": settings.wechat_app_id,
+            "secret_sha256": self._app_secret_fingerprint(),
+            "access_token": token,
+            "expires_at": expires_at,
+            "source": source,
+            "updated_at": int(time.time()),
+        }
+        try:
+            cache_path = self._token_cache_path()
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = cache_path.with_suffix(".tmp")
+            tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp_path.replace(cache_path)
+        except Exception:
+            logger.warning("Failed to write WeChat token cache; continuing with in-memory token")
+
+    def _request_stable_access_token(self) -> dict:
+        return _curl_post_json(
+            f"{self.base}/stable_token",
+            body={
+                "grant_type": "client_credential",
+                "appid": settings.wechat_app_id,
+                "secret": settings.wechat_app_secret,
+                "force_refresh": False,
+            },
+            proxy=self._proxy,
+            timeout=30,
+        )
+
+    def _request_legacy_access_token(self) -> dict:
+        return _curl_get(
             f"{self.base}/token",
             params={
                 "grant_type": "client_credential",
@@ -134,11 +199,31 @@ class WeChatClient:
             },
             proxy=self._proxy, timeout=30,
         )
+
+    def _access_token(self) -> str:
+        if self._cached_token and time.time() < self._token_expires:
+            return self._cached_token
+        if not settings.wechat_app_id or not settings.wechat_app_secret:
+            raise WeChatPublishError("Missing WECHAT_APP_ID/WECHAT_APP_SECRET")
+
+        cached = self._load_cached_access_token()
+        if cached:
+            return cached
+
+        use_stable_token = getattr(settings, "wechat_use_stable_token", True)
+        data = (
+            self._request_stable_access_token()
+            if use_stable_token
+            else self._request_legacy_access_token()
+        )
         token = data.get("access_token")
         if not token:
             raise WeChatPublishError(f"Get token failed: {data}")
-        self._cached_token = token
-        self._token_expires = time.time() + data.get("expires_in", 7200) - 60
+        self._save_cached_access_token(
+            token,
+            int(data.get("expires_in", 7200)),
+            source="stable_token" if use_stable_token else "legacy_token",
+        )
         return token
 
     def _upload_image(self, endpoint: str, image_data: bytes,

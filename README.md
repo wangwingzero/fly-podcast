@@ -14,8 +14,8 @@
 
 ### 播客（PDF 转双人对话音频）
 - 将民航法规 PDF 自动转为千羽（女）+ 虎机长（男）双人播客对话。
-- 流程：PDF 文字提取 → LLM 生成对话脚本 → qwen-tts2api 语音合成 → ffmpeg 拼接 + 音量标准化 → 发布到自托管静态站 → 发布微信草稿。
-- 音量标准化：EBU R128 广播标准（-16 LUFS）。
+- 流程：PDF 文字提取（MinerU 可选，默认可回退 pdfplumber）→ LLM 生成对话脚本 → Qwen/Edge/DashScope TTS 语音合成 → ffmpeg 拼接片头、转场和停顿 → 发布到自托管静态站 → 发布微信草稿。
+- 没有音频素材或章节信息时会走简单拼接并做 EBU R128 响度标准化；有片头/转场素材和章节时会走增强拼接。
 
 ---
 
@@ -48,7 +48,22 @@ ingest -> rank -> compose -> verify -> publish -> publish-static -> notify
 
 ### 播客
 
-播客仍通过服务器 CLI 运行，必要时可在宝塔计划任务中添加独立 shell 任务。
+播客推荐通过服务器 Web 控制台运行：
+
+```text
+http://72.249.203.10:8091
+```
+
+服务脚本：
+
+```bash
+cd /www/wwwroot/flying-podcast
+bash scripts/server/install_podcast_console_service.sh
+```
+
+控制台能力：上传 PDF、服务器端生成音频、实时查看日志、下载成品、创建公众号草稿。
+
+服务器 CLI 仍可用于排障或批处理。
 
 手动处理单个 PDF：
 
@@ -63,6 +78,8 @@ cd /www/wwwroot/flying-podcast
 cd /www/wwwroot/flying-podcast
 .venv/bin/python run.py podcast-inbox
 ```
+
+详见 `docs/podcast-server-workflow.md`。
 
 ---
 
@@ -103,9 +120,14 @@ python run.py publish-podcast [--date YYYY-MM-DD]
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `QWEN_TTS_URL` | qwen-tts2api 服务地址 | `http://localhost:8825` |
 | `DASHSCOPE_API_KEY` | DashScope API 密钥（TTS 付费 fallback） | 空 |
+| `TTS_ENABLE_DASHSCOPE` | 是否启用 DashScope TTS fallback | `false` |
+| `TTS_ENABLE_EDGE` | 是否启用 Edge TTS fallback | `false` |
+| `MINERU` | MinerU PDF 解析和全文朗读，可选 | 空 |
 | `PODCAST_GREETING` | 播客对话额外提示词（如节日祝福） | 空 |
+| `PODCAST_WEB_PASSWORD` | 播客 Web 控制台登录密码 | 空 |
+| `PODCAST_WEB_SECRET` | 播客 Web 控制台会话密钥 | 空 |
+| `PODCAST_WEB_PORT` | 播客 Web 控制台端口 | `8091` |
 
 ## 数据契约
 

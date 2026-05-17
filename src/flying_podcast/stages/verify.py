@@ -81,9 +81,96 @@ _HARD_REJECT_REASON_HINTS = (
     "事实冲突",
 )
 
+_DEFAULT_VERIFY_MACRO_EFFECT_TERMS = (
+    "airline", "airlines", "airport", "airports", "aircraft", "airspace",
+    "flight", "flights", "fleet", "faa", "easa", "iata", "icao",
+    "boeing", "airbus", "engine", "supply chain", "route", "capacity",
+    "航空公司", "航班", "机场", "空域", "机队", "监管", "发动机", "供应链",
+)
+
+_DEFAULT_VERIFY_MAJOR_ACCIDENT_TERMS = (
+    "grounding", "grounded", "fleet-wide", "fleet wide", "inspection",
+    "airworthiness directive", "regulator", "faa", "easa", "manufacturer",
+    "boeing", "airbus", "engine", "airport closure", "runway closure",
+    "airspace closure", "international airlines", "suspend operations",
+    "停飞", "适航指令", "监管", "检查", "空域关闭", "机场关闭",
+)
+
+_PRIMARY_HEALTH_ROLES = {"primary_industry", "macro_supplement"}
+_ACCIDENT_EXCEPTION_SOURCE_IDS = {
+    "avherald_web",
+    "asn_2026_web",
+    "flightglobal_safety",
+    "ntsb_press_web",
+    "nasa_asrs_callback_web",
+}
+
 
 def _has_chinese(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", str(text or "")))
+
+
+def _contains_any(text: str, terms: list[str] | tuple[str, ...]) -> bool:
+    text_l = str(text or "").lower()
+    return any(str(term).strip().lower() in text_l for term in terms if str(term).strip())
+
+
+def _source_role_for_entry(entry: dict) -> str:
+    role = str(entry.get("source_role") or "").strip().lower()
+    if role:
+        return role
+    source_id = str(entry.get("source_id") or "").strip().lower()
+    if source_id in _ACCIDENT_EXCEPTION_SOURCE_IDS:
+        return "accident_exception"
+    return ""
+
+
+def _load_source_health(day: str) -> list[dict]:
+    raw_dir = getattr(settings, "raw_dir", None)
+    if not raw_dir:
+        return []
+    path = Path(raw_dir) / f"source_health_{day}.json"
+    if not path.exists():
+        return []
+    try:
+        rows = load_json(path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Source health gate: failed to read %s: %s", path, exc)
+        return []
+    return rows if isinstance(rows, list) else []
+
+
+def _source_health_gate_reasons(day: str, publishable_entries: list[dict]) -> list[str]:
+    if not getattr(settings, "source_health_gate_enabled", True):
+        return []
+    health = _load_source_health(day)
+    if not health:
+        return []
+
+    primary_ok = [
+        row for row in health
+        if str(row.get("source_role") or "").strip().lower() in _PRIMARY_HEALTH_ROLES
+        and str(row.get("status") or "").strip().lower() == "ok"
+        and int(row.get("item_count") or 0) > 0
+    ]
+    primary_items = sum(int(row.get("item_count") or 0) for row in primary_ok)
+    min_sources = max(0, int(getattr(settings, "min_primary_industry_sources_ok", 2) or 0))
+    min_items = max(0, int(getattr(settings, "min_primary_industry_items", 3) or 0))
+    primary_unhealthy = len(primary_ok) < min_sources or primary_items < min_items
+    if not primary_unhealthy:
+        return []
+
+    accident_entries = [
+        entry for entry in publishable_entries
+        if _source_role_for_entry(entry) == "accident_exception"
+    ]
+    non_accident_entries = [
+        entry for entry in publishable_entries
+        if _source_role_for_entry(entry) != "accident_exception"
+    ]
+    if accident_entries and not non_accident_entries:
+        return ["primary_source_health_below_threshold", "accident_only_fallback_digest"]
+    return []
 
 
 def _is_high_value_ops_entry(entry: dict) -> bool:
@@ -106,6 +193,8 @@ def _is_high_value_ops_entry(entry: dict) -> bool:
 
 
 def _should_override_editor_rejection(entry: dict, reason: str) -> bool:
+    if _source_role_for_entry(entry) == "accident_exception":
+        return False
     if not _is_high_value_ops_entry(entry):
         return False
     lowered_reason = str(reason or "").lower()
@@ -133,26 +222,28 @@ def _llm_editor_review(
             "id": e.get("id", ""),
             "title": e.get("title", ""),
             "conclusion": e.get("conclusion", ""),
+            "source_role": e.get("source_role", ""),
             "facts": [str(x) for x in e.get("facts", [])[:5]],
             "body": (e.get("body") or "")[:800],
         })
     entries_by_id = {str(e.get("id", "")).strip(): e for e in entries}
 
     system_prompt = (
-        "你是航空媒体总编辑，对即将发布的每日简报做最终审核。\n"
-        "这份简报的目标读者是飞行员。你的首要目标不是凑篇数，也不是追求新闻腔，而是保留“对飞行员飞行运行有信息增量”的稿子。\n"
-        "信息增量重点看两类：技术增量、风险增量。\n"
-        "技术增量：机型/系统故障、异常告警、RAT、发动机、液压、航电、雷达、起落架、程序异常、维修发现等。\n"
-        "风险增量：返航、备降、复飞、跑道事件、天气风险、风切变、结冰、安保威胁、NOTAM、空域关闭、运行限制、影响机组决策的事件等。\n"
-        "只要文章能提供上述任一类具体信息，就应优先保留；文字不必像官样通稿，但必须事实成立、逻辑清楚、中文可读。\n\n"
+        "你是航空媒体总编辑，对即将发布的每日国际航空简报做最终审核。\n"
+        "这份简报的目标读者是飞行员，但主体不是事故流水，而是国际航空行业与运行态势。\n"
+        "技术增量：机型、系统、发动机、航电、维修、MRO、供应链、适航或制造交付方面的新事实。\n"
+        "风险增量：监管、机场、空域、航班、运行限制、停飞、机队检查或跨国运营影响方面的新事实。\n"
+        "优先保留有具体信息增量的稿子：航司战略、机队、订单/交付、租赁、监管、机场、空域、ATC、MRO、发动机、OEM、供应链、SAF、联盟、劳资和跨国运营变化。\n"
+        "Reuters/Bloomberg 这类宏观来源，只有明确写出对航司、航班、机场、空域、机队、监管或供应链的影响时才保留。\n"
+        "事故、严重事故、空难调查默认不作为日报主体；只有触发停飞、机队检查、监管动作、机场/空域影响、主流国际航司处置或制造商/发动机项目影响时才保留。\n\n"
         "这些文章已经过AI选稿和翻译。文章采用固定结构：前半段是客观新闻正文，最后一行可能是以“划重点：”开头的老机长幽默点评。\n"
         "这个“划重点”是栏目固定风格，不是问题本身。只要它不低俗、不脏话、不与正文事实冲突，就应保留；"
         "但如果它拿伤亡、严重受伤、紧急撤离或当事机组/旅客开玩笑，或补充了正文没有的原因、责任、调查结论，应删除或标记为不合格。"
         "严禁仅因为口语化、调侃、吐槽或像飞行员群聊转发语气，就删除整篇文章。\n\n"
         "请按以下四条标准逐篇审查：\n\n"
         "1. 不重复：与本期其他文章是否报道同一核心事件？如果重复，删除质量较差的那篇。\n"
-        "2. 优先保留有运行增量的稿子：如果标题、结论、facts 或正文已经明确给出技术故障、运行风险、处置动作、受影响机型/机场/航班/系统等关键信息，应优先保留。\n"
-        "   尤其不要把以下稿子误删为“太短”或“太概述”：机型系统异常、RAT放出、备降/返航、跑道事件、气象风险、安保事件、运行限制。\n"
+        "2. 优先保留有国际航空行业或运行增量的稿子：如果标题、结论、facts 或正文明确给出航司、机队、监管、机场、空域、供应链、制造商或跨国运营影响，应优先保留。\n"
+        "   机型系统异常、备降/返航、跑道事件、气象风险、安保事件、运行限制等仍可保留，但事故类必须有更大范围影响，不能堆成主体。\n"
         "3. 内容正常：站在读者角度，文章读起来是否正常？中文通顺、逻辑清楚、标题与正文一致。\n"
         "   删除：读不通、机翻严重、标题党、前后矛盾的文章。\n"
         "   但如果正文前半段是正常新闻叙述，只有最后一句“划重点：”较口语化，不要因此删除。\n"
@@ -162,8 +253,9 @@ def _llm_editor_review(
         "- 判断时优先看 title + conclusion + facts，再看 body；不要只因为正文篇幅短，就忽视标题和 facts 里的关键运行事实。\n"
         "- 允许结构：2-4句客观事实 + 1句“划重点：”幽默点评。\n"
         "- 不允许：整篇几乎都是空话、正文没有事实、点评与事实冲突、点评低俗攻击、拿伤亡开玩笑、点评补充原文没有的事实、或正文本身就像机翻/口水话。\n"
-        "- 地缘政治/宏观行业新闻，只有在明确写出航班、机场、空域、运行限制、航司处置等具体运行影响时，才算高价值；只有大而空判断的，可以删除。\n"
+        "- 地缘政治/宏观行业新闻，只有在明确写出航班、机场、空域、运行限制、航司处置、机队、监管或供应链影响时，才算高价值；只有大而空判断的，可以删除。\n"
         "- 航司航线暂停/恢复、旅客改签豁免、换季排班、运力恢复、市场投放这类运营通告型稿件，即使和空域事件有关，只要没有新增NOTAM、程序限制、绕飞策略、机场/跑道关闭等飞行员可直接使用的细节，也应删除。\n"
+        "- 企业官网式软文、航空公司营销稿、泛旅游稿，即使中文通顺也应删除。\n"
         "- 判断时请优先看“划重点：”之前的正文是否合格，再决定是否删除。\n\n"
         "符合以上三条的保留，不符合任何一条的删除。\n\n"
         "对每条新闻输出：{id, keep: true/false, reason: 一句话理由}\n"
@@ -258,6 +350,17 @@ def run(target_date: str | None = None) -> Path:
             ]
             if x
         )
+        role = _source_role_for_entry(entry)
+        macro_terms = kw.get("macro_aviation_effect_keywords") or list(_DEFAULT_VERIFY_MACRO_EFFECT_TERMS)
+        accident_terms = kw.get("major_accident_impact_keywords") or list(_DEFAULT_VERIFY_MAJOR_ACCIDENT_TERMS)
+
+        if role == "macro_supplement" and not _contains_any(visible_text, macro_terms):
+            reasons.append("macro_without_explicit_aviation_effect")
+            blocked.append(eid)
+
+        if role == "accident_exception" and not _contains_any(visible_text, accident_terms):
+            reasons.append("accident_without_major_impact")
+            blocked.append(eid)
 
         if not _has_chinese(visible_text):
             reasons.append("non_chinese_content")
@@ -354,12 +457,17 @@ def run(target_date: str | None = None) -> Path:
 
     blocked_set = {x for x in blocked if x}
     publishable_entries = [e for e in entries if str(e.get("id", "")) not in blocked_set]
+    gate_reasons = _source_health_gate_reasons(day, publishable_entries)
+    if gate_reasons:
+        reasons.extend(gate_reasons)
 
     if not entries:
         reasons.append("empty_digest")
         decision = "skip_publish"
     elif not publishable_entries:
         reasons.append("all_entries_blocked")
+        decision = "skip_publish"
+    elif gate_reasons:
         decision = "skip_publish"
     else:
         # Quality issues are logged for reference, but non-empty digests can still

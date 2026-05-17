@@ -5,6 +5,7 @@ Priority: Unsplash -> Pixabay -> configured AI image generator -> optional backu
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import re
 import time
@@ -333,10 +334,181 @@ def _is_grok_image_model(base_url: str, model: str) -> bool:
     return "grok" in value or "imagine" in value
 
 
+# ── OpenAI Responses API + image_generation tool ─────────
+#
+# Used by proxies that expose the Responses API with gpt-5 / codex-family
+# models (e.g. a-ocnfniawgw.cn-shanghai.fcapp.run). Returns a streaming SSE
+# response whose `response.image_generation_call.partial_image` events carry
+# base64-encoded PNG data in `partial_image_b64`.
+
+_RESPONSES_IMAGE_SIZES = ("1024x1024", "1536x1024", "1024x1536", "auto")
+
+
+def _map_size_for_responses_image(size: str) -> str:
+    """Clamp caller-requested size to one supported by the image_generation tool.
+
+    Supported values: 1024x1024, 1536x1024, 1024x1536, auto. Anything else
+    is bucketed by aspect ratio so landscape covers become 1536x1024 and
+    portrait becomes 1024x1536.
+    """
+    if not size:
+        return "auto"
+    s = size.lower().strip()
+    if s in _RESPONSES_IMAGE_SIZES:
+        return s
+    try:
+        w_str, h_str = s.split("x")
+        w, h = int(w_str), int(h_str)
+    except Exception:
+        return "auto"
+    if w > h:
+        return "1536x1024"
+    if h > w:
+        return "1024x1536"
+    return "1024x1024"
+
+
+def _build_responses_url(base_url: str) -> str:
+    """Return the full /v1/responses URL for the given base_url.
+
+    Accepts base URLs written as:
+    - `https://host` (no path)              → append /v1/responses
+    - `https://host/v1`                     → append /responses
+    - `https://host/v1/responses` (exact)   → use as-is
+    """
+    base = base_url.rstrip("/")
+    lower = base.lower()
+    if lower.endswith("/responses"):
+        return base
+    if lower.endswith("/v1"):
+        return f"{base}/responses"
+    return f"{base}/v1/responses"
+
+
+def _is_responses_image_model(base_url: str, model: str) -> bool:
+    """Route to Responses API when the endpoint/model looks OpenAI-native.
+
+    Triggers on:
+    - base_url containing `/responses` (user wrote it explicitly)
+    - model names containing `codex` (e.g. gpt-5.3-codex)
+    - model names starting with `gpt-5` or `gpt-4.1` (OpenAI family with image tool)
+    """
+    lower_base = base_url.lower()
+    lower_model = model.lower()
+    if "/responses" in lower_base:
+        return True
+    if "codex" in lower_model:
+        return True
+    if lower_model.startswith("gpt-5") or lower_model.startswith("gpt-4.1"):
+        return True
+    return False
+
+
+def _call_responses_image_api(base_url: str, api_key: str, model: str, prompt: str,
+                               size: str = "1024x1024",
+                               timeout: int = 600) -> bytes | None:
+    """Generate an image via OpenAI Responses API + image_generation tool.
+
+    Reads the SSE stream and keeps the latest `partial_image_b64` payload
+    (higher `partial_image_index` wins). Returns PNG bytes or None on failure.
+    Single image latency is typically 60-200 seconds; caller is responsible
+    for timeouts/retries at the pipeline level.
+    """
+    mapped_size = _map_size_for_responses_image(size)
+    url = _build_responses_url(base_url)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "accept": "text/event-stream",
+    }
+    image_tool: dict = {"type": "image_generation", "output_format": "png"}
+    if mapped_size != "auto":
+        image_tool["size"] = mapped_size
+    payload = {
+        "model": model,
+        "input": [{"role": "user", "content": prompt}],
+        "tools": [image_tool],
+        "stream": True,
+    }
+
+    try:
+        resp = requests.post(
+            url, headers=headers, json=payload, stream=True, timeout=(15, timeout)
+        )
+    except Exception as exc:
+        logger.warning("Responses image API connect failed (%s): %s", base_url[:40], exc)
+        return None
+
+    if resp.status_code != 200:
+        logger.warning(
+            "Responses image API HTTP %d (%s): %s",
+            resp.status_code, base_url[:40], resp.text[:200],
+        )
+        return None
+
+    best_b64: str | None = None
+    best_idx: int = -1
+    completed = False
+    error_msg: str | None = None
+
+    try:
+        for raw in resp.iter_lines():
+            if not raw:
+                continue
+            line = raw.decode("utf-8", errors="ignore")
+            if not line.startswith("data: "):
+                continue
+            data_str = line[6:]
+            if data_str.strip() in ("[DONE]", ""):
+                continue
+            try:
+                data = json.loads(data_str)
+            except Exception:
+                continue
+            if not isinstance(data, dict):
+                continue
+
+            dtype = data.get("type", "")
+            if dtype.endswith(".error") or data.get("error"):
+                err = data.get("error") or data
+                error_msg = json.dumps(err, ensure_ascii=False)[:400]
+
+            if dtype == "response.image_generation_call.partial_image":
+                idx = int(data.get("partial_image_index", 0) or 0)
+                b64 = data.get("partial_image_b64")
+                if isinstance(b64, str) and len(b64) > 1000 and idx > best_idx:
+                    best_b64 = b64
+                    best_idx = idx
+
+            if dtype == "response.completed":
+                completed = True
+    except Exception as exc:
+        logger.warning("Responses image API stream error (%s): %s", base_url[:40], exc)
+
+    if best_b64:
+        try:
+            return base64.b64decode(best_b64)
+        except Exception as exc:
+            logger.warning("Responses image base64 decode failed: %s", exc)
+            return None
+
+    if error_msg:
+        logger.warning("Responses image API upstream error (%s): %s", base_url[:40], error_msg)
+    else:
+        logger.warning(
+            "Responses image API returned no image (completed=%s, %s)",
+            completed, base_url[:40],
+        )
+    return None
+
+
 def _call_image_api(base_url: str, api_key: str, model: str, prompt: str,
                     size: str = "1024x1024") -> bytes | None:
     if _is_grok_image_model(base_url, model):
         return _call_grok_api(base_url, api_key, model, prompt, size=size)
+    if _is_responses_image_model(base_url, model):
+        return _call_responses_image_api(base_url, api_key, model, prompt, size=size)
     return _call_gemini_api(base_url, api_key, model, prompt, size=size)
 
 

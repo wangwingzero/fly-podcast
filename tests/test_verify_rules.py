@@ -115,6 +115,60 @@ def test_llm_editor_review_still_blocks_high_value_ops_story_for_hard_quality_fa
     assert blocked == ["a1"]
 
 
+def test_llm_editor_review_does_not_override_accident_exception_rejection():
+    client = _FakeClient(
+        payload={
+            "reviews": [
+                {
+                    "id": "a1",
+                    "keep": False,
+                    "reason": "致命事故调查缺少停飞、监管或更大范围运行影响，不适合作为日报主体。",
+                }
+            ]
+        }
+    )
+    blocked = _llm_editor_review(
+        [{
+            "id": "a1",
+            "source_role": "accident_exception",
+            "title": "Astra公务机不稳定进近后撞地",
+            "conclusion": "机长未响应go-around呼叫，飞机撞地。",
+            "facts": ["副驾驶呼叫go-around。", "飞机撞地并造成fatal事故。"],
+            "body": "事故调查显示飞机处于不稳定进近，副驾驶呼叫go-around后飞机撞地。",
+        }],
+        client,
+    )
+
+    assert blocked == ["a1"]
+
+
+def test_llm_editor_review_treats_known_accident_source_id_as_exception():
+    client = _FakeClient(
+        payload={
+            "reviews": [
+                {
+                    "id": "a1",
+                    "keep": False,
+                    "reason": "事故调查缺少停飞、监管或更大范围运行影响，不适合作为日报主体。",
+                }
+            ]
+        }
+    )
+    blocked = _llm_editor_review(
+        [{
+            "id": "a1",
+            "source_id": "avherald_web",
+            "title": "Astra公务机不稳定进近后撞地",
+            "conclusion": "机长未响应go-around呼叫，飞机撞地。",
+            "facts": ["副驾驶呼叫go-around。", "飞机撞地。"],
+            "body": "事故调查显示飞机处于不稳定进近，副驾驶呼叫go-around后飞机撞地。",
+        }],
+        client,
+    )
+
+    assert blocked == ["a1"]
+
+
 def test_llm_editor_review_does_not_treat_emirates_as_rat_signal():
     client = _FakeClient(
         payload={
@@ -281,3 +335,94 @@ def test_verify_target_zero_does_not_require_fixed_article_count(monkeypatch, tm
     assert "insufficient_articles" not in report["reasons"]
     assert "tier_a_ratio_too_low" not in report["reasons"]
     assert "source_concentration_exceeded" not in report["reasons"]
+
+
+def test_verify_skips_publish_when_primary_sources_unhealthy_and_accident_only(monkeypatch, tmp_path):
+    processed_dir = tmp_path / "processed"
+    raw_dir = tmp_path / "raw"
+    processed_dir.mkdir()
+    raw_dir.mkdir()
+    keywords_path = tmp_path / "keywords.yaml"
+    keywords_path.write_text(
+        "sensitive_keywords: []\nsensational_words: []\n",
+        encoding="utf-8",
+    )
+    (raw_dir / "source_health_2026-05-16.json").write_text(
+        json.dumps(
+            [
+                {
+                    "source_id": "flightglobal_air_transport_cli",
+                    "source_role": "primary_industry",
+                    "status": "failed",
+                    "item_count": 0,
+                },
+                {
+                    "source_id": "aviation_week_air_transport_cli",
+                    "source_role": "primary_industry",
+                    "status": "empty",
+                    "item_count": 0,
+                },
+                {
+                    "source_id": "avherald_web",
+                    "source_role": "accident_exception",
+                    "status": "ok",
+                    "item_count": 3,
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (processed_dir / "composed_2026-05-16.json").write_text(
+        json.dumps(
+            {
+                "date": "2026-05-16",
+                "article_count": 1,
+                "entries": [
+                    {
+                        "id": "a1",
+                        "title": "Astra事故触发监管机队检查",
+                        "conclusion": "事故后监管机构要求机队检查。",
+                        "facts": ["监管机构要求fleet-wide inspection。", "FAA要求相关运营人复核。"],
+                        "body": "事故后监管机构要求fleet-wide inspection，FAA要求相关运营人复核。",
+                        "citations": ["https://avherald.com/h?article=demo"],
+                        "source_tier": "B",
+                        "source_id": "avherald_web",
+                        "source_role": "accident_exception",
+                        "event_fingerprint": "fp-a1",
+                        "score_breakdown": {
+                            "factual": 90,
+                            "relevance": 90,
+                            "timeliness": 90,
+                            "readability": 100,
+                        },
+                    }
+                ],
+                "meta": {"compose_mode": "llm_two_phase"},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    fake_settings = SimpleNamespace(
+        processed_dir=processed_dir,
+        raw_dir=raw_dir,
+        keywords_config=keywords_path,
+        target_article_count=0,
+        min_tier_a_ratio=0.0,
+        max_entries_per_source=0,
+        allow_google_redirect_citation=False,
+        quality_threshold=80,
+        require_llm_for_publish=False,
+        source_health_gate_enabled=True,
+        min_primary_industry_sources_ok=2,
+        min_primary_industry_items=3,
+    )
+    monkeypatch.setattr(verify_module, "settings", fake_settings)
+    monkeypatch.setattr(verify_module.OpenAICompatibleClient, "is_configured", staticmethod(lambda: False))
+
+    out = verify_module.run("2026-05-16")
+    report = json.loads(out.read_text(encoding="utf-8"))
+
+    assert report["decision"] == "skip_publish"
+    assert "primary_source_health_below_threshold" in report["reasons"]
+    assert "accident_only_fallback_digest" in report["reasons"]

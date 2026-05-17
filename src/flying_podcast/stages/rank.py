@@ -17,12 +17,49 @@ from flying_podcast.core.time_utils import beijing_today_str
 logger = get_logger("rank")
 
 _TITLE_TOKEN_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9]+|[0-9]+|[\u4e00-\u9fff]")
+_BAD_IMAGE_TOKEN_RE = re.compile(r"(^|[-_/])(?:logo|favicon|icon|placeholder|sprite|avatar|blank)(?:[-_.?/]|$)", re.IGNORECASE)
 _TITLE_STOP_TOKENS = {
     "a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "for",
     "with", "from", "after", "before", "into", "near",
     "about", "this", "that", "will", "has", "have", "had", "its", "their",
     "new", "first", "more", "says", "said", "seeks", "learn", "why",
 }
+
+
+def _is_usable_article_image_url(url: str) -> bool:
+    clean = str(url or "").strip()
+    if not clean.startswith(("http://", "https://")):
+        return False
+    lower = clean.lower()
+    path = urlparse(lower).path
+    if lower.startswith("data:image") or path.endswith(".svg"):
+        return False
+    if any("logo" in segment for segment in path.split("/")):
+        return False
+    return _BAD_IMAGE_TOKEN_RE.search(path) is None
+
+
+def _merge_missing_image(primary: dict, duplicate: dict) -> None:
+    if _is_usable_article_image_url(str(primary.get("image_url", ""))):
+        return
+    image_url = str(duplicate.get("image_url", "")).strip()
+    if _is_usable_article_image_url(image_url):
+        primary["image_url"] = image_url
+
+
+def _merge_raw_images_by_url(rows: list[dict]) -> None:
+    image_by_url: dict[str, str] = {}
+    for row in rows:
+        canonical_url = str(row.get("canonical_url") or row.get("url") or "").strip()
+        image_url = str(row.get("image_url", "")).strip()
+        if canonical_url and _is_usable_article_image_url(image_url):
+            image_by_url.setdefault(canonical_url, image_url)
+    if not image_by_url:
+        return
+    for row in rows:
+        canonical_url = str(row.get("canonical_url") or row.get("url") or "").strip()
+        if canonical_url in image_by_url and not _is_usable_article_image_url(str(row.get("image_url", ""))):
+            row["image_url"] = image_by_url[canonical_url]
 _TITLE_TOKEN_SYNONYMS = {
     "crash": "collision",
     "collided": "collision",
@@ -303,6 +340,333 @@ _DEFAULT_PILOT_PRIORITY_SOURCES = [
     "flightglobal_engines",
 ]
 
+# 飞行员喜欢看的"新奇/趣闻"信号——新机型首飞、驾驶舱创新、人物故事、纪念飞行等。
+# 命中这些词时允许放宽 background_only 的拒绝（首飞/退役飞行常带 "delivery"/"first flight" 字样）。
+_DEFAULT_PILOT_NOVELTY_KEYWORDS = [
+    # 新机型首飞 / 试飞 / 型号合格证里程碑
+    "maiden flight",
+    "first flight",
+    "takes flight",
+    "took flight",
+    "takes to the sky",
+    "took to the sky",
+    "takes to the air",
+    "took to the air",
+    "test flight",
+    "flight test",
+    "flight testing",
+    "prototype",
+    "certification flight",
+    "type certification",
+    "amended type certificate",
+    "type certificate",
+    "proving flight",
+    "first production",
+    "first delivery",
+    "delivery flight",
+    "entered service",
+    "enters service",
+    "rollout",
+    "rolls out",
+    "rolled out",
+    "first revenue flight",
+    "inaugural flight",
+    "首飞",
+    "试飞",
+    "原型机",
+    "验证飞行",
+    "取证试飞",
+    "型号合格证",
+    "首架交付",
+    "投入运营",
+    "首航",
+    "总装下线",
+    "下线",
+    # 驾驶舱新技术
+    "synthetic vision",
+    "enhanced vision",
+    "head-up display",
+    "hud upgrade",
+    "cockpit upgrade",
+    "avionics upgrade",
+    "new cockpit",
+    "flight deck upgrade",
+    "augmented reality cockpit",
+    "ai copilot",
+    "reduced crew",
+    "single-pilot operations",
+    "合成视景",
+    "增强视景",
+    "平视显示",
+    "hud升级",
+    "驾驶舱升级",
+    "航电升级",
+    "ai副驾",
+    "单飞行员驾驶",
+    # 飞行员/机组人物故事
+    "first female captain",
+    "first woman captain",
+    "first black captain",
+    "retiring captain",
+    "captain retires",
+    "veteran pilot",
+    "record-setting pilot",
+    "hero pilot",
+    "heroic crew",
+    "legendary captain",
+    "退役机长",
+    "首位女机长",
+    "首位女飞行员",
+    "首位华人机长",
+    "传奇机长",
+    "资深机长",
+    "英雄机组",
+    # 罕见飞行 / 世界纪录
+    "world record",
+    "record flight",
+    "record-breaking flight",
+    "longest flight",
+    "polar flight",
+    "rare diversion route",
+    "special mission",
+    "unique flight",
+    "milestone flight",
+    "世界纪录",
+    "极地航班",
+    "超长航班",
+    "特殊任务",
+    "里程碑航班",
+    # 历史 / 纪念
+    "farewell flight",
+    "retirement flight",
+    "final flight",
+    "last flight",
+    "decommissioning ceremony",
+    "anniversary flight",
+    "commemorative flight",
+    "heritage flight",
+    "retro livery",
+    "special livery",
+    "throwback livery",
+    "museum aircraft",
+    "告别飞行",
+    "退役飞行",
+    "最后一班",
+    "纪念飞行",
+    "周年飞行",
+    "复古涂装",
+    "怀旧涂装",
+    "纪念涂装",
+    "特别涂装",
+]
+
+# 即使在 novelty 路径下也要拒绝的话题（用户明确不感兴趣的前沿空中出行类）。
+_DEFAULT_PILOT_NOVELTY_REJECT_KEYWORDS = [
+    "evtol",
+    "electric aircraft",
+    "electric airliner",
+    "hybrid-electric",
+    "hydrogen aircraft",
+    "hydrogen-powered",
+    "supersonic airliner",
+    "boom overture",
+    "joby aviation",
+    "archer aviation",
+    "lilium",
+    "vertiport",
+    "air taxi",
+    "urban air mobility",
+    "电动飞机",
+    "电动客机",
+    "氢能飞机",
+    "氢动力",
+    "超音速客机",
+    "城市空中出行",
+    "空中出租车",
+]
+
+_DEFAULT_INDUSTRY_NEWS_KEYWORDS = [
+    "air transport",
+    "airline",
+    "airlines",
+    "airport",
+    "airports",
+    "airspace",
+    "alliance",
+    "joint venture",
+    "fleet",
+    "order",
+    "orders",
+    "delivery",
+    "deliveries",
+    "lessor",
+    "leasing",
+    "mro",
+    "maintenance",
+    "engine",
+    "engines",
+    "supply chain",
+    "production",
+    "oem",
+    "regulator",
+    "regulation",
+    "certification",
+    "slots",
+    "saf",
+    "sustainable aviation fuel",
+    "labor",
+    "strike",
+    "union",
+    "network",
+]
+
+_DEFAULT_MACRO_AVIATION_EFFECT_KEYWORDS = [
+    "airline",
+    "airlines",
+    "airport",
+    "airports",
+    "aircraft",
+    "airspace",
+    "flight",
+    "flights",
+    "fleet",
+    "faa",
+    "easa",
+    "iata",
+    "icao",
+    "regulator",
+    "boeing",
+    "airbus",
+    "engine",
+    "supply chain",
+    "route",
+    "routes",
+    "capacity",
+    "slots",
+]
+
+_DEFAULT_MAJOR_ACCIDENT_IMPACT_KEYWORDS = [
+    "grounding",
+    "grounded",
+    "ground",
+    "fleet-wide",
+    "fleet wide",
+    "inspection",
+    "inspections",
+    "airworthiness directive",
+    "regulator",
+    "regulators",
+    "faa",
+    "easa",
+    "iata",
+    "icao",
+    "ntsb",
+    "manufacturer",
+    "boeing",
+    "airbus",
+    "engine",
+    "engines",
+    "airport closure",
+    "runway closure",
+    "airspace closure",
+    "international airlines",
+    "suspend operations",
+    "suspended operations",
+    "停飞",
+    "适航指令",
+    "监管",
+    "检查",
+    "空域关闭",
+    "机场关闭",
+]
+
+# 用于 novelty 旁路的航空背景检测——确保人物故事/纪念飞行类
+# 至少与航空场景挂钩（避免完全无关的"退役"故事被放行）。
+_AVIATION_CONTEXT_HINTS = [
+    # 通用航空场景词
+    "aircraft",
+    "airliner",
+    "airline",
+    "airlines",
+    "airways",
+    "pilot",
+    "pilots",
+    "captain",
+    "first officer",
+    "cockpit",
+    "flight deck",
+    "crew",
+    "fleet",
+    # 主要制造商
+    "boeing",
+    "airbus",
+    "embraer",
+    "atr",
+    "bombardier",
+    "comac",
+    # 主要机型代号（避免纯数字 substring 误报，使用独特组合或字母前缀）
+    "c919",
+    "arj21",
+    "777x",
+    "a321xlr",
+    "a350f",
+    "a330",
+    "a340",
+    "a350",
+    "a380",
+    "boeing 737",
+    "boeing 747",
+    "boeing 757",
+    "boeing 767",
+    "boeing 777",
+    "boeing 787",
+    "747-8",
+    "747-400",
+    "737 max",
+    "concorde",
+    # 常见航司（entity_keywords 之外的补充；避免短缩写引发 substring 误报）
+    "air france",
+    "klm",
+    "iberia",
+    "swiss air",
+    "qantas",
+    "all nippon",
+    "japan airlines",
+    "korean air",
+    "asiana",
+    "china airlines",
+    "eva air",
+    "thai airways",
+    "garuda",
+    "vietnam airlines",
+    "philippine airlines",
+    "alitalia",
+    "ita airways",
+    "tap air",
+    "finnair",
+    "scandinavian airlines",
+    "aer lingus",
+    "icelandair",
+    "air canada",
+    "alaska airlines",
+    "jetblue",
+    "spirit airlines",
+    "frontier airlines",
+    "hawaiian airlines",
+    # 中文场景词
+    "飞行员",
+    "机长",
+    "副驾驶",
+    "驾驶舱",
+    "客机",
+    "机组",
+    "航空公司",
+    "国航",
+    "东航",
+    "南航",
+    "海航",
+]
+
 _PILOT_CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "safety_event": [
         "accident", "incident", "serious incident", "emergency", "rejected takeoff",
@@ -332,6 +696,26 @@ _PILOT_CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "spatial disorientation", "fatigue", "crm", "training", "simulator",
         "pilot training", "crew resource", "incapacitated", "疲劳", "训练", "模拟机",
     ],
+    "industry_novelty": [
+        "maiden flight", "first flight", "takes flight", "took flight",
+        "takes to the sky", "took to the sky", "takes to the air", "took to the air",
+        "test flight", "flight test", "prototype",
+        "type certification", "type certificate",
+        "first production", "first delivery", "delivery flight",
+        "entered service", "enters service", "rollout", "rolls out", "rolled out",
+        "first revenue flight", "inaugural flight",
+        "synthetic vision", "enhanced vision", "head-up display", "hud upgrade",
+        "cockpit upgrade", "avionics upgrade", "ai copilot",
+        "first female captain", "first woman captain", "retiring captain",
+        "captain retires", "veteran pilot", "world record", "longest flight",
+        "polar flight", "farewell flight", "retirement flight", "final flight",
+        "anniversary flight", "commemorative flight", "retro livery",
+        "首飞", "试飞", "原型机", "型号合格证", "合成视景", "增强视景",
+        "驾驶舱升级", "航电升级", "退役机长", "首位女机长", "传奇机长",
+        "世界纪录", "极地航班", "超长航班", "告别飞行", "纪念飞行",
+        "复古涂装", "纪念涂装", "首架交付", "投入运营", "首航", "总装下线", "下线",
+    ],
+    "industry_news": _DEFAULT_INDUSTRY_NEWS_KEYWORDS,
 }
 
 _CATEGORY_BONUS = {
@@ -339,6 +723,10 @@ _CATEGORY_BONUS = {
     "airworthiness_technical": 18.0,
     "ops_environment": 14.0,
     "human_factors_training": 10.0,
+    # 趣闻类——给到与人因训练相近的加分，让首飞/纪念飞行/特殊任务等能稳定
+    # 进入 ranked 池，但仍低于事故和适航，避免新闻日替代严肃内容。
+    "industry_novelty": 14.0,
+    "industry_news": 16.0,
 }
 
 
@@ -378,12 +766,25 @@ def _looks_like_google_redirect(url: str) -> bool:
     return dm.endswith("news.google.com") and path.startswith("/rss/articles/")
 
 
-def _is_relevant(item: dict, keyword_hits: int, all_keywords: list[str]) -> bool:
+def _is_relevant(
+    item: dict,
+    keyword_hits: int,
+    all_keywords: list[str],
+    novelty_keywords: list[str] | None = None,
+) -> bool:
     if keyword_hits > 0:
         return True
     text = f"{item.get('title', '')} {item.get('raw_text', '')}".lower()
     hit = sum(1 for k in all_keywords if k.lower() in text)
-    return hit >= 2
+    if hit >= 2:
+        return True
+    # Novelty 旁路：首飞/纪念飞行/驾驶舱创新/人物故事等内容通常不带事故词，
+    # 但仍是飞行员关心的航空新闻——命中至少 1 个 novelty 词即视为相关，
+    # 后续会由 _is_pilot_relevant 的 novelty_hits 路径再次校验。
+    if novelty_keywords:
+        if any(k.lower() in text for k in novelty_keywords):
+            return True
+    return False
 
 
 def _keyword_list(values: list[str] | None, defaults: list[str]) -> list[str]:
@@ -401,6 +802,34 @@ def _domain_allowed(domain: str, allowed_domains: set[str]) -> bool:
     if not domain or not allowed_domains:
         return False
     return any(domain.endswith(x) for x in allowed_domains)
+
+
+def _source_role(item: dict) -> str:
+    return str(item.get("source_role") or "").strip().lower()
+
+
+def _has_major_accident_impact(text: str, kw_cfg: dict) -> bool:
+    words = _keyword_list(
+        kw_cfg.get("major_accident_impact_keywords"),
+        _DEFAULT_MAJOR_ACCIDENT_IMPACT_KEYWORDS,
+    )
+    return _count_hits(text, words) > 0
+
+
+def _has_macro_aviation_effect(text: str, kw_cfg: dict) -> bool:
+    words = _keyword_list(
+        kw_cfg.get("macro_aviation_effect_keywords"),
+        _DEFAULT_MACRO_AVIATION_EFFECT_KEYWORDS,
+    )
+    return _count_hits(text, words) > 0
+
+
+def _has_primary_industry_signal(text: str, kw_cfg: dict) -> bool:
+    words = _keyword_list(
+        kw_cfg.get("industry_news_keywords"),
+        _DEFAULT_INDUSTRY_NEWS_KEYWORDS,
+    )
+    return _count_hits(text, words) >= 2
 
 
 def _title_tokens_for_event(title: str) -> frozenset[str]:
@@ -447,6 +876,14 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
         kw_cfg.get("pilot_specific_ops_keywords"),
         _DEFAULT_PILOT_SPECIFIC_OPS_KEYWORDS,
     )
+    novelty_words = _keyword_list(
+        kw_cfg.get("pilot_novelty_keywords"),
+        _DEFAULT_PILOT_NOVELTY_KEYWORDS,
+    )
+    novelty_reject_words = _keyword_list(
+        kw_cfg.get("pilot_novelty_reject_keywords"),
+        _DEFAULT_PILOT_NOVELTY_REJECT_KEYWORDS,
+    )
     non_aviation_patterns = _keyword_list(
         kw_cfg.get("non_aviation_reject_patterns"), [],
     )
@@ -461,9 +898,15 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     canonical_url = (item.get("canonical_url") or item.get("url") or "").strip()
     domain = _domain(canonical_url)
     source_id = str(item.get("source_id") or "").strip()
+    role = _source_role(item)
 
     title_l = item.get("title", "").lower()
     text_l = text.lower()
+    combined_l = f"{title_l} {text_l}"
+    if role == "macro_supplement" and not _has_macro_aviation_effect(combined_l, kw_cfg):
+        return False, "macro_without_explicit_aviation_effect"
+    if role == "accident_exception" and not _has_major_accident_impact(combined_l, kw_cfg):
+        return False, "accident_without_major_impact"
     if source_id.startswith("asn_") and _looks_like_non_transport_asn_record(text_l):
         return False, "non_transport_accident_record"
     if source_id == "easa_ad_web" and _looks_like_non_transport_easa_ad(text_l):
@@ -476,6 +919,8 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     background_only_hits = _count_hits(title_l, background_only_words) + _count_hits(text_l, background_only_words)
     schedule_advisory_hits = _count_hits(title_l, schedule_advisory_words) + _count_hits(text_l, schedule_advisory_words)
     specific_ops_hits = _count_hits(title_l, specific_ops_words) + _count_hits(text_l, specific_ops_words)
+    novelty_hits = _count_hits(title_l, novelty_words) + _count_hits(text_l, novelty_words)
+    novelty_reject_hits = _count_hits(text_l, novelty_reject_words)
 
     # Hard-reject known non-aviation entities (e.g. "Minnesota United" soccer)
     if non_aviation_patterns and _count_hits(title_l, non_aviation_patterns) > 0:
@@ -483,22 +928,51 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     if strict_reject_words and _count_hits(text_l, strict_reject_words) > 0:
         return False, "strict_hard_reject_keywords"
 
+    # 用户明确不想要的前沿空中出行类（eVTOL、电动、氢能、超音速等）——
+    # 即使在 novelty 路径下也直接拒绝。
+    if novelty_reject_hits > 0:
+        return False, "novelty_excluded_topic"
+
     # Reject obvious noise unless signal is very strong.
     if reject_hits > 0 and signal_hits < 2:
         return False, "hard_reject_keywords"
 
+    if role == "primary_industry" and _has_primary_industry_signal(combined_l, kw_cfg):
+        aviation_context_hits = _count_hits(combined_l, _AVIATION_CONTEXT_HINTS)
+        if entity_hits >= 1 or aviation_context_hits >= 2:
+            return True, "ok_industry_news"
+
     if signal_hits <= 0:
+        # Novelty 旁路：人物故事/纪念飞行/驾驶舱创新通常不带运行类 signal，
+        # 至少 1 条 novelty + 命名实体或 2+ 航空场景词才放行，避免噪声混入。
+        if novelty_hits >= 1:
+            aviation_context_hits = _count_hits(text_l, _AVIATION_CONTEXT_HINTS) + _count_hits(
+                title_l, _AVIATION_CONTEXT_HINTS,
+            )
+            if entity_hits >= 1 or aviation_context_hits >= 2:
+                return True, "ok_novelty"
         return False, "missing_pilot_signal"
 
     # Trusted sources still need either an aviation entity OR strong signal (2+)
     # to prevent travel/lifestyle content from slipping through.
     if entity_hits <= 0:
         if not trusted_source:
+            # Novelty 兜底：人物故事/告别飞行常没有 entity_keywords 命中（如
+            # "Air France retires last A380"），但只要 novelty 信号足够强且
+            # 有航空场景词，就当作可信背景放行。
+            if novelty_hits >= 2:
+                aviation_context_hits = _count_hits(text_l, _AVIATION_CONTEXT_HINTS) + _count_hits(
+                    title_l, _AVIATION_CONTEXT_HINTS,
+                )
+                if aviation_context_hits >= 1:
+                    return True, "ok_novelty"
             return False, "missing_aviation_entity"
         if signal_hits < 2 and direct_operation_hits <= 0:
             return False, "trusted_source_weak_signal"
 
-    if background_only_hits > 0 and direct_operation_hits <= 0:
+    # 首飞/退役飞行/纪念航班往往同时出现 "delivery"/"first flight" 等 background_only 词面。
+    # 仅当 novelty 信号足够强（>=2 命中）时放行，避免"航司新航线首飞"混入趣闻位。
+    if background_only_hits > 0 and direct_operation_hits <= 0 and novelty_hits < 2:
         return False, "background_only_story"
     if schedule_advisory_hits > 0 and specific_ops_hits <= 0:
         return False, "schedule_advisory_story"
@@ -553,6 +1027,7 @@ def _pilot_value_profile(item: dict, text: str, kw_cfg: dict) -> dict[str, Any]:
         if str(x).strip()
     }
     source_id = str(item.get("source_id") or "").strip()
+    role = _source_role(item)
 
     category_hits = {
         category: _count_hits(combined, words)
@@ -562,6 +1037,8 @@ def _pilot_value_profile(item: dict, text: str, kw_cfg: dict) -> dict[str, Any]:
     category_hit_count = category_hits.get(category, 0)
     if category_hit_count <= 0:
         category = "other"
+    if role == "primary_industry" and _has_primary_industry_signal(combined, kw_cfg):
+        category = "industry_news"
 
     direct_words = _keyword_list(
         kw_cfg.get("pilot_direct_operation_keywords"),
@@ -571,23 +1048,38 @@ def _pilot_value_profile(item: dict, text: str, kw_cfg: dict) -> dict[str, Any]:
         kw_cfg.get("pilot_background_only_keywords"),
         _DEFAULT_PILOT_BACKGROUND_ONLY_KEYWORDS,
     )
+    novelty_words = _keyword_list(
+        kw_cfg.get("pilot_novelty_keywords"),
+        _DEFAULT_PILOT_NOVELTY_KEYWORDS,
+    )
     direct_hits = _count_hits(combined, direct_words)
     background_hits = _count_hits(combined, background_words)
+    novelty_hits = _count_hits(combined, novelty_words)
     priority_source = source_id in priority_sources
     raw_len = len(str(item.get("raw_text", "") or ""))
 
     value = 0.0
     value += min(direct_hits * 8.0, 40.0)
+    # 新奇/趣闻信号——温和加分让其能进 ranked 池，仍低于直接运行类的 40 上限。
+    value += min(novelty_hits * 4.0, 24.0)
     value += _CATEGORY_BONUS.get(category, 0.0)
     value += 12.0 if priority_source else 0.0
+    value += 18.0 if role == "primary_industry" and category == "industry_news" else 0.0
     value += 8.0 if raw_len >= 300 else 0.0
-    value -= min(background_hits * 8.0, 28.0)
+    # background_only 罚分仅在没有 novelty 抵消时生效——避免误伤首飞/纪念飞行。
+    if role == "primary_industry":
+        value -= min(max(background_hits - 2, 0) * 3.0, 12.0)
+    elif novelty_hits <= 0:
+        value -= min(background_hits * 8.0, 28.0)
+    else:
+        value -= min(max(background_hits - novelty_hits, 0) * 4.0, 16.0)
     value = max(0.0, min(100.0, 35.0 + value))
     return {
         "category": category,
         "category_hits": category_hits,
         "direct_hits": direct_hits,
         "background_hits": background_hits,
+        "novelty_hits": novelty_hits,
         "priority_source": priority_source,
         "pilot_value_score": round(value, 2),
     }
@@ -629,6 +1121,103 @@ def _pick_by_quota(candidates: list[dict], total: int, domestic_ratio: float) ->
     if total <= 0:
         return candidates
     return candidates[:total]
+
+
+def _ensure_novelty_quota(
+    candidates: list[dict],
+    backfill_pool: list[dict],
+    min_novelty: int,
+    max_per_source: int,
+    novelty_min_score: float = 60.0,
+    protected_top_count: int = 5,
+) -> tuple[list[dict], bool]:
+    """Make sure at least *min_novelty* industry_novelty stories are kept.
+
+    替换策略：从 backfill_pool 里挑分数最高的 novelty 候选（通常用 deduped
+    而非 compose_candidates，让 novelty 不被 min_rank_score 门槛卡住），
+    替换 candidates 中分数最低的非 novelty 项；同时保留分数最高的
+    *protected_top_count* 条不被替换（保证严肃骨架不丢）。
+
+    若候选池中没有达到 novelty_min_score 的 novelty 类，原样返回，不强行凑数。
+    """
+    if min_novelty <= 0:
+        return list(candidates), False
+
+    out = list(candidates)
+    used_ids = {x.get("id") for x in out}
+
+    def _is_novelty(row: dict) -> bool:
+        pv = row.get("pilot_value") or {}
+        return str(pv.get("category", "")) == "industry_novelty"
+
+    def _source_key(row: dict) -> str:
+        return str(row.get("source_id") or row.get("source_name") or "")
+
+    novelty_count = sum(1 for r in out if _is_novelty(r))
+    if novelty_count >= min_novelty:
+        return out, False
+
+    novelty_pool = [
+        r for r in backfill_pool
+        if _is_novelty(r)
+        and r.get("id") not in used_ids
+        and float(r.get("rank_score") or 0.0) >= novelty_min_score
+    ]
+    novelty_pool.sort(key=lambda r: float(r.get("rank_score") or 0.0), reverse=True)
+    if not novelty_pool:
+        return out, False
+
+    # 计算受保护的索引集合（按 rank_score 降序的前 N 个）
+    indexed = sorted(
+        enumerate(out),
+        key=lambda kv: float(kv[1].get("rank_score") or 0.0),
+        reverse=True,
+    )
+    protected_idx = {idx for idx, _ in indexed[:max(0, protected_top_count)]}
+
+    applied = False
+    for replacement in novelty_pool:
+        if novelty_count >= min_novelty:
+            break
+
+        # 找一个最低分的"可被替换"项：非 novelty、不在受保护 top-N 内。
+        victim_idx = None
+        for i in range(len(out) - 1, -1, -1):
+            row = out[i]
+            if _is_novelty(row):
+                continue
+            if i in protected_idx:
+                continue
+            victim_idx = i
+            break
+
+        if victim_idx is None:
+            break
+
+        # 检查 source cap，避免替换后某源超额。
+        if max_per_source > 0:
+            counts: dict[str, int] = {}
+            for r in out:
+                counts[_source_key(r)] = counts.get(_source_key(r), 0) + 1
+            new_key = _source_key(replacement)
+            old_key = _source_key(out[victim_idx])
+            if new_key != old_key and counts.get(new_key, 0) >= max_per_source:
+                continue  # 跳过这个 replacement，否则会破坏 source cap
+
+        used_ids.discard(out[victim_idx].get("id"))
+        out[victim_idx] = replacement
+        used_ids.add(replacement.get("id"))
+        novelty_count += 1
+        applied = True
+        # 重新计算受保护集合（替换后排名变了）
+        indexed = sorted(
+            enumerate(out),
+            key=lambda kv: float(kv[1].get("rank_score") or 0.0),
+            reverse=True,
+        )
+        protected_idx = {idx for idx, _ in indexed[:max(0, protected_top_count)]}
+
+    return out, applied
 
 
 def _enforce_source_cap(candidates: list[dict], ranked_pool: list[dict], max_per_source: int) -> tuple[list[dict], bool]:
@@ -692,17 +1281,27 @@ def _dedupe_ranked_events(ranked: list[dict]) -> list[dict]:
     deduped: list[dict] = []
     seen_fp: set[str] = set()
     seen_url: set[str] = set()
+    by_fp: dict[str, dict] = {}
+    by_url: dict[str, dict] = {}
     seen_titles: list[frozenset[str]] = []
     for row in ranked:
         fp = row.get("event_fingerprint", "")
         u = row.get("canonical_url", "")
-        if fp in seen_fp or u in seen_url:
+        if fp in seen_fp:
+            _merge_missing_image(by_fp.get(fp, {}), row)
+            continue
+        if u in seen_url:
+            _merge_missing_image(by_url.get(u, {}), row)
             continue
         title_tokens = _title_tokens_for_event(str(row.get("title", "")))
         if any(_looks_like_same_event_title(title_tokens, old) for old in seen_titles):
             continue
         seen_fp.add(fp)
         seen_url.add(u)
+        if fp:
+            by_fp[fp] = row
+        if u:
+            by_url[u] = row
         if title_tokens:
             seen_titles.append(title_tokens)
         deduped.append(row)
@@ -712,6 +1311,7 @@ def _dedupe_ranked_events(ranked: list[dict]) -> list[dict]:
 def run(target_date: str | None = None) -> Path:
     day = target_date or beijing_today_str()
     rows = _load_raw(day)
+    _merge_raw_images_by_url(rows)
     source_health = _load_source_health(day)
     kw = load_yaml(settings.keywords_config)
     section_map = kw.get("sections", {})
@@ -722,6 +1322,9 @@ def run(target_date: str | None = None) -> Path:
     else:
         all_keywords = [x for words in section_map.values() for x in words]
     blocked_domains = [x.lower() for x in kw.get("blocked_domains", [])]
+    novelty_keywords_for_relevance = _keyword_list(
+        kw.get("pilot_novelty_keywords"), _DEFAULT_PILOT_NOVELTY_KEYWORDS,
+    )
 
     ranked: list[dict] = []
     dropped_non_relevant = 0
@@ -752,7 +1355,7 @@ def run(target_date: str | None = None) -> Path:
 
         text = f"{item['title']} {item['raw_text']}"
         hits = _keyword_hits(text, all_keywords)
-        if not _is_relevant(item, hits, all_keywords):
+        if not _is_relevant(item, hits, all_keywords, novelty_keywords_for_relevance):
             dropped_non_relevant += 1
             continue
         pilot_ok, pilot_reason = _is_pilot_relevant(item, text, kw)
@@ -783,6 +1386,10 @@ def run(target_date: str | None = None) -> Path:
             "airworthiness_technical": 6.0,
             "ops_environment": 4.0,
             "human_factors_training": 2.0,
+            # 趣闻类：与 ops_environment 持平，确保有趣的稿件能与严肃稿同场竞争。
+            # compose 阶段仍硬性限制每期最多 2 条，不会喧宾夺主。
+            "industry_novelty": 4.0,
+            "industry_news": 6.0,
         }.get(str(pilot_profile["category"]), 0.0)
         rank_score = round(
             rel * 0.70 + auth * 0.10 + time_score * 0.12 + priority_bonus + category_bonus - google_penalty,
@@ -849,6 +1456,21 @@ def run(target_date: str | None = None) -> Path:
             max_per_source=getattr(settings, "max_entries_per_source", 0),
         )
         source_cap_applied = source_cap_applied or a_tier_source_cap_applied
+
+    # 趣闻配额：保证 ranked 池里至少 min_novelty 篇 industry_novelty。
+    # backfill 使用 deduped（未受 min_rank_score 门槛限制），让 novelty 在
+    # 严肃稿件评分普遍偏高时仍能补足；同时 novelty_min_score=60 兜底，
+    # 避免把质量太差的 novelty 强塞进来。
+    min_novelty_articles = max(0, int(getattr(settings, "min_novelty_articles", 1) or 0))
+    novelty_quota_applied = False
+    if min_novelty_articles > 0:
+        top_candidates, novelty_quota_applied = _ensure_novelty_quota(
+            top_candidates,
+            deduped,
+            min_novelty=min_novelty_articles,
+            max_per_source=getattr(settings, "max_entries_per_source", 0),
+            novelty_min_score=60.0,
+        )
     top_candidates.sort(key=lambda x: x["rank_score"], reverse=True)
 
     source_distribution = Counter(x.get("source_id", "") for x in top_candidates if x.get("source_id"))
@@ -883,6 +1505,12 @@ def run(target_date: str | None = None) -> Path:
             "article_count_limit": article_limit,
             "selected_for_compose": len(top_candidates),
             "source_cap_applied": source_cap_applied,
+            "min_novelty_articles": min_novelty_articles,
+            "novelty_quota_applied": novelty_quota_applied,
+            "novelty_in_top": sum(
+                1 for x in top_candidates
+                if str((x.get("pilot_value") or {}).get("category", "")) == "industry_novelty"
+            ),
             "source_distribution": dict(source_distribution.most_common(10)),
             "source_health_summary": dict(source_health_summary),
             "source_failures": source_failures,

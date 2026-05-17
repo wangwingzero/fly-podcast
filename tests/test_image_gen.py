@@ -1,4 +1,12 @@
-from flying_podcast.core.image_gen import _call_grok_api
+import base64
+
+from flying_podcast.core.image_gen import (
+    _build_responses_url,
+    _call_grok_api,
+    _call_responses_image_api,
+    _is_responses_image_model,
+    _map_size_for_responses_image,
+)
 
 
 def test_grok_image_generation_falls_back_to_square_size(monkeypatch):

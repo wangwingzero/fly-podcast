@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import html
+import json
 import re
+import shutil
+import subprocess
 import sys
 import os
 import time
@@ -12,7 +15,7 @@ from pathlib import Path
 from typing import Any
 import asyncio
 import inspect
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import feedparser
 import requests
@@ -26,6 +29,92 @@ from flying_podcast.core.time_utils import beijing_today_str
 from flying_podcast.stages.web_parser_registry import parse_web_source_entries
 
 logger = get_logger("ingest")
+
+
+_PLAYWRIGHT_LIST_EVAL = (
+    "JSON.stringify(Array.from(document.querySelectorAll('article a[href], main a[href], a[href]'))"
+    ".map(anchor => { const clean = value => (value || '').replace(/\\s+/g, ' ').trim();"
+    " const imageFrom = img => { if (!img) return '';"
+    " const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';"
+    " const fromSet = srcset ? srcset.split(',').map(x => x.trim().split(/\\s+/)[0]).filter(Boolean).pop() : '';"
+    " const raw = fromSet || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') ||"
+    " img.getAttribute('data-original') || img.getAttribute('src') || '';"
+    " if (!raw || raw.startsWith('data:')) return '';"
+    " try { return new URL(raw, location.href).href; } catch (e) { return ''; } };"
+    " const href = anchor.getAttribute('href') || ''; let url = '';"
+    " try { url = new URL(href, location.href).href; } catch (e) { return null; }"
+    " const container = anchor.querySelector('article') || anchor.closest('article, li, div') || anchor;"
+    " const heading = container.querySelector('h1,h2,h3');"
+    " const lines = (container.innerText || anchor.innerText || '').split(/\\n+/).map(clean).filter(Boolean);"
+    " const firstLine = lines[0] || '';"
+    " const lineTitle = (/^[A-Z &-]{3,}$/.test(firstLine) && lines[1]) ? lines[1] : firstLine;"
+    " const title = clean((heading && heading.textContent) || anchor.getAttribute('aria-label') || lineTitle || anchor.textContent);"
+    " const summary = clean((container.querySelector('p') || {}).textContent || container.textContent || '');"
+    " const timeNode = container.querySelector('time') || anchor.closest('time');"
+    " const published_at = clean((timeNode && (timeNode.getAttribute('datetime') || timeNode.textContent)) || '');"
+    " const image_url = imageFrom(container.querySelector('picture img, figure img, img'));"
+    " return {title, url, summary, published_at, image_url}; })"
+    ".filter((item, idx, arr) => item && item.url.startsWith('http') && item.title.length >= 8"
+    " && arr.findIndex(other => other && other.url === item.url) === idx)"
+    ".slice(0, __MAX_ITEMS__))"
+)
+
+
+_PLAYWRIGHT_ARTICLE_IMAGE_EVAL = (
+    "/* articleImage */ (() => {"
+    " const bad = /logo|favicon|icon|placeholder|sprite|avatar|blank/i;"
+    " const pick = img => { if (!img) return '';"
+    " const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';"
+    " const fromSet = srcset ? srcset.split(',').map(x => x.trim().split(/\\s+/)[0]).filter(Boolean).pop() : '';"
+    " const raw = fromSet || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') ||"
+    " img.getAttribute('data-original') || img.getAttribute('src') || '';"
+    " if (!raw || raw.startsWith('data:')) return '';"
+    " try { const u = new URL(raw, location.href).href; return bad.test(new URL(u).pathname) ? '' : u; } catch (e) { return ''; } };"
+    " const scope = document.querySelector('article') || document.querySelector('main') || document.body;"
+    " for (const img of Array.from(scope.querySelectorAll('figure img, picture img, img'))) { const u = pick(img); if (u) return u; }"
+    " for (const selector of ['meta[property=\"og:image\"]','meta[name=\"twitter:image\"]']) {"
+    " const node = document.querySelector(selector); const raw = node && node.getAttribute('content');"
+    " if (raw) { try { const u = new URL(raw, location.href).href; if (!bad.test(new URL(u).pathname)) return u; } catch (e) {} }"
+    " }"
+    " return ''; })()"
+)
+
+
+_PLAYWRIGHT_ARTICLE_EVAL = (
+    "/* articleText */ Array.from((document.querySelector('article') || document.querySelector('main') || document.body)"
+    ".querySelectorAll('p, h1, h2, h3, li'))"
+    ".map(el => (el.textContent || '').replace(/\\s+/g, ' ').trim())"
+    ".filter(text => text.length > 30).join('\\n')"
+)
+
+
+_PLAYWRIGHT_ROUTE_BLOCK_CODE = (
+    "async page => {"
+    " const blockedTypes = new Set(['image','media','font']);"
+    " const blockedHosts = /doubleclick|googletagmanager|google-analytics|googleadservices|"
+    "fundingchoicesmessages|facebook\\.net|adservice|adsystem|chartbeat|outbrain|taboola|"
+    "scorecardresearch|hotjar|optimizely/i;"
+    " await page.route('**/*', async route => {"
+    "   const request = route.request();"
+    "   const url = request.url();"
+    "   if (blockedTypes.has(request.resourceType()) || blockedHosts.test(url)) {"
+    "     await route.abort().catch(() => {});"
+    "     return;"
+    "   }"
+    "   await route.continue().catch(() => {});"
+    " });"
+    "}"
+)
+
+
+def _playwright_goto_args(url: str, timeout: int) -> list[str]:
+    timeout_ms = max(1, int(timeout)) * 1000
+    code = (
+        "async page => {"
+        f" await page.goto({json.dumps(url)}, {{ waitUntil: 'domcontentloaded', timeout: {timeout_ms} }});"
+        "}"
+    )
+    return ["run-code", code]
 
 
 def _hash_id(*parts: str) -> str:
@@ -77,6 +166,22 @@ def _entry_text(entry: dict[str, Any]) -> str:
     return (summary or content or "").strip()
 
 
+_BAD_IMAGE_TOKEN_RE = re.compile(r"(^|[-_/])(?:favicon|icon|placeholder|sprite|avatar|blank)(?:[-_.?/]|$)", re.IGNORECASE)
+
+
+def _is_usable_article_image_url(url: str) -> bool:
+    clean = str(url or "").strip()
+    if not clean.startswith(("http://", "https://")):
+        return False
+    parsed = urlparse(clean)
+    path = parsed.path.lower()
+    if path.endswith(".svg"):
+        return False
+    if any("logo" in segment for segment in path.split("/")):
+        return False
+    return _BAD_IMAGE_TOKEN_RE.search(path) is None
+
+
 def _extract_image_url(entry: dict[str, Any]) -> str:
     """Extract the best image URL from an RSS entry.
 
@@ -86,7 +191,7 @@ def _extract_image_url(entry: dict[str, Any]) -> str:
     for enc in entry.get("enclosures", []):
         etype = str(enc.get("type", "")).lower()
         href = str(enc.get("href", "")).strip()
-        if href and ("image" in etype or href.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+        if _is_usable_article_image_url(href) and ("image" in etype or href.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
             return href
 
     # 2. media_content
@@ -94,13 +199,13 @@ def _extract_image_url(entry: dict[str, Any]) -> str:
         url = str(mc.get("url", "")).strip()
         medium = str(mc.get("medium", "")).lower()
         mtype = str(mc.get("type", "")).lower()
-        if url and ("image" in medium or "image" in mtype or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
+        if _is_usable_article_image_url(url) and ("image" in medium or "image" in mtype or url.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))):
             return url
 
     # 3. media_thumbnail
     for mt in entry.get("media_thumbnail", []):
         url = str(mt.get("url", "")).strip()
-        if url:
+        if _is_usable_article_image_url(url):
             return url
 
     # 4. First <img src="..."> in summary or content HTML
@@ -115,7 +220,7 @@ def _extract_image_url(entry: dict[str, Any]) -> str:
         m = re.search(r'<img[^>]+src=["\']([^"\'>{]+)', html_text, re.IGNORECASE)
         if m:
             src = m.group(1).strip()
-            if src.startswith(("http://", "https://")):
+            if _is_usable_article_image_url(src):
                 return src
 
     return ""
@@ -132,6 +237,67 @@ def _is_google_redirect(url: str) -> bool:
     domain = _extract_domain(url)
     path = (urlparse(url).path or "").lower() if domain else ""
     return domain.endswith("news.google.com") and path.startswith("/rss/articles/")
+
+
+def _run_playwright_cli(
+    args: list[str],
+    *,
+    session: str,
+    timeout: int,
+    use_xvfb: bool,
+) -> str:
+    executable = shutil.which("playwright-cli")
+    if not executable:
+        raise RuntimeError("playwright_cli_not_found")
+    cmd = [executable, f"-s={session}", *args]
+    if use_xvfb and sys.platform.startswith("linux") and not os.getenv("DISPLAY") and shutil.which("xvfb-run"):
+        cmd = ["xvfb-run", "-a", *cmd]
+    env = dict(os.environ)
+    env["PLAYWRIGHT_CLI_SESSION"] = session
+    try:
+        proc = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            env=env,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("playwright_cli_not_found") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("playwright_cli_timeout") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        raise RuntimeError(stderr or stdout or "playwright_cli_failed") from exc
+    return proc.stdout.strip()
+
+
+def _load_playwright_json(raw: str) -> list[dict[str, Any]]:
+    text = (raw or "").strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("[")
+        end = text.rfind("]")
+        if start < 0 or end <= start:
+            raise ValueError("playwright_cli_bad_json") from None
+        try:
+            data = json.loads(text[start : end + 1])
+        except json.JSONDecodeError as exc:
+            raise ValueError("playwright_cli_bad_json") from exc
+    if not isinstance(data, list):
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError as exc:
+                raise ValueError("playwright_cli_bad_json") from exc
+        if not isinstance(data, list):
+            raise ValueError("playwright_cli_bad_json")
+    return [x for x in data if isinstance(x, dict)]
 
 
 def _extract_published_at_from_url(url: str, patterns: list[str]) -> str:
@@ -448,6 +614,142 @@ def _collect_web_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _collect_playwright_cli_entries(source: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    list_url = str(source.get("list_url") or source.get("url") or "").strip()
+    if not list_url:
+        source["_last_error"] = "missing_list_url"
+        return rows
+
+    max_items = int(source.get("max_items", 40))
+    timeout = int(source.get("playwright_timeout", 30))
+    use_xvfb = bool(source.get("xvfb", True))
+    session = re.sub(r"[^a-zA-Z0-9_.-]+", "-", str(source.get("id") or "aviation-news")).strip("-")
+    link_patterns = [re.compile(p) for p in source.get("link_patterns", [])]
+    exclude_patterns = [re.compile(p) for p in source.get("exclude_patterns", [])]
+    include_keywords = [x.lower() for x in source.get("article_include_keywords", [])]
+    fetch_article_text = bool(source.get("fetch_article_text", True))
+    strict_published_at = settings.strict_web_published_at
+
+    try:
+        _run_playwright_cli(["open"], session=session, timeout=timeout, use_xvfb=use_xvfb)
+        try:
+            _run_playwright_cli(
+                ["run-code", _PLAYWRIGHT_ROUTE_BLOCK_CODE],
+                session=session,
+                timeout=timeout,
+                use_xvfb=use_xvfb,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("playwright-cli route setup failed %s: %s", source.get("id"), exc)
+        _run_playwright_cli(_playwright_goto_args(list_url, timeout), session=session, timeout=timeout, use_xvfb=use_xvfb)
+        raw = _run_playwright_cli(
+            ["--raw", "eval", _PLAYWRIGHT_LIST_EVAL.replace("__MAX_ITEMS__", str(max(max_items * 6, 80)))],
+            session=session,
+            timeout=timeout,
+            use_xvfb=use_xvfb,
+        )
+        parsed_entries = _load_playwright_json(raw)
+    except ValueError as exc:
+        source["_last_error"] = str(exc)
+        try:
+            _run_playwright_cli(["close"], session=session, timeout=10, use_xvfb=use_xvfb)
+        except Exception:  # noqa: BLE001
+            pass
+        return rows
+    except Exception as exc:  # noqa: BLE001
+        source["_last_error"] = str(exc)
+        logger.warning("Fetch playwright-cli source failed %s: %s", source.get("id"), exc)
+        try:
+            _run_playwright_cli(["close"], session=session, timeout=10, use_xvfb=use_xvfb)
+        except Exception:  # noqa: BLE001
+            pass
+        return rows
+
+    seen_links: set[str] = set()
+    try:
+        for parsed in parsed_entries:
+            if len(rows) >= max_items:
+                break
+            text = str(parsed.get("title") or "").strip()
+            abs_url = urljoin(list_url, str(parsed.get("url") or "").strip())
+            if not abs_url or not text or len(text) < 8:
+                continue
+            if not abs_url.startswith(("http://", "https://")):
+                continue
+            if abs_url in seen_links:
+                continue
+            combined = f"{text} {abs_url}"
+            if link_patterns and not any(p.search(combined) for p in link_patterns):
+                continue
+            if any(p.search(combined) for p in exclude_patterns):
+                continue
+            if include_keywords and not any(k in text.lower() for k in include_keywords):
+                continue
+
+            summary = str(parsed.get("summary") or "").strip()
+            image_url = str(parsed.get("image_url") or "").strip()
+            if not _is_usable_article_image_url(image_url):
+                image_url = ""
+            article_text = ""
+            if fetch_article_text:
+                try:
+                    _run_playwright_cli(
+                        _playwright_goto_args(abs_url, timeout),
+                        session=session,
+                        timeout=timeout,
+                        use_xvfb=use_xvfb,
+                    )
+                    article_text = _run_playwright_cli(
+                        ["--raw", "eval", _PLAYWRIGHT_ARTICLE_EVAL],
+                        session=session,
+                        timeout=timeout,
+                        use_xvfb=use_xvfb,
+                    ).strip()
+                    article_image = _run_playwright_cli(
+                        ["--raw", "eval", _PLAYWRIGHT_ARTICLE_IMAGE_EVAL],
+                        session=session,
+                        timeout=timeout,
+                        use_xvfb=use_xvfb,
+                    ).strip()
+                    if _is_usable_article_image_url(article_image):
+                        image_url = article_image
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("playwright-cli article fetch failed %s: %s", abs_url[:120], exc)
+
+            published_at = (
+                _normalize_time_strict(parsed.get("published_at"))
+                or _extract_published_at_for_web(source, abs_url, f"{text} {summary}")
+            )
+            if not published_at and strict_published_at:
+                continue
+            raw_text = article_text or summary or text
+            seen_links.add(abs_url)
+            rows.append(
+                {
+                    "title": text,
+                    "url": abs_url,
+                    "canonical_url": abs_url,
+                    "raw_text": raw_text,
+                    "published_at": published_at or _normalize_time(None),
+                    "lang": (source.get("lang") or "unknown").lower(),
+                    "publisher_domain": _extract_domain(abs_url),
+                    "is_google_redirect": _is_google_redirect(abs_url),
+                    "image_url": image_url,
+                    "crawl_method": "playwright_cli",
+                    "article_text": article_text,
+                    "article_excerpt": (article_text or summary or text)[:500],
+                    "playwright_snapshot_path": "",
+                }
+            )
+    finally:
+        try:
+            _run_playwright_cli(["close"], session=session, timeout=10, use_xvfb=use_xvfb)
+        except Exception:  # noqa: BLE001
+            pass
+    return rows
+
+
 def run(target_date: str | None = None) -> Path:
     ensure_dirs()
     day = target_date or beijing_today_str()
@@ -470,10 +772,14 @@ def run(target_date: str | None = None) -> Path:
         started = time.monotonic()
         source["_last_error"] = ""
         stype = str(source.get("type", "rss")).lower()
+        fetch_mode = str(source.get("fetch_mode", "")).lower()
         if stype == "rss":
             entries = _collect_rss_entries(source)
         elif stype == "web":
-            entries = _collect_web_entries(source)
+            if fetch_mode == "playwright_cli":
+                entries = _collect_playwright_cli_entries(source)
+            else:
+                entries = _collect_web_entries(source)
         else:
             entries = []
             source["_last_error"] = f"unsupported_source_type:{stype}"
@@ -491,7 +797,9 @@ def run(target_date: str | None = None) -> Path:
                 "source_id": source.get("id", ""),
                 "source_name": source.get("name", ""),
                 "type": stype,
+                "fetch_mode": fetch_mode or stype,
                 "source_tier": source.get("source_tier", "C"),
+                "source_role": source.get("source_role", ""),
                 "region": source.get("region", "international"),
                 "status": status,
                 "item_count": len(entries),
@@ -534,6 +842,11 @@ def run(target_date: str | None = None) -> Path:
                 is_google_redirect=is_google_redirect,
                 event_fingerprint=event_fingerprint,
                 image_url=entry.get("image_url", ""),
+                source_role=source.get("source_role", ""),
+                crawl_method=entry.get("crawl_method", fetch_mode or stype),
+                article_text=entry.get("article_text", ""),
+                article_excerpt=entry.get("article_excerpt", ""),
+                playwright_snapshot_path=entry.get("playwright_snapshot_path", ""),
             )
             items.append(item)
             new_ids.append(item_id)

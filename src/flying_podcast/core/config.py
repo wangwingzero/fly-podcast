@@ -41,9 +41,20 @@ class Settings:
     strict_web_published_at: bool = _env_bool("STRICT_WEB_PUBLISHED_AT", True)
     max_entries_per_source: int = _env_int("MAX_ENTRIES_PER_SOURCE", 0)
     min_rank_score_for_compose: float = _env_float("MIN_RANK_SCORE_FOR_COMPOSE", 80.0)
-    max_article_age_hours: int = _env_int("MAX_ARTICLE_AGE_HOURS", 168)
-    max_tier_a_article_age_hours: int = _env_int("MAX_TIER_A_ARTICLE_AGE_HOURS", 8760)
+    source_health_gate_enabled: bool = _env_bool("SOURCE_HEALTH_GATE_ENABLED", True)
+    min_primary_industry_sources_ok: int = _env_int("MIN_PRIMARY_INDUSTRY_SOURCES_OK", 2)
+    min_primary_industry_items: int = _env_int("MIN_PRIMARY_INDUSTRY_ITEMS", 3)
+    # 每期 ranked 池中至少保留的 industry_novelty（趣闻类）数量，用于让飞行员
+    # 看到首飞、纪念飞行、特殊任务等"非事故"内容；候选池没有时不强行凑数。
+    min_novelty_articles: int = _env_int("MIN_NOVELTY_ARTICLES", 1)
+    max_article_age_hours: int = _env_int("MAX_ARTICLE_AGE_HOURS", 48)
+    max_tier_a_article_age_hours: int = _env_int(
+        "MAX_TIER_A_ARTICLE_AGE_HOURS",
+        _env_int("MAX_ARTICLE_AGE_HOURS", 48),
+    )
     recent_published_days: int = _env_int("RECENT_PUBLISHED_DAYS", 14)
+    # Publish 阶段最低发文条数，少于此值则 hold 不发，避免出现只有 1~2 条的尴尬日报
+    min_publish_count: int = _env_int("MIN_PUBLISH_COUNT", 3)
 
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_base_url: str = os.getenv("LLM_BASE_URL", "")
@@ -64,6 +75,7 @@ class Settings:
     wechat_auto_publish: bool = _env_bool("WECHAT_AUTO_PUBLISH", False)
     wechat_app_id: str = os.getenv("WECHAT_APP_ID", "")
     wechat_app_secret: str = os.getenv("WECHAT_APP_SECRET", "")
+    wechat_use_stable_token: bool = _env_bool("WECHAT_USE_STABLE_TOKEN", True)
     wechat_author: str = os.getenv("WECHAT_AUTHOR", "Global Aviation Digest")
     wechat_thumb_media_id: str = os.getenv("WECHAT_THUMB_MEDIA_ID", "")
     wechat_proxy: str = os.getenv("WECHAT_PROXY", "")
@@ -79,8 +91,9 @@ class Settings:
     tts_enable_dashscope: bool = _env_bool("TTS_ENABLE_DASHSCOPE", False)
     tts_enable_edge: bool = _env_bool("TTS_ENABLE_EDGE", False)
 
-    # Free TTS (fallback chain: qwen-tts2api free → DashScope paid)
-    qwen_tts_url: str = os.getenv("QWEN_TTS_URL", "http://localhost:8825")
+    # qwen-tts2api (self-hosted, OpenAI-compatible endpoint)
+    qwen_tts_url: str = os.getenv("QWEN_TTS_URL", "http://72.249.203.10:8825")
+    qwen_tts_api_key: str = os.getenv("QWEN_TTS_API_KEY", "")
 
     # Podcast extra prompt (e.g. holiday greetings)
     podcast_greeting: str = os.getenv("PODCAST_GREETING", "")
@@ -118,6 +131,7 @@ class Settings:
     processed_dir: Path = ROOT_DIR / "data" / "processed"
     history_dir: Path = ROOT_DIR / "data" / "history"
     output_dir: Path = ROOT_DIR / "data" / "output"
+    wechat_token_cache_path: Path = ROOT_DIR / "data" / "history" / "wechat_stable_token.json"
 
 
 settings = Settings()

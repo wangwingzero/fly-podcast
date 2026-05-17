@@ -152,64 +152,7 @@ def test_anthropic_json_retries_after_truncated_text(monkeypatch):
     assert calls == [40, 80, 160]
 
 
-def test_json_uses_grok_fallback_after_backup_fails(monkeypatch):
-    calls = []
-    fake_settings = SimpleNamespace(
-        llm_api_key="primary-key",
-        llm_base_url="https://primary.example/v1",
-        llm_model="bad-primary",
-        llm_backup_api_key="backup-key",
-        llm_backup_base_url="https://backup.example/v1",
-        llm_backup_model="bad-backup",
-        llm_fallback_api_key="fallback-key",
-        llm_fallback_base_url="https://grok.223344567.xyz/v1",
-        llm_fallback_model="grok-4.20-0309-non-reasoning",
-    )
-
-    class FakeResponse:
-        text = ""
-
-        def __init__(self, status_code, payload):
-            self.status_code = status_code
-            self.ok = status_code < 400
-            self._payload = payload
-            self.text = str(payload)
-
-        def json(self):
-            return self._payload
-
-    def fake_post(url, headers, json, timeout):
-        calls.append((url, json["model"]))
-        if json["model"] == "grok-4.20-0309-non-reasoning" and url.endswith("/chat/completions"):
-            return FakeResponse(
-                200,
-                {
-                    "choices": [
-                        {"message": {"content": '{"ok": true, "service": "grok"}'}}
-                    ]
-                },
-            )
-        return FakeResponse(500, {"error": "forced failure"})
-
-    monkeypatch.setattr("flying_podcast.core.llm_client.settings", fake_settings)
-    monkeypatch.setattr("flying_podcast.core.llm_client.requests.post", fake_post)
-
-    client = OpenAICompatibleClient("primary-key", "https://primary.example/v1", "bad-primary")
-    result = client.complete_json(
-        system_prompt="Return JSON.",
-        user_prompt="Return ok.",
-        max_tokens=40,
-        temperature=0,
-        retries=1,
-        timeout=10,
-    )
-
-    assert result.payload == {"ok": True, "service": "grok"}
-    assert ("https://backup.example/v1/chat/completions", "bad-backup") in calls
-    assert ("https://grok.223344567.xyz/v1/chat/completions", "grok-4.20-0309-non-reasoning") in calls
-
-
-def test_json_uses_secondary_backup_before_grok_fallback(monkeypatch):
+def test_json_uses_configured_fallback_before_backup(monkeypatch):
     calls = []
     fake_settings = SimpleNamespace(
         llm_api_key="primary-key",
@@ -219,11 +162,11 @@ def test_json_uses_secondary_backup_before_grok_fallback(monkeypatch):
         llm_backup_base_url="https://backup.example/v1",
         llm_backup_model="bad-backup",
         llm_secondary_backup_api_key="secondary-key",
-        llm_secondary_backup_base_url="https://api.deepseek.com/anthropic",
-        llm_secondary_backup_model="deepseek-v4-pro",
+        llm_secondary_backup_base_url="https://secondary.example/v1",
+        llm_secondary_backup_model="bad-secondary",
         llm_fallback_api_key="fallback-key",
-        llm_fallback_base_url="https://grok.223344567.xyz/v1",
-        llm_fallback_model="grok-4.20-0309-non-reasoning",
+        llm_fallback_base_url="https://api.deepseek.com/anthropic",
+        llm_fallback_model="deepseek-v4-flash",
     )
 
     class FakeResponse:
@@ -240,11 +183,11 @@ def test_json_uses_secondary_backup_before_grok_fallback(monkeypatch):
 
     def fake_post(url, headers, json, timeout):
         calls.append((url, json["model"]))
-        if json["model"] == "deepseek-v4-pro" and "api.deepseek.com" in url:
+        if json["model"] == "deepseek-v4-flash" and "api.deepseek.com" in url:
             return FakeResponse(
                 200,
                 {
-                    "content": [{"type": "text", "text": '{"ok": true, "service": "secondary"}'}],
+                    "content": [{"type": "text", "text": '{"ok": true, "service": "fallback"}'}],
                     "stop_reason": "end_turn",
                 },
             )
@@ -263,10 +206,133 @@ def test_json_uses_secondary_backup_before_grok_fallback(monkeypatch):
         timeout=10,
     )
 
+    assert result.payload == {"ok": True, "service": "fallback"}
+    assert ("https://api.deepseek.com/anthropic/v1/messages", "deepseek-v4-flash") in calls
+    assert not any(model == "bad-backup" for _, model in calls)
+    assert not any(model == "bad-secondary" for _, model in calls)
+
+
+def test_json_uses_backup_then_secondary_after_fallback_fails(monkeypatch):
+    calls = []
+    fake_settings = SimpleNamespace(
+        llm_api_key="primary-key",
+        llm_base_url="https://primary.example/v1",
+        llm_model="bad-primary",
+        llm_backup_api_key="backup-key",
+        llm_backup_base_url="https://backup.example/v1",
+        llm_backup_model="bad-backup",
+        llm_secondary_backup_api_key="secondary-key",
+        llm_secondary_backup_base_url="https://secondary.example/v1",
+        llm_secondary_backup_model="good-secondary",
+        llm_fallback_api_key="fallback-key",
+        llm_fallback_base_url="https://api.deepseek.com/anthropic",
+        llm_fallback_model="bad-fallback",
+    )
+
+    class FakeResponse:
+        text = ""
+
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self.ok = status_code < 400
+            self._payload = payload
+            self.text = str(payload)
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, headers, json, timeout):
+        calls.append((url, json["model"]))
+        if json["model"] == "good-secondary" and url.endswith("/chat/completions"):
+            return FakeResponse(
+                200,
+                {
+                    "choices": [{"message": {"content": '{"ok": true, "service": "secondary"}'}}]
+                },
+            )
+        return FakeResponse(500, {"error": "forced failure"})
+
+    monkeypatch.setattr("flying_podcast.core.llm_client.settings", fake_settings)
+    monkeypatch.setattr("flying_podcast.core.llm_client.requests.post", fake_post)
+
+    client = OpenAICompatibleClient("primary-key", "https://primary.example/v1", "bad-primary")
+    result = client.complete_json(
+        system_prompt="Return JSON.",
+        user_prompt="Return ok.",
+        max_tokens=40,
+        temperature=0,
+        retries=1,
+        timeout=10,
+    )
+
     assert result.payload == {"ok": True, "service": "secondary"}
+    assert ("https://api.deepseek.com/anthropic/v1/messages", "bad-fallback") in calls
     assert ("https://backup.example/v1/chat/completions", "bad-backup") in calls
-    assert ("https://api.deepseek.com/anthropic/v1/messages", "deepseek-v4-pro") in calls
-    assert not any(model == "grok-4.20-0309-non-reasoning" for _, model in calls)
+    assert ("https://secondary.example/v1/chat/completions", "good-secondary") in calls
+    first_fallback = next(i for i, (_, model) in enumerate(calls) if model == "bad-fallback")
+    first_backup = next(i for i, (_, model) in enumerate(calls) if model == "bad-backup")
+    first_secondary = next(i for i, (_, model) in enumerate(calls) if model == "good-secondary")
+    assert first_fallback < first_backup < first_secondary
+
+
+def test_text_uses_configured_fallback_before_backup(monkeypatch):
+    calls = []
+    fake_settings = SimpleNamespace(
+        llm_api_key="primary-key",
+        llm_base_url="https://primary.example/v1",
+        llm_model="bad-primary",
+        llm_backup_api_key="backup-key",
+        llm_backup_base_url="https://backup.example/v1",
+        llm_backup_model="bad-backup",
+        llm_secondary_backup_api_key="secondary-key",
+        llm_secondary_backup_base_url="https://secondary.example/v1",
+        llm_secondary_backup_model="bad-secondary",
+        llm_fallback_api_key="fallback-key",
+        llm_fallback_base_url="https://api.deepseek.com/anthropic",
+        llm_fallback_model="deepseek-v4-flash",
+    )
+
+    class FakeResponse:
+        text = ""
+
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self.ok = status_code < 400
+            self._payload = payload
+            self.text = str(payload)
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, headers, json, timeout):
+        calls.append((url, json["model"]))
+        if json["model"] == "deepseek-v4-flash" and "api.deepseek.com" in url:
+            return FakeResponse(
+                200,
+                {
+                    "content": [{"type": "text", "text": "fallback ok"}],
+                    "stop_reason": "end_turn",
+                },
+            )
+        return FakeResponse(500, {"error": "forced failure"})
+
+    monkeypatch.setattr("flying_podcast.core.llm_client.settings", fake_settings)
+    monkeypatch.setattr("flying_podcast.core.llm_client.requests.post", fake_post)
+
+    client = OpenAICompatibleClient("primary-key", "https://primary.example/v1", "bad-primary")
+    result = client.complete_text(
+        system_prompt="Reply text.",
+        user_prompt="Return ok.",
+        max_tokens=40,
+        temperature=0,
+        retries=1,
+        timeout=10,
+    )
+
+    assert result == "fallback ok"
+    assert ("https://api.deepseek.com/anthropic/v1/messages", "deepseek-v4-flash") in calls
+    assert not any(model == "bad-backup" for _, model in calls)
+    assert not any(model == "bad-secondary" for _, model in calls)
 
 
 def test_invalid_responses_json_falls_back_to_chat(monkeypatch):

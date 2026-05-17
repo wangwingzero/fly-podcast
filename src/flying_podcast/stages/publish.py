@@ -1352,10 +1352,21 @@ def run(target_date: str | None = None) -> Path:
         cover_path.write_bytes(cover_image_data)
         logger.info("Cover image saved locally: %s (%d bytes)", cover_path, len(cover_image_data))
 
+    entry_count = len(digest.get("entries", []) or [])
+    min_publish = max(1, int(getattr(settings, "min_publish_count", 1) or 1))
     if not has_entries or quality.get("decision") == "skip_publish":
         result["status"] = "skipped_empty_digest"
         result["reasons"] = sorted(set([*result["reasons"], "empty_digest"]))
         logger.warning("Skip WeChat publish for %s: digest has no publishable entries", day)
+    elif entry_count < min_publish:
+        result["status"] = "skipped_below_min_count"
+        result["reasons"] = sorted(set([*result["reasons"], "below_min_publish_count"]))
+        result["entry_count"] = entry_count
+        result["min_publish_count"] = min_publish
+        logger.warning(
+            "Skip WeChat publish for %s: only %d entries (< MIN_PUBLISH_COUNT=%d)",
+            day, entry_count, min_publish,
+        )
     elif settings.dry_run or not settings.wechat_enable_publish:
         result["status"] = "dry_run"
         result["url"] = f"dry-run://flying-podcast/{day}"
@@ -1408,8 +1419,13 @@ def run(target_date: str | None = None) -> Path:
                     result["status"] = "published"
                     result["publish_id"] = publish.publish_id
                     result["url"] = f"wechat://publish/{publish.publish_id}"
-                except WeChatPublishError:
-                    logger.info("Auto-publish not available, draft saved to WeChat backend")
+                except WeChatPublishError as exc:
+                    result["status"] = "publish_failed_draft_created"
+                    result["reasons"].append(str(exc))
+                    logger.warning(
+                        "Auto-publish failed; draft saved to WeChat backend: %s",
+                        exc,
+                    )
             else:
                 logger.info("Draft created; auto-publish disabled")
         except WeChatPublishError as exc:
@@ -1435,7 +1451,7 @@ def run(target_date: str | None = None) -> Path:
 
     # Save only real delivery/draft history for cross-day dedup. Dry-runs should
     # leave future production dedup untouched.
-    if result["status"] in {"draft_created", "published"}:
+    if result["status"] in {"draft_created", "published", "publish_failed_draft_created"}:
         _save_recent_published(digest, day)
     else:
         logger.info("Skip recent published history save for status=%s", result["status"])

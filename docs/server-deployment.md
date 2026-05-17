@@ -1,6 +1,8 @@
 # Server Deployment
 
 The daily digest now runs on the BaoTa-managed server instead of GitHub Actions.
+Non-empty digests are submitted to WeChat automatically; empty digests are
+skipped before any WeChat draft or publish call is made.
 
 ## Runtime Layout
 
@@ -14,10 +16,21 @@ The daily digest now runs on the BaoTa-managed server instead of GitHub Actions.
 
 ## Schedule
 
-Run once per day at Beijing 03:00:
+Run once per day at Beijing 07:00. The production server timezone must be
+`Asia/Shanghai`, so the server crontab uses local `0 7 * * *`, not the old
+GitHub Actions UTC form.
+
+Install or repair the wrapper and crontab entry with:
+
+```bash
+cd /www/wwwroot/flying-podcast
+.venv/bin/python scripts/server/install_daily_cron.py
+```
+
+Expected crontab entry:
 
 ```cron
-0 3 * * * flock -xn /www/server/cron/flying_podcast_daily.lock -c /www/server/cron/flying_podcast_daily >> /www/server/cron/flying_podcast_daily.log 2>&1
+0 7 * * * flock -xn /www/server/cron/flying_podcast_daily.lock -c /www/server/cron/flying_podcast_daily >> /www/server/cron/flying_podcast_daily.log 2>&1
 ```
 
 The runner executes the daily digest stages and then copies public web outputs to
@@ -32,7 +45,7 @@ ingest -> rank -> compose -> verify -> publish -> publish-static -> notify
 
 ## Production Prerequisites
 
-- Add the server public IP `154.9.27.44` to the WeChat Official Account API IP whitelist.
+- Add the server public IP `72.249.203.10` to the WeChat Official Account API IP whitelist.
 - Keep `WECHAT_PROXY=` empty on the server when the server IP is whitelisted; the old proxy can time out from the server.
 - Set `STATIC_ROOT=/www/wwwroot/flighttoolbox-static/current`.
 - Set `STATIC_PUBLIC_BASE_URL=https://flighttoolbox.hudawang.cn`.
@@ -46,7 +59,7 @@ In BaoTa, manage the job as a shell scheduled task:
 
 - Task name: `flying-podcast-daily`
 - Type: Shell script
-- Schedule: daily at `03:00`
+- Schedule: daily at `07:00` server local time (`Asia/Shanghai`)
 - Script:
 
 ```bash
@@ -81,7 +94,7 @@ sshd -t && systemctl reload ssh
 For local clients, enable their keepalive option or add:
 
 ```sshconfig
-Host 154.9.27.44
+Host 72.249.203.10
   Port 7668
   ServerAliveInterval 30
   ServerAliveCountMax 6

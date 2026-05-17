@@ -266,6 +266,33 @@ hard_reject_keywords:
   - dispatch staffing
   - dispatcher hiring
   - dispatch system procurement
+  # 软文 / 营销 / 推广 / 会员积分类（避免厂商和门户软文混入）
+  - sponsored content
+  - sponsorship deal
+  - branded partnership
+  - marketing campaign
+  - promotional campaign
+  - giveaway
+  - sweepstakes
+  - status match
+  - elite status
+  - bonus miles
+  - mileage promotion
+  - fare sale
+  - flash sale
+  - black friday
+  - cyber monday
+  - holiday sale
+  - duty free
+  - inflight shopping
+  - 联名活动
+  - 联名推广
+  - 营销活动
+  - 推广活动
+  - 会员升级
+  - 里程促销
+  - 免税购物
+  - 限时优惠
 
 strict_hard_reject_keywords:
   - podcast
@@ -304,6 +331,12 @@ strict_hard_reject_keywords:
   - acquiring
   - immigration enforcement
   - ice vehicles
+  # 厂商 / 门户软文常见模板词（强力屏蔽）
+  - press release announces partnership
+  - announces strategic partnership
+  - signs memorandum of understanding
+  - announces order for
+  - signs purchase agreement
 
 non_aviation_reject_patterns:
   - minnesota united
@@ -520,7 +553,219 @@ pilot_specific_ops_keywords:
   - 跑道关闭
   - 机场关闭
 
+pilot_novelty_keywords:
+  # 新机型首飞/试飞/型号合格证里程碑
+  - maiden flight
+  - first flight
+  - takes flight
+  - took flight
+  - takes to the sky
+  - took to the sky
+  - takes to the air
+  - took to the air
+  - test flight
+  - flight test
+  - flight testing
+  - prototype
+  - certification flight
+  - type certification
+  - amended type certificate
+  - type certificate
+  - proving flight
+  - first production
+  - first delivery
+  - delivery flight
+  - entered service
+  - enters service
+  - rollout
+  - rolls out
+  - rolled out
+  - first revenue flight
+  - inaugural flight
+  - 首飞
+  - 试飞
+  - 原型机
+  - 验证飞行
+  - 取证试飞
+  - 型号合格证
+  - 首架交付
+  - 投入运营
+  - 首航
+  - 总装下线
+  - 下线
+  # 驾驶舱新技术
+  - synthetic vision
+  - enhanced vision
+  - head-up display
+  - HUD upgrade
+  - cockpit upgrade
+  - avionics upgrade
+  - new cockpit
+  - flight deck upgrade
+  - augmented reality cockpit
+  - AI copilot
+  - reduced crew
+  - single-pilot operations
+  - 合成视景
+  - 增强视景
+  - 平视显示
+  - HUD升级
+  - 驾驶舱升级
+  - 航电升级
+  - AI副驾
+  - 单飞行员驾驶
+  # 飞行员/机组人物故事
+  - first female captain
+  - first woman captain
+  - first black captain
+  - retiring captain
+  - captain retires
+  - veteran pilot
+  - record-setting pilot
+  - hero pilot
+  - heroic crew
+  - legendary captain
+  - 退役机长
+  - 首位女机长
+  - 首位女飞行员
+  - 首位华人机长
+  - 传奇机长
+  - 资深机长
+  - 英雄机组
+  # 罕见飞行/世界纪录
+  - world record
+  - record flight
+  - record-breaking flight
+  - longest flight
+  - polar flight
+  - rare diversion route
+  - special mission
+  - unique flight
+  - milestone flight
+  - 世界纪录
+  - 极地航班
+  - 超长航班
+  - 特殊任务
+  - 里程碑航班
+  # 历史/纪念
+  - farewell flight
+  - retirement flight
+  - final flight
+  - last flight
+  - decommissioning ceremony
+  - anniversary flight
+  - commemorative flight
+  - heritage flight
+  - retro livery
+  - special livery
+  - throwback livery
+  - museum aircraft
+  - 告别飞行
+  - 退役飞行
+  - 最后一班
+  - 纪念飞行
+  - 周年飞行
+  - 复古涂装
+  - 怀旧涂装
+  - 纪念涂装
+  - 特别涂装
+  # 航展 / 特技飞行 / 编队
+  - airshow
+  - air show
+  - aerobatic display
+  - aerobatic team
+  - flight display
+  - formation flight
+  - formation flying
+  - air display
+  - 航展
+  - 航空展
+  - 特技飞行
+  - 编队飞行
+  - 飞行表演
+  # 老飞机 / 修复 / 经典机型
+  - vintage aircraft
+  - restored aircraft
+  - warbird
+  - classic airliner
+  - dc-3 flight
+  - constellation flight
+  - 经典机型
+  - 老飞机
+  - 修复飞机
+  - 经典航班
+  # 特殊任务 / 包机 / 撤侨
+  - repatriation flight
+  - humanitarian flight
+  - relief flight
+  - aid flight
+  - state flight
+  - government charter
+  - special charter
+  - air ambulance
+  - medevac flight
+  - medical evacuation
+  - 撤侨航班
+  - 撤侨包机
+  - 包机任务
+  - 救援航班
+  - 人道主义航班
+  - 医疗后送
+  - 紧急医疗运输
+  # 空中灭火 / 搜救
+  - aerial firefighting
+  - firefighting flight
+  - water bomber
+  - air tanker firefighting
+  - search and rescue mission
+  - sar mission
+  - 空中灭火
+  - 灭火飞行
+  - 海上搜救
+  - 搜救任务
+  # 罕见航路 / 特殊改航
+  - unusual routing
+  - rare routing
+  - rare diversion
+  - unprecedented diversion
+  - polar route
+  - transpolar flight
+  - 罕见航路
+  - 罕见航线
+  - 特殊改航
+  - 极地航路
+
+# Novelty 路径里仍然要硬性拒绝的话题（用户明确不想要的范围）
+pilot_novelty_reject_keywords:
+  - eVTOL
+  - electric aircraft
+  - electric airliner
+  - hybrid-electric
+  - hydrogen aircraft
+  - hydrogen-powered
+  - supersonic airliner
+  - boom overture
+  - joby aviation
+  - archer aviation
+  - lilium
+  - vertiport
+  - air taxi
+  - urban air mobility
+  - 电动飞机
+  - 电动客机
+  - 氢能飞机
+  - 氢动力
+  - 超音速客机
+  - 城市空中出行
+  - 空中出租车
+
 pilot_priority_sources:
+  - flightglobal_air_transport_cli
+  - aviation_week_air_transport_cli
+  - ain_online_web
+  - simple_flying_cli
+  - ch_aviation_cli
+  - flightglobal_news_web
   - avherald_web
   - asn_2026_web
   - easa_ad_web
@@ -532,6 +777,14 @@ pilot_priority_sources:
   - flightglobal_engines
 
 pilot_allowed_source_ids:
+  - flightglobal_air_transport_cli
+  - aviation_week_air_transport_cli
+  - ain_online_web
+  - simple_flying_cli
+  - ch_aviation_cli
+  - flightglobal_news_web
+  - reuters_aerospace_cli
+  - bloomberg_airlines_cli
   - avherald_web
   - asn_2026_web
   - easa_ad_web
@@ -541,7 +794,10 @@ pilot_allowed_source_ids:
   - ntsb_press_web
   - flightglobal_safety
   - flightglobal_engines
-  - ain_online_web
+  # 趣闻 / 产业背景源（首飞、纪念飞行、特殊任务等）
+  - aerotime
+  - aviation_source
+  - flightradar24_blog
 
 pilot_allowed_domains:
   - avherald.com
@@ -553,4 +809,102 @@ pilot_allowed_domains:
   - ntsb.gov
   - asrs.arc.nasa.gov
   - flightglobal.com
+  - aviationweek.com
   - ainonline.com
+  - simpleflying.com
+  - ch-aviation.com
+  - reuters.com
+  - bloomberg.com
+  - aerotime.aero
+  - aviationsourcenews.com
+  - flightradar24.com
+
+industry_news_keywords:
+  - air transport
+  - airline
+  - airlines
+  - airport
+  - airports
+  - airspace
+  - alliance
+  - joint venture
+  - fleet
+  - order
+  - orders
+  - delivery
+  - deliveries
+  - lessor
+  - leasing
+  - MRO
+  - maintenance
+  - engine
+  - engines
+  - supply chain
+  - production
+  - OEM
+  - regulator
+  - regulation
+  - certification
+  - slots
+  - SAF
+  - sustainable aviation fuel
+  - labor
+  - strike
+  - union
+  - network
+
+macro_aviation_effect_keywords:
+  - airline
+  - airlines
+  - airport
+  - airports
+  - aircraft
+  - airspace
+  - flight
+  - flights
+  - fleet
+  - FAA
+  - EASA
+  - IATA
+  - ICAO
+  - regulator
+  - Boeing
+  - Airbus
+  - engine
+  - supply chain
+  - route
+  - routes
+  - capacity
+  - slots
+
+major_accident_impact_keywords:
+  - grounding
+  - grounded
+  - fleet-wide
+  - fleet wide
+  - inspection
+  - inspections
+  - airworthiness directive
+  - regulator
+  - regulators
+  - FAA
+  - EASA
+  - IATA
+  - ICAO
+  - manufacturer
+  - Boeing
+  - Airbus
+  - engine
+  - engines
+  - airport closure
+  - runway closure
+  - airspace closure
+  - international airlines
+  - suspend operations
+  - suspended operations
+  - 停飞
+  - 适航指令
+  - 监管
+  - 检查
+  - 空域关闭
+  - 机场关闭

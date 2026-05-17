@@ -83,6 +83,33 @@ class OpenAICompatibleClient:
             and getattr(settings, "llm_fallback_model", "")
         )
 
+    @staticmethod
+    def ordered_fallback_configs() -> list[tuple[str, str, str, str]]:
+        """Return model fallbacks in failover order after the primary model."""
+        configs: list[tuple[str, str, str, str]] = []
+        if OpenAICompatibleClient.fallback_configured():
+            configs.append((
+                "保底模型",
+                settings.llm_fallback_api_key,
+                settings.llm_fallback_base_url,
+                settings.llm_fallback_model,
+            ))
+        if OpenAICompatibleClient.backup_configured():
+            configs.append((
+                "备用模型",
+                settings.llm_backup_api_key,
+                settings.llm_backup_base_url,
+                settings.llm_backup_model,
+            ))
+        if OpenAICompatibleClient.secondary_backup_configured():
+            configs.append((
+                "第二备用模型",
+                settings.llm_secondary_backup_api_key,
+                settings.llm_secondary_backup_base_url,
+                settings.llm_secondary_backup_model,
+            ))
+        return configs
+
     def _is_same_config(self, api_key: str, base_url: str, model: str) -> bool:
         return (
             self.api_key == api_key.strip()
@@ -475,66 +502,11 @@ class OpenAICompatibleClient:
                     time.sleep(wait)
         if _allow_backup:
             fallback_errors: list[str] = []
-            if self.backup_configured() and not self._is_same_config(
-                settings.llm_backup_api_key,
-                settings.llm_backup_base_url,
-                settings.llm_backup_model,
-            ):
-                _log.warning("[LLM] 模型 %s 全部重试失败，切换备用模型 %s",
-                            self.model, settings.llm_backup_model)
-                backup = OpenAICompatibleClient(
-                    api_key=settings.llm_backup_api_key,
-                    base_url=settings.llm_backup_base_url,
-                    model=settings.llm_backup_model,
-                )
-                try:
-                    return backup.complete_json(
-                        system_prompt=system_prompt,
-                        user_prompt=user_prompt,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        retries=retries,
-                        timeout=timeout,
-                        _allow_backup=False,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    fallback_errors.append(f"{settings.llm_backup_model}: {exc}")
-
-            if self.secondary_backup_configured() and not self._is_same_config(
-                settings.llm_secondary_backup_api_key,
-                settings.llm_secondary_backup_base_url,
-                settings.llm_secondary_backup_model,
-            ):
-                _log.warning("[LLM] 切换第二备用模型 %s", settings.llm_secondary_backup_model)
-                secondary_backup = OpenAICompatibleClient(
-                    api_key=settings.llm_secondary_backup_api_key,
-                    base_url=settings.llm_secondary_backup_base_url,
-                    model=settings.llm_secondary_backup_model,
-                )
-                try:
-                    return secondary_backup.complete_json(
-                        system_prompt=system_prompt,
-                        user_prompt=user_prompt,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        retries=retries,
-                        timeout=timeout,
-                        _allow_backup=False,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    fallback_errors.append(f"{settings.llm_secondary_backup_model}: {exc}")
-
-            if self.fallback_configured() and not self._is_same_config(
-                settings.llm_fallback_api_key,
-                settings.llm_fallback_base_url,
-                settings.llm_fallback_model,
-            ):
-                _log.warning("[LLM] 切换保底模型 %s", settings.llm_fallback_model)
-                fallback = OpenAICompatibleClient(
-                    api_key=settings.llm_fallback_api_key,
-                    base_url=settings.llm_fallback_base_url,
-                    model=settings.llm_fallback_model,
-                )
+            for label, api_key, base_url, model in self.ordered_fallback_configs():
+                if self._is_same_config(api_key, base_url, model):
+                    continue
+                _log.warning("[LLM] 模型 %s 全部重试失败，切换%s %s", self.model, label, model)
+                fallback = OpenAICompatibleClient(api_key=api_key, base_url=base_url, model=model)
                 try:
                     return fallback.complete_json(
                         system_prompt=system_prompt,
@@ -546,7 +518,7 @@ class OpenAICompatibleClient:
                         _allow_backup=False,
                     )
                 except Exception as exc:  # noqa: BLE001
-                    fallback_errors.append(f"{settings.llm_fallback_model}: {exc}")
+                    fallback_errors.append(f"{model}: {exc}")
 
             if fallback_errors:
                 last_error = f"{last_error}; " + "; ".join(fallback_errors)
@@ -632,66 +604,11 @@ class OpenAICompatibleClient:
                     time.sleep(wait)
         if _allow_backup:
             fallback_errors: list[str] = []
-            if self.backup_configured() and not self._is_same_config(
-                settings.llm_backup_api_key,
-                settings.llm_backup_base_url,
-                settings.llm_backup_model,
-            ):
-                _log.warning("[LLM] 模型 %s 全部重试失败，切换备用模型 %s",
-                             self.model, settings.llm_backup_model)
-                backup = OpenAICompatibleClient(
-                    api_key=settings.llm_backup_api_key,
-                    base_url=settings.llm_backup_base_url,
-                    model=settings.llm_backup_model,
-                )
-                try:
-                    return backup.complete_text(
-                        system_prompt=system_prompt,
-                        user_prompt=user_prompt,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        retries=retries,
-                        timeout=timeout,
-                        _allow_backup=False,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    fallback_errors.append(f"{settings.llm_backup_model}: {exc}")
-
-            if self.secondary_backup_configured() and not self._is_same_config(
-                settings.llm_secondary_backup_api_key,
-                settings.llm_secondary_backup_base_url,
-                settings.llm_secondary_backup_model,
-            ):
-                _log.warning("[LLM] 切换第二备用模型 %s", settings.llm_secondary_backup_model)
-                secondary_backup = OpenAICompatibleClient(
-                    api_key=settings.llm_secondary_backup_api_key,
-                    base_url=settings.llm_secondary_backup_base_url,
-                    model=settings.llm_secondary_backup_model,
-                )
-                try:
-                    return secondary_backup.complete_text(
-                        system_prompt=system_prompt,
-                        user_prompt=user_prompt,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        retries=retries,
-                        timeout=timeout,
-                        _allow_backup=False,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    fallback_errors.append(f"{settings.llm_secondary_backup_model}: {exc}")
-
-            if self.fallback_configured() and not self._is_same_config(
-                settings.llm_fallback_api_key,
-                settings.llm_fallback_base_url,
-                settings.llm_fallback_model,
-            ):
-                _log.warning("[LLM] 切换保底模型 %s", settings.llm_fallback_model)
-                fallback = OpenAICompatibleClient(
-                    api_key=settings.llm_fallback_api_key,
-                    base_url=settings.llm_fallback_base_url,
-                    model=settings.llm_fallback_model,
-                )
+            for label, api_key, base_url, model in self.ordered_fallback_configs():
+                if self._is_same_config(api_key, base_url, model):
+                    continue
+                _log.warning("[LLM] 模型 %s 全部重试失败，切换%s %s", self.model, label, model)
+                fallback = OpenAICompatibleClient(api_key=api_key, base_url=base_url, model=model)
                 try:
                     return fallback.complete_text(
                         system_prompt=system_prompt,
@@ -703,7 +620,7 @@ class OpenAICompatibleClient:
                         _allow_backup=False,
                     )
                 except Exception as exc:  # noqa: BLE001
-                    fallback_errors.append(f"{settings.llm_fallback_model}: {exc}")
+                    fallback_errors.append(f"{model}: {exc}")
 
             if fallback_errors:
                 last_error = f"{last_error}; " + "; ".join(fallback_errors)

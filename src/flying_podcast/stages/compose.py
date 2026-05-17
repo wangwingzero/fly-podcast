@@ -324,6 +324,52 @@ _OG_IMAGE_RE2 = re.compile(
     r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
     re.IGNORECASE,
 )
+_BAD_IMAGE_TOKEN_RE = re.compile(r"(^|[-_/])(?:logo|favicon|icon|placeholder|sprite|avatar|blank)(?:[-_.?/]|$)", re.IGNORECASE)
+
+
+def _is_usable_article_image_url(url: str) -> bool:
+    """Reject site chrome images before they reach WeChat drafts."""
+    clean = html.unescape(str(url or "")).strip()
+    if not clean.startswith(("http://", "https://")):
+        return False
+    lower = clean.lower()
+    if lower.startswith("data:image") or lower.split("?", 1)[0].endswith(".svg"):
+        return False
+    path = urlsplit(lower).path
+    if any("logo" in segment for segment in path.split("/")):
+        return False
+    return _BAD_IMAGE_TOKEN_RE.search(path) is None
+
+
+def _entry_candidate_urls(entry: Any) -> set[str]:
+    urls: set[str] = set()
+    for attr in ("canonical_url", "url"):
+        value = getattr(entry, attr, "") if hasattr(entry, attr) else entry.get(attr, "")
+        if value:
+            urls.add(str(value).strip())
+    citations = getattr(entry, "citations", []) if hasattr(entry, "citations") else entry.get("citations", [])
+    if isinstance(citations, list):
+        urls.update(str(u).strip() for u in citations if str(u).strip())
+    return {u for u in urls if u}
+
+
+def _image_index_from_pool(pool: list[dict]) -> dict[str, str]:
+    image_by_url: dict[str, str] = {}
+    for candidate in pool:
+        img = str(candidate.get("image_url", "")).strip()
+        if not _is_usable_article_image_url(img):
+            continue
+        for key in (candidate.get("canonical_url"), candidate.get("url")):
+            if key:
+                image_by_url.setdefault(str(key).strip(), img)
+    return image_by_url
+
+
+def _set_entry_image(entry: Any, image_url: str) -> None:
+    if hasattr(entry, "image_url"):
+        entry.image_url = image_url
+    else:
+        entry["image_url"] = image_url
 
 
 def _fetch_og_image(url: str, timeout: int = 8) -> str:
@@ -469,10 +515,22 @@ def _resolve_google_candidate_urls(candidates: list[dict]) -> None:
 
 def _resolve_google_urls_and_fetch_images(entries: list, pool: list[dict]) -> None:
     """Resolve Google News redirect URLs via Playwright, then fetch og:image."""
+    image_by_url = _image_index_from_pool(pool)
     google_entries = []
     for entry in entries:
         existing_img = entry.image_url if hasattr(entry, "image_url") else entry.get("image_url", "")
+        if existing_img and _is_usable_article_image_url(existing_img):
+            continue
         if existing_img:
+            _set_entry_image(entry, "")
+        inherited = next((image_by_url[u] for u in _entry_candidate_urls(entry) if u in image_by_url), "")
+        if inherited:
+            _set_entry_image(entry, inherited)
+            logger.info(
+                "article image inherited for %s: %s",
+                (entry.id if hasattr(entry, "id") else entry.get("id", ""))[:12],
+                inherited[:80],
+            )
             continue
         page_url = entry.canonical_url if hasattr(entry, "canonical_url") else entry.get("canonical_url", "")
         if not page_url:
@@ -480,12 +538,11 @@ def _resolve_google_urls_and_fetch_images(entries: list, pool: list[dict]) -> No
         if "news.google.com" not in page_url:
             # Direct URL — use simple requests
             img = _fetch_og_image(page_url)
-            if img:
-                if hasattr(entry, "image_url"):
-                    entry.image_url = img
-                else:
-                    entry["image_url"] = img
+            if _is_usable_article_image_url(img):
+                _set_entry_image(entry, img)
                 logger.info("og:image found for %s: %s", (entry.id if hasattr(entry, "id") else entry.get("id", ""))[:12], img[:80])
+            elif img:
+                logger.info("og:image rejected for %s: %s", (entry.id if hasattr(entry, "id") else entry.get("id", ""))[:12], img[:80])
             continue
         google_entries.append((entry, page_url))
 
@@ -527,20 +584,14 @@ def _resolve_google_urls_and_fetch_images(entries: list, pool: list[dict]) -> No
                         )
                     except Exception:  # noqa: BLE001
                         og = ""
-                    if og and og.startswith(("http://", "https://")) and not og.lower().endswith(".svg"):
-                        if hasattr(entry, "image_url"):
-                            entry.image_url = og
-                        else:
-                            entry["image_url"] = og
+                    if _is_usable_article_image_url(og):
+                        _set_entry_image(entry, og)
                         logger.info("og:image found (playwright) for %s: %s", eid[:12], og[:80])
                     else:
                         # Fallback: fetch og:image via requests from resolved URL
                         img = _fetch_og_image(final_url)
-                        if img:
-                            if hasattr(entry, "image_url"):
-                                entry.image_url = img
-                            else:
-                                entry["image_url"] = img
+                        if _is_usable_article_image_url(img):
+                            _set_entry_image(entry, img)
                             logger.info("og:image found (resolved) for %s: %s", eid[:12], img[:80])
                         else:
                             logger.info("og:image not found for %s from %s", eid[:12], final_url[:60])
@@ -932,6 +983,7 @@ def _to_digest_entry(item: dict[str, Any], title: str, conclusion: str, facts: l
         event_fingerprint=item.get("event_fingerprint", ""),
         published_at=item.get("published_at", ""),
         image_url=item.get("image_url", ""),
+        source_role=item.get("source_role", ""),
         body=body,
     )
 
@@ -1207,6 +1259,7 @@ def _build_selection_prompt(
                 "source_tier": row.get("source_tier", "C"),
                 "source_name": row.get("source_name", ""),
                 "publisher_domain": row.get("publisher_domain", ""),
+                "source_role": row.get("source_role", ""),
                 "rank_score": row.get("rank_score", 0),
                 "pilot_value": row.get("pilot_value", {}),
             }
@@ -1223,24 +1276,27 @@ def _build_selection_prompt(
         )
 
     system_prompt = (
-        "你是服务于飞行员的国际航空新闻编辑。\n"
-        "从候选新闻中选出最有价值的文章。候选列表已经过初步筛选，全部是航空相关新闻，但仍可能混入行业背景稿。\n\n"
-        "你的判断标准只有一个：飞行员读完后，是否能获得一个与飞行运行、安全、机型系统、程序或训练有关的具体新事实。\n"
+        "你是国际航空行业新闻编辑，负责给飞行员读者选一份全方位的国际航空日报。\n"
+        "从候选新闻中选出最有价值的文章。候选列表已经过初步筛选，全部是航空相关新闻，但仍可能混入行业背景稿、软文或局部事故稿。\n\n"
+        "你的判断标准：读者是否能获得关于国际航空产业、运行环境、机队、监管、机场、空域、供应链或航司经营的具体新事实。\n"
+        "日报主体应覆盖航司战略、机队、订单/交付、监管、机场、空域、MRO、供应链、联盟、劳资、SAF 和重大国际运营变化。\n"
         "可以充分利用你的理解能力做排序，但不能脑补事实；只根据候选标题和摘要判断。\n\n"
         "【选稿优先级——从高到低】\n"
-        "1. 运行安全事件：事故、严重征候、RTO、备降/返航、复飞、跑道侵入/偏出、TCAS、间隔丧失、烟雾/火警、系统故障。\n"
-        "2. 运行环境与程序：NOTAM、TFR、空域限制、绕飞、跑道关闭、CPDLC、GPS干扰、跑道数据、防冲出。\n"
-        "3. 人因与训练：疲劳、空间定向障碍、CRM、模拟机、资质训练，但必须有具体案例或明确训练要求。\n"
-        "4. 机型/适航/技术：AD、SAFO、InFO、SB、强制检查、发动机/液压/飞控/起落架/增压/航电问题。\n\n"
-        "【版面平衡】如果候选足够，必须优先形成飞行员愿意点开的组合：\n"
-        "- 至少3条真实运行安全事件或调查进展。\n"
-        "- 至少1条程序/跑道/CPDLC/空域/人因训练类内容。\n"
-        "- 纯适航指令或检查类 AD 最多2条，除非当天没有足够事件和程序类内容。\n"
-        "- 同一来源不要连续堆太多；详细事件、驾驶舱风险、跑道/程序问题优先于薄数据库记录和纯工卡检查。\n"
-        "- 跑道碰撞、跑道侵入/冲出、客舱/驾驶舱烟雾、CPDLC上行、跑道数据防冲出，都是飞行员高优先级内容。\n\n"
-        "【直接排除】新航线开通、机型投放、机队扩张、订单交付、常规排班、签派/运控后台管理、"
-        "品牌宣传、管理层表态、机场商业服务；除非原文明确写到飞行程序、运行限制、训练要求或安全风险。\n\n"
-        "【不选】股价财报、明星娱乐、旅游生活方式、政治宣传、企业软文广告\n\n"
+        "1. 国际行业主线：航司战略、机队规划、订单/交付、租赁、联盟、航线网络、劳资、财务压力对运营的影响。\n"
+        "2. 监管与运行环境：FAA/EASA/IATA/ICAO、适航、机场、空域、ATC、slot、航班大范围调整和跨国运行限制。\n"
+        "3. 制造与供应链：OEM、发动机、MRO、产能、交付延误、供应链问题、SAF 和排放规则。\n"
+        "4. 重大国际宏观事件：只有明确影响航司、航班、机场、空域、机队或供应链时才可入选。\n"
+        "5. 事故、严重事故、空难调查默认不作为日报主体；只有造成停飞、监管动作、机队检查、跨国航班/机场/空域影响或主要国际航司受影响时才保留。\n\n"
+        "【版面平衡】如果候选足够，必须形成国际航空行业简报，而不是事故简报：\n"
+        "- 行业媒体来源优先，Reuters/Bloomberg 只补重大国际事件。\n"
+        "- 同一来源不要连续堆太多；避免被事故源、数据库记录或单一媒体刷屏。\n"
+        "- 事故类最多作为例外保留，不能成为主体。\n"
+        "- 纯适航指令或检查类 AD 最多2条，除非当天没有足够行业、监管和运营类内容。\n"
+        "- 软文、营销稿、泛旅游稿和没有航空后果的宏观新闻一律不选。\n\n"
+        "【直接排除】航空公司官网软文、品牌宣传、管理层表态、机场商业服务、旅游生活方式、"
+        "没有具体运营/监管/机队/供应链影响的股价财报和宏观政治经济新闻。\n\n"
+        "【不选】股价财报、明星娱乐、旅游生活方式、政治宣传、企业软文广告、"
+        "eVTOL/电动飞机/氢能飞机/超音速客机/空中出租车（这些与线运行飞行员关联弱，本期不收）。\n\n"
         + (
             f"最多选择{total}条。宁缺毋滥，如果没有足够高价值的飞行员相关内容，可以少选。\n"
             if total > 0
@@ -1257,28 +1313,31 @@ def _build_selection_prompt(
             "must_keep_ref_id": True,
             "pilot_relevance_first": True,
             "selection_only": "只需返回选中文章的ref_id，不需要翻译或改写任何内容",
-            "allow_fewer_entries": "没有足够高价值的飞行员相关内容时允许少选，禁止用行业背景稿凑数",
+            "allow_fewer_entries": "没有足够高价值的国际航空行业内容时允许少选，禁止用事故流水、软文或泛旅游稿凑数",
             "hard_reject_topics": [
                 "股价/财报/融资/市值",
                 "明星娱乐", "旅游生活方式", "泛科技八卦",
-                "与飞行运行完全无关的社会新闻",
+                "与航空运行或航空产业完全无关的社会新闻",
                 "政治宣传/政绩报道/领导视察",
                 "纯企业软文/品牌广告/营销推广",
-                "新航线开通/增班/换季排班",
-                "机型投放/机队扩张/订单交付",
-                "常规计划维护/机队调配",
+                "无明确航空后果的宏观政治经济新闻",
+                "没有行业信息增量的航空公司官网通稿",
+                "eVTOL/电动飞机/氢能飞机/超音速客机/空中出租车",
             ],
             "prefer_topics": [
-                "运行安全事件：事故/征候/RTO/备降返航/跑道事件/TCAS/间隔丧失",
-                "运行环境与程序：NOTAM/TFR/空域限制/绕飞/CPDLC/GPS干扰/跑道数据",
-                "人因与训练：疲劳/空间定向障碍/CRM/模拟机/资质训练，且必须有具体信息",
-                "机型技术与适航：AD/SAFO/InFO/SB/强制检查/发动机和系统故障",
+                "航司战略、航线网络、联盟、劳资和运营结构变化",
+                "机队、订单、交付、租赁、发动机、MRO、OEM和供应链",
+                "监管、适航、机场、空域、slot、ATC和跨国运行限制",
+                "Reuters/Bloomberg中的重大国际航空影响事件",
+                "事故/调查仅在有停飞、监管、机队检查、跨国运行影响时保留",
             ],
             "balance": {
-                "min_safety_event_if_available": 3,
-                "min_ops_or_human_factors_if_available": 1,
+                "prefer_primary_industry_sources": True,
+                "max_accident_exception_if_available": 1,
+                "max_macro_supplement_if_available": 2,
                 "max_pure_airworthiness_directives_if_available": 2,
-                "prefer_detailed_events_over_thin_database_records": True,
+                "max_industry_novelty_if_available": 2,
+                "reject_accident_flow_as_digest_backbone": True,
             },
         },
         "output_schema": {
@@ -1375,6 +1434,45 @@ def _is_editorial_anchor(candidate: dict) -> bool:
     return rank_score >= 80.0 and any(term in text for term in must_keep_terms)
 
 
+def _pick_novelty_anchors(
+    candidates_pool: list[dict],
+    selected_ids: list[str],
+    min_count: int,
+) -> list[str]:
+    """选择强制保底的趣闻锚点：ranked 池中分数最高的 industry_novelty。
+
+    LLM 选稿是非确定性的，KC-46/777-9 这类趣闻容易被忽略。
+    本函数确保至少 min_count 条 industry_novelty 进入选稿池。
+    """
+    if min_count <= 0:
+        return []
+    selected_set = set(selected_ids)
+    novelty_candidates: list[tuple[float, str]] = []
+    for row in candidates_pool:
+        pv = row.get("pilot_value") if isinstance(row.get("pilot_value"), dict) else {}
+        cat = str(pv.get("category") or row.get("section") or "")
+        if cat != "industry_novelty":
+            continue
+        rid = str(row.get("id") or "")
+        if not rid:
+            continue
+        novelty_candidates.append((float(row.get("rank_score") or 0.0), rid))
+    novelty_candidates.sort(key=lambda x: -x[0])
+    # 已经在选稿里的 novelty 计入配额
+    already = sum(1 for _, rid in novelty_candidates if rid in selected_set)
+    if already >= min_count:
+        return []
+    need = min_count - already
+    extras: list[str] = []
+    for _, rid in novelty_candidates:
+        if rid in selected_set:
+            continue
+        extras.append(rid)
+        if len(extras) >= need:
+            break
+    return extras
+
+
 def _blend_selection_with_editorial_anchors(
     selected_ids: list[str],
     candidates_pool: list[dict],
@@ -1393,16 +1491,20 @@ def _blend_selection_with_editorial_anchors(
         for row in candidates_pool
         if _is_editorial_anchor(row)
     ][:anchor_limit]
+    novelty_min = max(0, int(getattr(settings, "min_novelty_articles", 0) or 0))
+    novelty_anchor_ids = _pick_novelty_anchors(candidates_pool, selected_ids, novelty_min)
     combined: list[str] = []
-    for rid in anchor_ids + selected_ids:
+    # 顺序：严肃锚点 → LLM 选稿 → 趣闻锚点（趣闻放在严肃稿之后，不抢前排）
+    for rid in anchor_ids + selected_ids + novelty_anchor_ids:
         if rid and rid not in combined:
             combined.append(rid)
         if total > 0 and len(combined) >= total:
             break
     if combined != selected_ids[: len(combined)]:
         logger.info(
-            "Phase 1 editorial anchors merged: anchors=%d selected=%d final=%d",
+            "Phase 1 editorial anchors merged: anchors=%d novelty_anchors=%d selected=%d final=%d",
             len(anchor_ids),
+            len(novelty_anchor_ids),
             len(selected_ids),
             len(combined),
         )
@@ -1435,45 +1537,59 @@ def _build_composition_prompt(
 
     if is_summary_only:
         mode_instruction = (
-            "【内容类型：摘要/标题级】这条新闻只有简短的摘要或标题，没有完整原文。\n"
-            "处理方式：只基于已有信息写出2-4句话的中文快报。\n"
-            "- 第一句概括核心事实\n"
-            "- 后续句子只能补充标题或摘要里已经明确出现的时间、地点、机型、系统、处置动作和后果\n"
-            "- 不要为了凑字数扩写。信息少就短写，宁短勿假\n"
-            "- 不得编造具体数据、原因、日期、人名、机组判断、调查结论等不存在于原文中的细节\n"
-            "- 不要写「原文未提供更多细节」之类的元评论\n"
-            "- 只允许写看得见、点得出的事实：谁、何时、何地、做了什么、结果如何\n"
+            "【篇幅模式：短讯】原文只有标题或简短摘要，按 2-4 句的中文短讯撕写。\n"
+            "- 第一句是新闻导语：用一句话讲清最重要的 5W1H 要素（何时、何地、谁、发生了什么、结果如何）\n"
+            "- 后续句子按重要性递减，只补充标题或摘要里已经明确出现的时间、地点、机型、系统、处置动作和后果\n"
+            "- 信息少就写短，宁短勿假；不得为达字数推测、扩写或补充原文不存在的细节\n"
+            "- 不得编造原文不存在的数据、原因、日期、人名、机组判断、调查结论\n"
+            "- 留白即专业：原文没有的事实一律不写——以任何形式陈述「原文里缺什么」都禁止（未提供/未给出/未说明/未披露/未涉及/未涵盖/未列出/未交代/未点明 都禁止），不要枚举原文缺失的字段（航班号、机上人数、伤亡、跑道编号、飞机受损情况、原因 等都不要点名缺失）\n"
+            "- 只写看得见、点得出的事实：谁、何时、何地、做了什么、结果如何\n"
         )
     else:
         mode_instruction = (
-            "【内容类型：完整原文】这条新闻有较完整的原文内容。\n"
-            "处理方式：提炼核心事实，用4-6句话写成一段完整快报，保留关键时间、地点、主体、动作和影响。\n"
-            "在不引入外部事实的前提下，尽量把正文写到180-260字，不要压缩成两三句。\n"
-            "不得编造原文中没有的内容。\n"
-            "只允许写可直接落到原文事实上面的内容，不要替原文做判断、总结或定性。\n"
+            "【篇幅模式：标准报道】原文较完整，按180-260字的标准中文报道撕写。\n"
+            "- 采用倒金字塔结构：第一句是导语，浓缩最重要的 5W1H 要素于一句\n"
+            "- 后续4-6句话按重要性递减依次展开过程、机组处置、初步影响和后续动作，不要压缩成两三句\n"
+            "- 选词专业克制：发生、经历、随即、随后、确认、宣布、调查、要求、披露、修订 等专业报道动词；避开口语化、感叹化表达\n"
+            "- 不引入外部事实，不替原文做判断、总结或定性\n"
+            "- 留白即专业：原文没有的事实一律不写，不点名「缺失了什么」\n"
         )
 
     system_prompt = (
-        "你是服务于飞行员的国际航空新闻编辑。\n"
-        "你的任务是将下面这一条英文航空新闻改写为中文摘要，并对其价值打分。\n\n"
+        "你身兼两个角色，写一篇两段式稿件：\n"
+        "  角色 A（正文）：资深航空新闻记者，笔法标杆是路透社、Flightglobal、AIN、AVHerald——\n"
+        "    事实先行、笔触干净、克制内敛、不夹带个人观点，让事实自己说话。\n"
+        "  角色 B（划重点）：飞了二十年的老机长，在飞行员群里转发新闻随手配一句话——\n"
+        "    调侃、吐槽、自嘲、黑色幽默，像群聊不像播报。\n"
+        "任务：将下面这条英文航空新闻按上述两段式标准改写为中文稿件，并按新闻价值打分。\n"
+        "重要：以下【报道写作准则】【核心原则】【高风险事实】【绝对禁止的写法】等"
+        "约束**仅适用于正文（角色 A）**；结尾「划重点：」一句（角色 B）走自己的风格规则，"
+        "不受正文的克制语气约束，允许反讽、夸张、口语化。\n\n"
         f"{mode_instruction}\n"
-        "【核心原则】必须且只能基于提供的原文内容改写，不得引入外部事实，不得编造任何信息。\n\n"
-        "所有具体事实必须能在 source_title 或 raw_text 中找到依据。"
-        "如果原文没有写原因、责任、处置依据、伤情程度、调查结论，就不要写。"
-        "可以把英文事实翻译成中文，但不能把常识、猜测或你知道的背景写进正文。\n\n"
-        "把自己当成监控摄像头或事件记录员：只记录看得见、读得到的事实，不下结论，不做评价。\n\n"
-        "【高风险事实】涉及人数、伤亡、撤离方式、速度、高度、跑道、故障原因、处置结果时，"
-        "禁止使用「所有」「全部」「均」「只有」「仅」「已经确认」这类全称或排他性措辞，"
+        "【报道写作准则 — 仅适用于正文】\n"
+        "- 用客观第三人称陈述，时态以过去时为主，调查、影响、持续状态可用现在时\n"
+        "- 不出现「值得关注」「引发热议」「值得深思」「这表明」这类记者自评\n"
+        "- 不出现「据报道」「报道指出」「据悉」「新闻称」这类二手转述——你就是写这篇报道的人，事实直接陈述\n"
+        "- 不写感叹号、反问句、修辞性提问、夸张比喻；语气专业、克制、内敛\n"
+        "- 数字、跑道号、航班号、机型代号、航空公司名按原文出现形式精确保留\n"
+        "- 报道与点评严格分离：正文是冷静的事实陈述，「划重点：」之后才允许出现观点和老机长口吻\n\n"
+        "【核心原则】所有事实必须能在 source_title 或 raw_text 中找到依据。\n"
+        "不引入外部事实、常识、背景知识、个人猜测；可以将英文事实翻译为中文，但不能补任何原文没有的内容。\n"
+        "如果原文没有写原因、责任、处置依据、伤情程度、调查结论，就不要写。\n\n"
+        "【高风险事实】涉及人数、伤亡、撤离方式、速度、高度、跑道、故障原因、处置结果时，\n"
+        "禁止使用「所有」「全部」「均」「只有」「仅」「已经确认」这类全称或排他性措辞，\n"
         "除非这些词在原文中有明确依据。遇到撤离方式、人数口径不完全一致时，按原文分开写，不能合并成一个绝对表述。\n\n"
-        "【绝对禁止的写法】\n"
-        "- 禁止写「原文未提供更多细节」「具体原因尚不清楚」「详情有待进一步报道」等元评论\n"
+        "【绝对禁止的写法 — 仅适用于正文】\n"
+        "- 禁止以任何形式陈述原文里没有什么信息（未提供/未给出/未说明/未披露/未涉及/未涵盖/未列出/未交代/未点明 + 更多细节/伤亡/原因/航班号/机上人数/跑道编号/飞机受损 等任意具体项，都禁止），也禁止「具体原因尚不清楚」「详情有待进一步报道」这种烂尾话；禁止枚举原文缺失的字段。原文没有的就在稿子里直接不写，绝不做缺失声明\n"
         "- 禁止写「报道提到」「报道指出」「新闻称」「据报道」「新闻标题所述事件核心为」「原文未列出」「标题涉及」「原文提到」这类转述原文的元叙述\n"
         "- 禁止评论原文的信息量、质量或完整程度\n"
         "- 禁止添加「值得关注」「引发关注」等空话套话\n"
         "- 禁止写总结句、判断句、评价句，例如「事件性质为…」「被形容为…」「险些酿成严重后果」「这说明…」\n"
         "- 禁止写字段抽取口吻，例如「时间节点为…」「时间点为…」「主体为…」「主体包括…」\n"
         "- 禁止写来源提示语或整理素材口吻，例如「根据标题信息…」「受影响范围为…」「相关措施发生在…」\n"
-        "- 只写原文中有的事实，不需要凑字数，但也不要为了求稳把正文压成过短摘要\n\n"
+        "- 只写原文中有的事实，不需要凑字数，但也不要为了求稳把正文压成过短摘要\n"
+        "- 英文占位符（unk/unknown/tbd/n/a/null/none/-- 等）不要直译——原文这样写表示「不详」，"
+        "你要么把这个字段整个不写，要么写成「损伤情况不详」之类的中文表达，绝不能让 unk / n/a 出现在中文成稿里\n\n"
         "【术语要求】航空专业术语必须使用ICAO/民航标准中文译法。\n"
         "如果下方提供了术语对照表，必须严格按照对照表翻译，不得自行发挥。\n"
         "例如：Rejected Takeoff=中断起飞，Diversion=备降，Go-Around=复飞，"
@@ -1484,9 +1600,10 @@ def _build_composition_prompt(
         "根据以下维度打score分（1-10分）：\n"
         "- 信息增量（占50%）：飞行员读完后能获得什么新认知？\n"
         "  高分示例：具体的安全事件细节、新的适航指令、SAFO/InFO、运行限制变更、机型系统问题、程序或训练要求\n"
+        "  也算具体新事实（不是空洞概述）：新机型首飞日期/地点、退役机长告别航班、首位女机长任职、纪念涂装首航、驾驶舱新航电启用\n"
         "  低分示例（必须给1-3分）：\n"
-        "    · 概述性/科普性文章：「航空法律如何塑造全球航空旅行的未来」— 没有具体新事实\n"
         "    · 空洞趋势分析：「XX技术将改变航空业」— 没有具体数据或时间节点\n"
+        "    · 通用科普文：「航空法律如何塑造全球航空旅行」— 没有具体新事实，没具体型号或事件\n"
         "    · 企业软文/宣传稿：某航司宣布战略愿景、某机场获奖 — 无运行相关信息\n"
         "    · 会议通稿：领导讲话、签约仪式、合作备忘录 — 飞行员看完等于没看\n"
         "    · 「某航司订购了飞机」「某航司开了新航线」「机场提升旅客体验」— 无具体运行影响\n"
@@ -1495,13 +1612,26 @@ def _build_composition_prompt(
         "  飞行技术类（新技术、新系统、飞行操作、驾驶舱相关）→ 额外+2分\n"
         "  事故/事件类（安全事件、事故调查、紧急情况、备降返航）→ 额外+2分\n"
         "  适航指令/安全通报类 → 额外+1分\n"
+        "  航空趣闻类（首飞/试飞里程碑、纪念飞行、退役/首位机长故事、罕见任务、驾驶舱创新）→ 额外+1分\n"
         "打分标准：7-10=值得发布，4-6=可发可不发，1-3=不值得发布\n"
         "注意：即使原文较短，只要涉及飞行技术或安全事件的具体事实，也应给高分。\n\n"
+        "【趣闻类评分专属指引 — 重要】\n"
+        "对航空趣闻类（首飞、纪念飞行、退役/首位机长、罕见任务、驾驶舱新装）评分时，\n"
+        "判断标准应该是「飞行员在群里看到这条会不会停下来读一眼或转发」，\n"
+        "不要按「能否直接指导今天的运行」来评——那是事故和适航指令的标准。\n"
+        "趣闻类的合格分是 6-7 分（不是 5 以下），只要满足以下任一条件即可给 6 分及以上：\n"
+        "- 提到具体型号 + 具体地点/日期，例如「Boeing 777-9 首架生产型在 Paine Field 首飞」\n"
+        "- 提到具体航司即将运营该机型，飞行员可能会面临改装（例：「Lufthansa 即将接收」）\n"
+        "- 涉及驾驶舱可见的新装备或操作变化（HUD、合成视景、AI 副驾、单飞行员等）\n"
+        "- 涉及具体人物 + 飞行经历（首位女机长、传奇老机长退役）\n"
+        "趣闻类只在内容是空泛宣传或纯财经/订单时给 1-3 分。\n\n"
         "【输出要求】\n"
         "- title: 中文标题，简洁准确，忠实于原文\n"
         "- conclusion: 一句话中文结论概括\n"
-        "- body: 正文，纯客观报道，只写事实（谁、什么、何时、何地），"
-        "不加任何评论、分析、解读、评价。不要用项目符号或编号列表\n"
+        "- body: 必须由两部分组成：\n"
+        "    (1) 正文：纯客观报道，只写事实（谁、什么、何时、何地），不加任何评论、分析、解读、评价；不要用项目符号或编号列表\n"
+        "    (2) 另起一行，以「划重点：」开头的老机长式锐评（详细规则见下方【划重点】段）\n"
+        "  两部分都必须出现，缺一不可\n"
         "- score: 1-10的整数评分\n"
         "- score_reason: 一句话说明打分理由\n"
         "- 外国航空公司名称保留英文原名（如Delta、United、Lufthansa、Emirates等）\n"
@@ -1509,7 +1639,7 @@ def _build_composition_prompt(
         "- 正文简洁但不能过短，不写空话套话，不加「总之」「综上」等总结语\n"
         "- 正文中禁止出现：「反映出」「体现了」「意味着」「表明」「显示出」「值得注意的是」「被形容为」「事件性质为」「时间节点为」「主体包括」「根据标题信息」「受影响范围为」等分析、定性、字段抽取或来源提示口吻\n"
         "- 正文只回答：发生了什么事？谁？什么时候？在哪？涉及什么？——仅此而已\n"
-        "- 正文结构：先写事实摘要（完整原文写4-6句，摘要稿写2-4句），然后另起一行写「划重点：」开头的编辑锐评。\n"
+        "- 正文结构：先写事实摘要（完整原文写4-6句话，摘要稿写2-4句），然后另起一行写「划重点：」开头的编辑锐评。\n"
         "  【划重点 — 这是本文最重要的部分，必须写好】\n"
         "  风格：你是一个飞了二十年的老机长，在飞行员群里转发新闻时随手配的一句话。\n"
         "  语气要求：保留调侃、吐槽、自嘲、或黑色幽默，像飞行员群里的老机长，不像新闻播音员。\n"
@@ -1532,6 +1662,8 @@ def _build_composition_prompt(
         "  X「这无疑是一个积极信号」X「未来发展值得期待」X「业界应高度重视」\n"
         "  X「这对行业具有重要意义」X「这一举措将产生深远影响」\n"
         "  X 任何以「这」开头的总结性句子 X 任何官话套话新闻腔 X 对伤亡和受伤开玩笑\n"
+        "  X 评论原文信息量/完整度/缺失——例如「信息少」「字段不全」「细节欠奉」「全靠脑补」「机长群已经在脑补」等都禁止。\n"
+        "    划重点必须针对事实本身（机型、动作、后果、行业现象）发散，不针对「这条新闻信息够不够」发散\n"
         + glossary_block
         + "\n\n输出JSON：{\"title\": \"...\", \"conclusion\": \"...\", \"body\": \"...\", \"score\": 8, \"score_reason\": \"...\"}"
     )
@@ -1548,6 +1680,9 @@ def _build_composition_prompt(
 # Minimum score threshold for articles to be published
 _MIN_PUBLISH_SCORE = 7
 _MIN_BACKFILL_SCORE = 3
+# 趣闻/新奇类（首飞、纪念飞行、人物故事）本质是行业资讯+调味剂，
+# LLM 用严肃运行价值标准评分通常偏低（5-6/10），用稍低阈值放行。
+_MIN_PUBLISH_SCORE_NOVELTY = 5
 
 
 _TRANSLATE_BODY_PROMPT = (
@@ -1742,11 +1877,19 @@ def _llm_compose_entries(
                 score = 1
 
         # Unified score gate — applies to ALL paths (LLM, translate, rules)
+        # 趣闻类（industry_novelty）用更宽松的阈值，其他类保持严格。
+        cand_pv = cand.get("pilot_value") if isinstance(cand.get("pilot_value"), dict) else {}
+        cand_category = str(cand_pv.get("category") or cand.get("section") or "")
+        publish_threshold = (
+            _MIN_PUBLISH_SCORE_NOVELTY
+            if cand_category == "industry_novelty"
+            else _MIN_PUBLISH_SCORE
+        )
         if entry and entry.citations:
-            if score < _MIN_PUBLISH_SCORE:
+            if score < publish_threshold:
                 logger.info(
                     "Phase 2 filtered (score %d < %d): %s",
-                    score, _MIN_PUBLISH_SCORE, cand.get("id", "")[:12],
+                    score, publish_threshold, cand.get("id", "")[:12],
                 )
                 n_filtered += 1
                 filtered_entries.append((score, entry))
