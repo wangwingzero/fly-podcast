@@ -12,12 +12,14 @@ sources:
     region: international
     lang: en
     link_patterns:
-      - "flightglobal\\.com/.+"
+      - "flightglobal\\.com/(?!category/|subscribe/|events/|jobs/)[a-zA-Z0-9].+"
     exclude_patterns:
       - "/author/"
       - "/events/"
       - "/jobs/"
       - "/reports/"
+      - "/category/"
+      - "/subscribe/"
       - "javascript:"
       - "#"
     max_items: 35
@@ -34,7 +36,7 @@ sources:
     region: international
     lang: en
     link_patterns:
-      - "aviationweek\\.com/air-transport/.+"
+      - "aviationweek\\.com/air-transport/(?!$)[a-z-]+/[a-z0-9].+"
     exclude_patterns:
       - "/author/"
       - "/events/"
@@ -55,17 +57,22 @@ sources:
     region: international
     lang: en
     link_patterns:
-      - "simpleflying\\.com/.+"
+      - "simpleflying\\.com/(?!category/|tag/|author/|seat-maps/|flight-tracker/|about/)[a-zA-Z0-9].+"
     exclude_patterns:
       - "/author/"
       - "/tag/"
       - "/category/"
+      - "/seat-maps/"
+      - "/flight-tracker/"
+      - "/about/"
       - "javascript:"
       - "#"
     max_items: 45
     playwright_timeout: 60
     enabled: true
 
+  # ch-aviation: SPA with hash-route, list items render via XHR after auth wall;
+  # disabled 2026-05-17 because playwright-cli can't capture the rendered list.
   - id: ch_aviation_cli
     name: ch-aviation News
     url: https://www.ch-aviation.com/news
@@ -84,8 +91,9 @@ sources:
       - "#"
     max_items: 30
     playwright_timeout: 60
-    enabled: true
+    enabled: false
 
+  # Reuters: anti-bot wall returns 1.5KB blank page to playwright-cli.
   - id: reuters_aerospace_cli
     name: Reuters Aerospace and Defense
     url: https://www.reuters.com/business/aerospace-defense/
@@ -99,8 +107,9 @@ sources:
       - "reuters\\.com/.+"
     max_items: 12
     playwright_timeout: 60
-    enabled: true
+    enabled: false
 
+  # Bloomberg: "Are you a robot?" challenge to all headless browsers.
   - id: bloomberg_airlines_cli
     name: Bloomberg Airlines
     url: https://www.bloomberg.com/industries/airlines
@@ -114,6 +123,55 @@ sources:
       - "bloomberg\\.com/.+"
     max_items: 8
     playwright_timeout: 60
+    enabled: false
+
+  # ============================================================
+  # Easy-to-scrape RSS feeds (added 2026-05-17 to backfill the 3 disabled
+  # playwright_cli sources above)
+  # ============================================================
+  - id: theaircurrent_rss
+    name: The Air Current
+    url: https://theaircurrent.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: A
+    region: international
+    enabled: true
+
+  - id: ainonline_rss
+    name: AIN Online
+    url: https://www.ainonline.com/rss.xml
+    type: rss
+    source_role: primary_industry
+    source_tier: A
+    region: international
+    enabled: true
+
+  - id: runway_girl_rss
+    name: Runway Girl Network
+    url: https://runwaygirlnetwork.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    enabled: true
+
+  - id: airline_geeks_rss
+    name: AirlineGeeks
+    url: https://airlinegeeks.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    enabled: true
+
+  - id: flightglobal_airlines_rss
+    name: FlightGlobal Airlines
+    url: https://www.flightglobal.com/category/airlines/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: A
+    region: international
     enabled: true
 
   # ============================================================

@@ -32,8 +32,8 @@ logger = get_logger("ingest")
 
 
 _PLAYWRIGHT_LIST_EVAL = (
-    "JSON.stringify(Array.from(document.querySelectorAll('article a[href], main a[href], a[href]'))"
-    ".map(anchor => { const clean = value => (value || '').replace(/\\s+/g, ' ').trim();"
+    "JSON.stringify((() => {"
+    " const clean = value => (value || '').replace(/\\s+/g, ' ').trim();"
     " const imageFrom = img => { if (!img) return '';"
     " const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset') || '';"
     " const fromSet = srcset ? srcset.split(',').map(x => x.trim().split(/\\s+/)[0]).filter(Boolean).pop() : '';"
@@ -41,6 +41,8 @@ _PLAYWRIGHT_LIST_EVAL = (
     " img.getAttribute('data-original') || img.getAttribute('src') || '';"
     " if (!raw || raw.startsWith('data:')) return '';"
     " try { return new URL(raw, location.href).href; } catch (e) { return ''; } };"
+    " const anchors = Array.from(document.querySelectorAll('article a[href], main a[href], a[href]'));"
+    " const items = anchors.map(anchor => {"
     " const href = anchor.getAttribute('href') || ''; let url = '';"
     " try { url = new URL(href, location.href).href; } catch (e) { return null; }"
     " const container = anchor.querySelector('article') || anchor.closest('article, li, div') || anchor;"
@@ -54,9 +56,22 @@ _PLAYWRIGHT_LIST_EVAL = (
     " const published_at = clean((timeNode && (timeNode.getAttribute('datetime') || timeNode.textContent)) || '');"
     " const image_url = imageFrom(container.querySelector('picture img, figure img, img'));"
     " return {title, url, summary, published_at, image_url}; })"
-    ".filter((item, idx, arr) => item && item.url.startsWith('http') && item.title.length >= 8"
-    " && arr.findIndex(other => other && other.url === item.url) === idx)"
-    ".slice(0, __MAX_ITEMS__))"
+    ".filter(item => item && item.url.startsWith('http') && (item.title || '').length >= 8);"
+    # Score each candidate so we can keep the most article-like one when the same URL
+    # appears via multiple anchors (nav <a>, image <a>, heading <a>, etc.).
+    " const score = it => { const t = (it.title || ''); let s = t.length;"
+    "  if (/^[A-Z0-9 &/\\-]{3,40}$/.test(t)) s -= 100;"  # nav/category labels are usually all-caps short
+    "  if (/^MORE\\b/i.test(t)) s -= 100;"
+    "  if (it.image_url) s += 20;"
+    "  if (it.published_at) s += 30;"
+    "  return s; };"
+    " const byUrl = new Map();"
+    " for (const it of items) {"
+    "  const prev = byUrl.get(it.url);"
+    "  if (!prev || score(it) > score(prev)) byUrl.set(it.url, it);"
+    " }"
+    " return Array.from(byUrl.values()).slice(0, __MAX_ITEMS__);"
+    "})())"
 )
 
 
