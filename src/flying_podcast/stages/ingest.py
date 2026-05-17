@@ -26,6 +26,7 @@ from flying_podcast.core.io_utils import append_lines, dump_json, load_json, loa
 from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.models import NewsItem
 from flying_podcast.core.time_utils import beijing_today_str
+from flying_podcast.stages.playwright_cli_registry import get_playwright_cli_strategy
 from flying_podcast.stages.web_parser_registry import parse_web_source_entries
 
 logger = get_logger("ingest")
@@ -122,11 +123,11 @@ _PLAYWRIGHT_ROUTE_BLOCK_CODE = (
 )
 
 
-def _playwright_goto_args(url: str, timeout: int) -> list[str]:
+def _playwright_goto_args(url: str, timeout: int, *, wait_until: str = "domcontentloaded") -> list[str]:
     timeout_ms = max(1, int(timeout)) * 1000
     code = (
         "async page => {"
-        f" await page.goto({json.dumps(url)}, {{ waitUntil: 'domcontentloaded', timeout: {timeout_ms} }});"
+        f" await page.goto({json.dumps(url)}, {{ waitUntil: {json.dumps(wait_until)}, timeout: {timeout_ms} }});"
         "}"
     )
     return ["run-code", code]
@@ -643,27 +644,38 @@ def _collect_playwright_cli_entries(source: dict[str, Any]) -> list[dict[str, An
     link_patterns = [re.compile(p) for p in source.get("link_patterns", [])]
     exclude_patterns = [re.compile(p) for p in source.get("exclude_patterns", [])]
     include_keywords = [x.lower() for x in source.get("article_include_keywords", [])]
-    # 默认不在 ingest 阶段挨个抓正文：每篇都 navigate 会让单源耗时 ×N，
-    # 同时让 chromium daemon 进程留存大量 tab，最终把服务器内存吃光。
-    # 列表里 summary + title 已够 rank/phase1 用；phase2 真正需要正文时
-    # 由 compose 单独再抓（数量 ≤3）。
     fetch_article_text = bool(source.get("fetch_article_text", False))
     strict_published_at = settings.strict_web_published_at
+    strategy = get_playwright_cli_strategy(source)
 
     try:
         _run_playwright_cli(["open"], session=session, timeout=timeout, use_xvfb=use_xvfb)
         try:
             _run_playwright_cli(
-                ["run-code", _PLAYWRIGHT_ROUTE_BLOCK_CODE],
+                ["run-code", strategy.route_block_code],
                 session=session,
                 timeout=timeout,
                 use_xvfb=use_xvfb,
             )
         except Exception as exc:  # noqa: BLE001
             logger.debug("playwright-cli route setup failed %s: %s", source.get("id"), exc)
-        _run_playwright_cli(_playwright_goto_args(list_url, timeout), session=session, timeout=timeout, use_xvfb=use_xvfb)
+        _run_playwright_cli(
+            _playwright_goto_args(list_url, timeout, wait_until=strategy.list_wait_until),
+            session=session,
+            timeout=timeout,
+            use_xvfb=use_xvfb,
+        )
+        for prep_code in strategy.list_prep_code:
+            _run_playwright_cli(["run-code", prep_code], session=session, timeout=timeout, use_xvfb=use_xvfb)
+        if strategy.post_list_wait_ms > 0:
+            _run_playwright_cli(
+                ["run-code", f"async page => {{ await page.waitForTimeout({int(strategy.post_list_wait_ms)}); }}"],
+                session=session,
+                timeout=timeout,
+                use_xvfb=use_xvfb,
+            )
         raw = _run_playwright_cli(
-            ["--raw", "eval", _PLAYWRIGHT_LIST_EVAL.replace("__MAX_ITEMS__", str(max(max_items * 6, 80)))],
+            ["--raw", "eval", strategy.list_eval.replace("__MAX_ITEMS__", str(max(max_items * 6, 80)))],
             session=session,
             timeout=timeout,
             use_xvfb=use_xvfb,
@@ -714,19 +726,28 @@ def _collect_playwright_cli_entries(source: dict[str, Any]) -> list[dict[str, An
             if fetch_article_text:
                 try:
                     _run_playwright_cli(
-                        _playwright_goto_args(abs_url, timeout),
+                        _playwright_goto_args(abs_url, timeout, wait_until=strategy.article_wait_until),
                         session=session,
                         timeout=timeout,
                         use_xvfb=use_xvfb,
                     )
+                    for prep_code in strategy.article_prep_code:
+                        _run_playwright_cli(["run-code", prep_code], session=session, timeout=timeout, use_xvfb=use_xvfb)
+                    if strategy.post_article_wait_ms > 0:
+                        _run_playwright_cli(
+                            ["run-code", f"async page => {{ await page.waitForTimeout({int(strategy.post_article_wait_ms)}); }}"],
+                            session=session,
+                            timeout=timeout,
+                            use_xvfb=use_xvfb,
+                        )
                     article_text = _run_playwright_cli(
-                        ["--raw", "eval", _PLAYWRIGHT_ARTICLE_EVAL],
+                        ["--raw", "eval", strategy.article_eval],
                         session=session,
                         timeout=timeout,
                         use_xvfb=use_xvfb,
                     ).strip()
                     article_image = _run_playwright_cli(
-                        ["--raw", "eval", _PLAYWRIGHT_ARTICLE_IMAGE_EVAL],
+                        ["--raw", "eval", strategy.article_image_eval],
                         session=session,
                         timeout=timeout,
                         use_xvfb=use_xvfb,

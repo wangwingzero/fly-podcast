@@ -7,6 +7,7 @@ sources:
     url: https://www.flightglobal.com/air-transport
     type: web
     fetch_mode: playwright_cli
+    cli_strategy: flightglobal_air_transport_cli
     source_role: primary_industry
     source_tier: A
     region: international
@@ -32,6 +33,7 @@ sources:
     url: https://aviationweek.com/air-transport
     type: web
     fetch_mode: playwright_cli
+    cli_strategy: aviation_week_air_transport_cli
     source_role: primary_industry
     source_tier: A
     region: international
@@ -54,6 +56,7 @@ sources:
     url: https://simpleflying.com/category/aviation-news/
     type: web
     fetch_mode: playwright_cli
+    cli_strategy: simple_flying_cli
     source_role: primary_industry
     source_tier: B
     region: international
