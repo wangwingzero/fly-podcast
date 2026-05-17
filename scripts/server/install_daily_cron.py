@@ -2,7 +2,8 @@
 """Install the server-local daily digest cron entry.
 
 The production server runs in Asia/Shanghai. Keep this cron entry in server
-local time so the daily digest starts at Beijing 07:00, not UTC 23:00.
+local time so the daily digest starts at Beijing 03:00, leaving headroom for
+slow playwright_cli sources before the morning publish window.
 """
 
 from __future__ import annotations
@@ -15,18 +16,18 @@ import tempfile
 from pathlib import Path
 
 
-CRON_COMMENT = "# flying-podcast daily digest: Beijing 07:00, auto-publishes non-empty WeChat digest"
+CRON_COMMENT = "# flying-podcast daily digest: Beijing 03:00, auto-publishes non-empty WeChat digest"
 CRON_COMMAND = (
     "flock -xn /www/server/cron/flying_podcast_daily.lock "
     "-c /www/server/cron/flying_podcast_daily "
     ">> /www/server/cron/flying_podcast_daily.log 2>&1"
 )
-CRON_LINE = f"0 7 * * *  {CRON_COMMAND}"
+CRON_LINE = f"0 3 * * *  {CRON_COMMAND}"
 WRAPPER_NAME = "flying_podcast_daily"
 
 
 def build_crontab(existing: str) -> str:
-    """Return crontab text with one Beijing 07:00 daily digest entry."""
+    """Return crontab text with one Beijing 03:00 daily digest entry."""
     kept: list[str] = []
     for line in existing.splitlines():
         if "flying-podcast daily digest" in line:

@@ -22,8 +22,9 @@ sources:
       - "/subscribe/"
       - "javascript:"
       - "#"
-    max_items: 35
-    playwright_timeout: 60
+    max_items: 18
+    playwright_timeout: 25
+    fetch_article_text: false
     enabled: true
 
   - id: aviation_week_air_transport_cli
@@ -43,8 +44,9 @@ sources:
       - "/marketplace/"
       - "javascript:"
       - "#"
-    max_items: 35
-    playwright_timeout: 60
+    max_items: 18
+    playwright_timeout: 25
+    fetch_article_text: false
     enabled: true
 
   - id: simple_flying_cli
@@ -67,11 +69,9 @@ sources:
       - "/about/"
       - "javascript:"
       - "#"
-    max_items: 45
-    playwright_timeout: 60
-    enabled: true
-
-  # ch-aviation: SPA with hash-route, list items render via XHR after auth wall;
+    max_items: 20
+    playwright_timeout: 25
+    fetch_article_text: false
   # disabled 2026-05-17 because playwright-cli can't capture the rendered list.
   - id: ch_aviation_cli
     name: ch-aviation News

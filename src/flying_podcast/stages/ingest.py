@@ -643,7 +643,11 @@ def _collect_playwright_cli_entries(source: dict[str, Any]) -> list[dict[str, An
     link_patterns = [re.compile(p) for p in source.get("link_patterns", [])]
     exclude_patterns = [re.compile(p) for p in source.get("exclude_patterns", [])]
     include_keywords = [x.lower() for x in source.get("article_include_keywords", [])]
-    fetch_article_text = bool(source.get("fetch_article_text", True))
+    # 默认不在 ingest 阶段挨个抓正文：每篇都 navigate 会让单源耗时 ×N，
+    # 同时让 chromium daemon 进程留存大量 tab，最终把服务器内存吃光。
+    # 列表里 summary + title 已够 rank/phase1 用；phase2 真正需要正文时
+    # 由 compose 单独再抓（数量 ≤3）。
+    fetch_article_text = bool(source.get("fetch_article_text", False))
     strict_published_at = settings.strict_web_published_at
 
     try:

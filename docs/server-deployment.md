@@ -16,8 +16,8 @@ skipped before any WeChat draft or publish call is made.
 
 ## Schedule
 
-Run once per day at Beijing 07:00. The production server timezone must be
-`Asia/Shanghai`, so the server crontab uses local `0 7 * * *`, not the old
+Run once per day at Beijing 03:00. The production server timezone must be
+`Asia/Shanghai`, so the server crontab uses local `0 3 * * *`, not the old
 GitHub Actions UTC form.
 
 Install or repair the wrapper and crontab entry with:
@@ -30,7 +30,7 @@ cd /www/wwwroot/flying-podcast
 Expected crontab entry:
 
 ```cron
-0 7 * * * flock -xn /www/server/cron/flying_podcast_daily.lock -c /www/server/cron/flying_podcast_daily >> /www/server/cron/flying_podcast_daily.log 2>&1
+0 3 * * * flock -xn /www/server/cron/flying_podcast_daily.lock -c /www/server/cron/flying_podcast_daily >> /www/server/cron/flying_podcast_daily.log 2>&1
 ```
 
 The runner executes the daily digest stages and then copies public web outputs to
@@ -59,7 +59,7 @@ In BaoTa, manage the job as a shell scheduled task:
 
 - Task name: `flying-podcast-daily`
 - Type: Shell script
-- Schedule: daily at `07:00` server local time (`Asia/Shanghai`)
+- Schedule: daily at `03:00` server local time (`Asia/Shanghai`)
 - Script:
 
 ```bash
