@@ -33,6 +33,20 @@ _DEFAULT_ARTICLE_EVAL = (
 )
 
 
+_DEFAULT_ARTICLE_DATE_EVAL = (
+    "/* articleDate */ (() => {"
+    " const selectors = ['meta[property=\"article:published_time\"]','meta[name=\"article:published_time\"]','meta[property=\"og:published_time\"]','meta[name=\"parsely-pub-date\"]','time[datetime]','[datetime]','[class*=\"date\"]','[class*=\"time\"]','[class*=\"published\"]'];"
+    " for (const selector of selectors) {"
+    "  const node = document.querySelector(selector);"
+    "  if (!node) continue;"
+    "  const value = (node.getAttribute && (node.getAttribute('datetime') || node.getAttribute('content'))) || node.textContent || '';"
+    "  const clean = (value || '').replace(/\\s+/g, ' ').trim();"
+    "  if (clean) return clean;"
+    " }"
+    " return ''; })()"
+)
+
+
 _DEFAULT_ROUTE_BLOCK_CODE = (
     "async page => {"
     " const blockedTypes = new Set(['image','media','font']);"
@@ -119,6 +133,7 @@ class PlaywrightCliStrategy:
     list_eval: str
     article_eval: str = _DEFAULT_ARTICLE_EVAL
     article_image_eval: str = _DEFAULT_ARTICLE_IMAGE_EVAL
+    article_date_eval: str = _DEFAULT_ARTICLE_DATE_EVAL
     route_block_code: str = _DEFAULT_ROUTE_BLOCK_CODE
     list_wait_until: str = "domcontentloaded"
     article_wait_until: str = "domcontentloaded"
@@ -126,24 +141,19 @@ class PlaywrightCliStrategy:
     post_article_wait_ms: int = 0
     list_prep_code: tuple[str, ...] = ()
     article_prep_code: tuple[str, ...] = ()
+    fetch_published_at_when_missing: bool = False
 
 
 _GENERIC_PLAYWRIGHT_CLI_STRATEGY = PlaywrightCliStrategy(
     name="generic",
-    list_eval=_build_list_eval(
-        ["article a[href]", "main a[href]", "a[href]"],
-    ),
+    list_eval=_build_list_eval(["article a[href]", "main a[href]", "a[href]"]),
 )
 
 
 _FLIGHTGLOBAL_PLAYWRIGHT_CLI_STRATEGY = PlaywrightCliStrategy(
     name="flightglobal_air_transport_cli",
     list_eval=_build_list_eval(
-        [
-            "main article a[href]",
-            "article a[href]",
-            "main [class*='story'] a[href]",
-        ],
+        ["main article a[href]", "article a[href]", "main [class*='story'] a[href]"],
         container_selector="article, [class*='story'], [class*='card'], [class*='article'], li, div",
         heading_selector="h1,h2,h3,[class*='title'],[class*='headline']",
     ),
@@ -153,25 +163,18 @@ _FLIGHTGLOBAL_PLAYWRIGHT_CLI_STRATEGY = PlaywrightCliStrategy(
 _AVIATION_WEEK_PLAYWRIGHT_CLI_STRATEGY = PlaywrightCliStrategy(
     name="aviation_week_air_transport_cli",
     list_eval=_build_list_eval(
-        [
-            "main [class*='title'] a[href]",
-            "main article a[href]",
-            "article a[href]",
-        ],
+        ["main [class*='title'] a[href]", "main article a[href]", "article a[href]"],
         container_selector="article, [class*='title'], [class*='headline'], [class*='card'], [class*='tile'], [class*='story'], [class*='item'], li, div",
     ),
     post_list_wait_ms=1500,
+    fetch_published_at_when_missing=True,
 )
 
 
 _SIMPLE_FLYING_PLAYWRIGHT_CLI_STRATEGY = PlaywrightCliStrategy(
     name="simple_flying_cli",
     list_eval=_build_list_eval(
-        [
-            "main h3 a[href]",
-            "main [class*='card'] a[href]",
-            "main [class*='title'] a[href]",
-        ],
+        ["main h3 a[href]", "main [class*='card'] a[href]", "main [class*='title'] a[href]"],
         container_selector="article, [class*='card'], [class*='title'], [class*='post'], [class*='news'], li, div",
     ),
     post_list_wait_ms=1500,

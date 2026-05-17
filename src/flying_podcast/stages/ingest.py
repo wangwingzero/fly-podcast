@@ -761,6 +761,32 @@ def _collect_playwright_cli_entries(source: dict[str, Any]) -> list[dict[str, An
                 _normalize_time_strict(parsed.get("published_at"))
                 or _extract_published_at_for_web(source, abs_url, f"{text} {summary}")
             )
+            if not published_at and strategy.fetch_published_at_when_missing:
+                try:
+                    _run_playwright_cli(
+                        _playwright_goto_args(abs_url, timeout, wait_until=strategy.article_wait_until),
+                        session=session,
+                        timeout=timeout,
+                        use_xvfb=use_xvfb,
+                    )
+                    for prep_code in strategy.article_prep_code:
+                        _run_playwright_cli(["run-code", prep_code], session=session, timeout=timeout, use_xvfb=use_xvfb)
+                    if strategy.post_article_wait_ms > 0:
+                        _run_playwright_cli(
+                            ["run-code", f"async page => {{ await page.waitForTimeout({int(strategy.post_article_wait_ms)}); }}"],
+                            session=session,
+                            timeout=timeout,
+                            use_xvfb=use_xvfb,
+                        )
+                    article_date = _run_playwright_cli(
+                        ["--raw", "eval", strategy.article_date_eval],
+                        session=session,
+                        timeout=timeout,
+                        use_xvfb=use_xvfb,
+                    ).strip()
+                    published_at = _normalize_time_strict(article_date)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("playwright-cli article date fetch failed %s: %s", abs_url[:120], exc)
             if not published_at and strict_published_at:
                 continue
             raw_text = article_text or summary or text
