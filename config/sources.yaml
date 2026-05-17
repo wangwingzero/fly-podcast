@@ -145,7 +145,7 @@ sources:
     source_role: primary_industry
     source_tier: A
     region: international
-    enabled: true
+    enabled: false
 
   - id: runway_girl_rss
     name: Runway Girl Network
@@ -165,14 +165,34 @@ sources:
     region: international
     enabled: true
 
-  - id: flightglobal_airlines_rss
-    name: FlightGlobal Airlines
-    url: https://www.flightglobal.com/category/airlines/feed/
+
+  - id: airport_technology_rss
+    name: Airport Technology
+    url: https://www.airport-technology.com/feed/
     type: rss
     source_role: primary_industry
-    source_tier: A
+    source_tier: B
     region: international
     enabled: true
+
+  - id: aviation_business_news_rss
+    name: Aviation Business News
+    url: https://aviationbusinessnews.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    enabled: true
+
+  - id: airinsight_rss
+    name: AirInsight
+    url: https://airinsight.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    enabled: true
+
 
   # ============================================================
   # Accident / safety exception sources
