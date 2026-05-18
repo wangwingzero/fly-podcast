@@ -94,7 +94,8 @@ def _build_list_eval(
         " const items = anchors.map(anchor => {"
         "  const href = anchor.getAttribute('href') || ''; let url = '';"
         "  try { url = new URL(href, location.href).href; } catch (e) { return null; }"
-        "  const container = anchor.closest(containerSelector) || anchor.parentElement || anchor;"
+        "  const inner = anchor.querySelector(containerSelector);"
+        "  const container = (inner && inner !== anchor) ? inner : (anchor.closest(containerSelector) || anchor.parentElement || anchor);"
         "  const heading = container.querySelector(headingSelector);"
         "  const lines = (container.innerText || anchor.innerText || '').split(/\\n+/).map(clean).filter(Boolean);"
         "  const firstLine = lines[0] || '';"
@@ -153,9 +154,9 @@ _GENERIC_PLAYWRIGHT_CLI_STRATEGY = PlaywrightCliStrategy(
 _FLIGHTGLOBAL_PLAYWRIGHT_CLI_STRATEGY = PlaywrightCliStrategy(
     name="flightglobal_air_transport_cli",
     list_eval=_build_list_eval(
-        ["main article a[href]", "article a[href]", "main [class*='story'] a[href]"],
-        container_selector="article, [class*='story'], [class*='card'], [class*='article'], li, div",
-        heading_selector="h1,h2,h3,[class*='title'],[class*='headline']",
+        ["a:has(article)", "main article a[href]", "article a[href]", "main [class*='story'] a[href]"],
+        container_selector="article, [class*='summary'], [class*='post'], [class*='story'], [class*='card'], [class*='article'], li, div",
+        heading_selector="[class*='post-title'],[class*='title'],h1,h2,h3,[class*='headline']",
     ),
 )
 
