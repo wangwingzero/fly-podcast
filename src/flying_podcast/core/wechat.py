@@ -319,65 +319,51 @@ class WeChatClient:
                                 file_name: str = "cover.jpg") -> str:
         """Upload image bytes for use as draft thumbnail.
 
-        WeChat constraints:
-        - permanent material: jpg/png ≤ 2MB; many account types reject the API
-          itself (errcode 40113 unsupported file type)
-        - temp thumb media (`media/upload?type=thumb`): jpg ONLY, ≤ 64 KB
-        - both endpoints reject WebP/SVG/AVIF (errcode 40137 invalid image format)
+        Important — only the **permanent** material thumbnail (`add_material?type=thumb`)
+        produces a media_id usable as `thumb_media_id` when creating a draft.
+        Temp media (`media/upload`) returns a media_id that is rejected by
+        `draft/add` with errcode 40007.
 
-        Strategy: try permanent first; on errcode 40113 fall back to temp thumb,
-        re-encoding the image to JPEG and shrinking to fit the 64 KB cap.
-        Either media_id can be passed as `thumb_media_id` when creating a draft.
+        WeChat constraints for permanent thumb:
+        - JPEG only (PNG/WebP/AVIF return errcode 40137)
+        - ≤ 64 KB on disk
+        - max ~300×300 recommended
+
+        Strategy: re-encode to a small JPEG via Pillow first, then POST to
+        `material/add_material?type=thumb`.
         """
         if not token:
             token = self._access_token()
 
-        def _post(url: str, params: dict, payload: bytes, name: str) -> dict:
+        squeezed = _squeeze_jpeg_for_thumb(image_data) or image_data
+        if len(squeezed) > _THUMB_MAX_BYTES:
+            logger.warning(
+                "Cover image still %d bytes after squeeze (limit %d); upload may fail",
+                len(squeezed), _THUMB_MAX_BYTES,
+            )
+
+        try:
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-                f.write(payload)
+                f.write(squeezed)
                 tmp_path = f.name
             try:
-                return _curl_post_file(
-                    url,
-                    params=params,
+                data = _curl_post_file(
+                    f"{self.base}/material/add_material",
+                    params={"access_token": token, "type": "thumb"},
                     file_field="media", file_path=tmp_path,
-                    file_name=name, content_type="image/jpeg",
+                    file_name="cover.jpg", content_type="image/jpeg",
                     proxy=self._proxy, timeout=60,
                 )
             finally:
                 os.unlink(tmp_path)
-
-        try:
-            data = _post(
-                f"{self.base}/material/add_material",
-                {"access_token": token, "type": "image"},
-                image_data, file_name,
-            )
             media_id = data.get("media_id", "")
             if media_id:
-                logger.info("Uploaded thumb material (permanent): %s", media_id[:40])
-                return media_id
-            errcode = int(data.get("errcode", 0) or 0)
-            logger.warning("Upload permanent thumb material failed: %s", data)
-            if errcode == 40113:
-                # Fallback: re-encode to JPEG ≤ 64KB and upload as temp thumb.
-                squeezed = _squeeze_jpeg_for_thumb(image_data)
-                if not squeezed:
-                    logger.warning("Could not re-encode cover image for temp thumb")
-                    return ""
-                temp = _post(
-                    f"{self.base}/media/upload",
-                    {"access_token": token, "type": "thumb"},
-                    squeezed, "cover.jpg",
+                logger.info(
+                    "Uploaded permanent thumb material (%d bytes): %s",
+                    len(squeezed), media_id[:40],
                 )
-                temp_id = temp.get("media_id") or temp.get("thumb_media_id") or ""
-                if temp_id:
-                    logger.info(
-                        "Uploaded thumb media (temp, %d bytes): %s",
-                        len(squeezed), temp_id[:40],
-                    )
-                    return temp_id
-                logger.warning("Upload temp thumb media failed: %s", temp)
+                return media_id
+            logger.warning("Upload permanent thumb material failed: %s", data)
         except Exception:
             logger.warning("Upload thumb material exception")
         return ""
