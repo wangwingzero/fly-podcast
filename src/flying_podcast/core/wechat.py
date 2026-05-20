@@ -115,6 +115,63 @@ def _curl_post_file(url: str, params: dict | None = None,
     return json.loads(r.stdout)
 
 
+# WeChat 临时素材 thumb 限制：jpg ≤ 64KB。多数文章封面图 100~500 KB，需要再压。
+_THUMB_MAX_BYTES = 60 * 1024
+
+
+def _squeeze_jpeg_for_thumb(data: bytes, *, max_bytes: int = _THUMB_MAX_BYTES) -> bytes:
+    """Re-encode `data` as JPEG ≤ max_bytes, shrinking dimensions if needed.
+
+    Returns the encoded bytes, or b"" if Pillow is unavailable or the input
+    can't be decoded.
+    """
+    if not data:
+        return b""
+    if len(data) <= max_bytes:
+        # Even when small enough, force JPEG to dodge WebP/PNG cases that
+        # WeChat's thumb endpoint rejects with errcode 40137.
+        pass
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+    except ImportError:
+        logger.warning("Pillow not installed; cannot squeeze cover image for thumb")
+        return data if len(data) <= max_bytes else b""
+
+    try:
+        img = Image.open(BytesIO(data))
+        if img.mode not in {"RGB", "L"}:
+            img = img.convert("RGB")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Cannot decode cover image for thumb: %s", exc)
+        return b""
+
+    quality = 85
+    max_side = 1024
+    for _ in range(8):
+        width, height = img.size
+        scale = min(max_side / max(width, height), 1.0)
+        if scale < 1.0:
+            resized = img.resize(
+                (max(1, int(width * scale)), max(1, int(height * scale))),
+                Image.LANCZOS,
+            )
+        else:
+            resized = img
+        buf = BytesIO()
+        resized.save(buf, format="JPEG", quality=quality, optimize=True)
+        encoded = buf.getvalue()
+        if len(encoded) <= max_bytes:
+            return encoded
+        # Shrink and lower quality for next attempt
+        if quality > 50:
+            quality -= 10
+        else:
+            max_side = max(320, int(max_side * 0.75))
+    return encoded
+
+
 class WeChatClient:
     def __init__(self) -> None:
         self.base = "https://api.weixin.qq.com/cgi-bin"
@@ -262,25 +319,29 @@ class WeChatClient:
                                 file_name: str = "cover.jpg") -> str:
         """Upload image bytes for use as draft thumbnail.
 
-        Tries permanent material first (errcode 40113 means the account is
-        not authorized for permanent assets — typical for 个人订阅号), then
-        falls back to the temp media endpoint (`media/upload?type=thumb`),
-        which every account type can use. Either kind of media_id can be
-        passed as `thumb_media_id` when creating a draft.
+        WeChat constraints:
+        - permanent material: jpg/png ≤ 2MB; many account types reject the API
+          itself (errcode 40113 unsupported file type)
+        - temp thumb media (`media/upload?type=thumb`): jpg ONLY, ≤ 64 KB
+        - both endpoints reject WebP/SVG/AVIF (errcode 40137 invalid image format)
+
+        Strategy: try permanent first; on errcode 40113 fall back to temp thumb,
+        re-encoding the image to JPEG and shrinking to fit the 64 KB cap.
+        Either media_id can be passed as `thumb_media_id` when creating a draft.
         """
         if not token:
             token = self._access_token()
 
-        def _post(url: str, params: dict) -> dict:
+        def _post(url: str, params: dict, payload: bytes, name: str) -> dict:
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-                f.write(image_data)
+                f.write(payload)
                 tmp_path = f.name
             try:
                 return _curl_post_file(
                     url,
                     params=params,
                     file_field="media", file_path=tmp_path,
-                    file_name=file_name, content_type="image/jpeg",
+                    file_name=name, content_type="image/jpeg",
                     proxy=self._proxy, timeout=60,
                 )
             finally:
@@ -290,6 +351,7 @@ class WeChatClient:
             data = _post(
                 f"{self.base}/material/add_material",
                 {"access_token": token, "type": "image"},
+                image_data, file_name,
             )
             media_id = data.get("media_id", "")
             if media_id:
@@ -298,14 +360,22 @@ class WeChatClient:
             errcode = int(data.get("errcode", 0) or 0)
             logger.warning("Upload permanent thumb material failed: %s", data)
             if errcode == 40113:
-                # Fallback: upload as temp thumb media (works on personal accounts).
+                # Fallback: re-encode to JPEG ≤ 64KB and upload as temp thumb.
+                squeezed = _squeeze_jpeg_for_thumb(image_data)
+                if not squeezed:
+                    logger.warning("Could not re-encode cover image for temp thumb")
+                    return ""
                 temp = _post(
                     f"{self.base}/media/upload",
                     {"access_token": token, "type": "thumb"},
+                    squeezed, "cover.jpg",
                 )
                 temp_id = temp.get("media_id") or temp.get("thumb_media_id") or ""
                 if temp_id:
-                    logger.info("Uploaded thumb media (temp): %s", temp_id[:40])
+                    logger.info(
+                        "Uploaded thumb media (temp, %d bytes): %s",
+                        len(squeezed), temp_id[:40],
+                    )
                     return temp_id
                 logger.warning("Upload temp thumb media failed: %s", temp)
         except Exception:
