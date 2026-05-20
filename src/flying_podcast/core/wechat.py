@@ -260,29 +260,54 @@ class WeChatClient:
 
     def upload_thumb_image_bytes(self, image_data: bytes, token: str | None = None,
                                 file_name: str = "cover.jpg") -> str:
-        """Upload image bytes as permanent material for use as article thumbnail."""
+        """Upload image bytes for use as draft thumbnail.
+
+        Tries permanent material first (errcode 40113 means the account is
+        not authorized for permanent assets — typical for 个人订阅号), then
+        falls back to the temp media endpoint (`media/upload?type=thumb`),
+        which every account type can use. Either kind of media_id can be
+        passed as `thumb_media_id` when creating a draft.
+        """
         if not token:
             token = self._access_token()
-        try:
+
+        def _post(url: str, params: dict) -> dict:
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
                 f.write(image_data)
                 tmp_path = f.name
             try:
-                url = f"{self.base}/material/add_material"
-                data = _curl_post_file(
+                return _curl_post_file(
                     url,
-                    params={"access_token": token, "type": "image"},
+                    params=params,
                     file_field="media", file_path=tmp_path,
                     file_name=file_name, content_type="image/jpeg",
                     proxy=self._proxy, timeout=60,
                 )
             finally:
                 os.unlink(tmp_path)
+
+        try:
+            data = _post(
+                f"{self.base}/material/add_material",
+                {"access_token": token, "type": "image"},
+            )
             media_id = data.get("media_id", "")
             if media_id:
-                logger.info("Uploaded thumb material: %s", media_id[:40])
+                logger.info("Uploaded thumb material (permanent): %s", media_id[:40])
                 return media_id
-            logger.warning("Upload thumb material failed: %s", data)
+            errcode = int(data.get("errcode", 0) or 0)
+            logger.warning("Upload permanent thumb material failed: %s", data)
+            if errcode == 40113:
+                # Fallback: upload as temp thumb media (works on personal accounts).
+                temp = _post(
+                    f"{self.base}/media/upload",
+                    {"access_token": token, "type": "thumb"},
+                )
+                temp_id = temp.get("media_id") or temp.get("thumb_media_id") or ""
+                if temp_id:
+                    logger.info("Uploaded thumb media (temp): %s", temp_id[:40])
+                    return temp_id
+                logger.warning("Upload temp thumb media failed: %s", temp)
         except Exception:
             logger.warning("Upload thumb material exception")
         return ""
