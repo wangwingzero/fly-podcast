@@ -1125,7 +1125,10 @@ def _build_entries_with_rules(selected: list[dict]) -> list[DigestEntry]:
 # ---------------------------------------------------------------------------
 
 _COMPOSE_RAW_TEXT_LIMIT = 2000
-_COMPOSE_MAX_WORKERS = 1
+# 自托管 LLM (LLM_BASE_URL) 单实例可承受 3-4 路并发；GHA 上 ingest→rank→compose
+# 是串行的，compose 是整链路的耗时大头，提速至 3 路把 13 条压缩到 ~1 分钟。
+# 如果未来切换到限速更紧的官方 API，可降回 1。
+_COMPOSE_MAX_WORKERS = 3
 _THIN_CONTENT_THRESHOLD = 200  # chars — below this, try to fetch full article
 
 
@@ -1595,26 +1598,43 @@ def _build_composition_prompt(
         "例如：Rejected Takeoff=中断起飞，Diversion=备降，Go-Around=复飞，"
         "Turbulence=颠簸，NOTAM=航行通告，METAR=例行天气报告。\n\n"
         "【打分要求 — 核心标准：信息增量】\n"
-        "一个飞行员读完这条新闻后，是否获得了一个他之前不知道的具体事实？\n"
-        "如果「看完像没看」，就是低分。如果获得了新的具体认知，就是高分。\n\n"
+        "本简报的目标读者：一线民航飞行员 + 资深飞行爱好者。\n"
+        "他们不只关心今天能用上的运行细节，也关心新机型、新发动机、新航电、试飞、首飞、\n"
+        "结构事件、适航指令、ATC 行业动态、罕见任务、机队变化和制造业里程碑。\n"
+        "判断标准：读者读完这条新闻，是否多知道了一个具体事实——机型、人物、地点、时间、\n"
+        "系统、订单、试飞、检查、停飞、生产里程碑等任一具体增量。\n"
+        "如果「看完像没看」就是低分，获得了新认知就是高分。\n\n"
         "根据以下维度打score分（1-10分）：\n"
-        "- 信息增量（占50%）：飞行员读完后能获得什么新认知？\n"
-        "  高分示例：具体的安全事件细节、新的适航指令、SAFO/InFO、运行限制变更、机型系统问题、程序或训练要求\n"
-        "  也算具体新事实（不是空洞概述）：新机型首飞日期/地点、退役机长告别航班、首位女机长任职、纪念涂装首航、驾驶舱新航电启用\n"
+        "- 信息增量（占50%）：飞行员/爱好者读完后能获得什么新认知？\n"
+        "  高分示例（≥7 分）：\n"
+        "    · 安全 / 适航：具体的航空事件细节、新的适航指令、SAFO/InFO、运行限制变更、\n"
+        "      机队检查、停飞、机型系统问题、空中接近 / TCAS RA、跑道事件、起落架 / 发动机故障\n"
+        "    · 行业监管：FAA / EASA / NTSB / IATA 的具体决策、ATC 人员目标变化、罢工 / 工会博弈\n"
+        "    · 技术 / 工程：新发动机选型、AeroSHARK 这类减阻技术、SAF、新航电、HUD / 合成视景、\n"
+        "      自主飞行、单飞行员、风扇叶片或吊架结构调查\n"
+        "    · 趣闻 / 里程碑：新机型首飞日期 / 地点、双座型 / 衍生型号试飞、本土组装首架机出厂、\n"
+        "      退役机长告别飞行、首位女机长、纪念涂装首航、世界纪录飞行、罕见极地或超长航班\n"
+        "    · 机队 / 订单 — 仅当包含具体增量时：首单、首架交付、新机型进入运营、机型替换计划、\n"
+        "      退役计划、租赁回购等含「机型 + 数量 + 时间」三要素的订单\n"
         "  低分示例（必须给1-3分）：\n"
         "    · 空洞趋势分析：「XX技术将改变航空业」— 没有具体数据或时间节点\n"
         "    · 通用科普文：「航空法律如何塑造全球航空旅行」— 没有具体新事实，没具体型号或事件\n"
-        "    · 企业软文/宣传稿：某航司宣布战略愿景、某机场获奖 — 无运行相关信息\n"
-        "    · 会议通稿：领导讲话、签约仪式、合作备忘录 — 飞行员看完等于没看\n"
-        "    · 「某航司订购了飞机」「某航司开了新航线」「机场提升旅客体验」— 无具体运行影响\n"
-        "- 运行相关性（占30%）：与飞行运行、安全、训练和机型操作的关联程度\n"
+        "    · 企业软文 / 宣传稿：航司战略愿景、机场获奖、CEO 表态、品牌故事 — 无运行相关信息\n"
+        "    · 会议通稿：领导讲话、签约仪式、合作备忘录、网络研讨会预告\n"
+        "    · 运营琐碎：开新航线 / 复航 / 增班，但没有机型、机队或运行细节\n"
+        "    · 财报 / 股价 / 投资 — 无机队和运营细节的纯财经稿\n"
+        "- 运行 + 技术相关性（占30%）：与飞行运行、安全、训练、机型操作、航电系统、\n"
+        "  发动机、维修、制造、空管、适航等任一航空专业话题的关联程度\n"
         "- 类别加分（占20%）：\n"
-        "  飞行技术类（新技术、新系统、飞行操作、驾驶舱相关）→ 额外+2分\n"
-        "  事故/事件类（安全事件、事故调查、紧急情况、备降返航）→ 额外+2分\n"
-        "  适航指令/安全通报类 → 额外+1分\n"
-        "  航空趣闻类（首飞/试飞里程碑、纪念飞行、退役/首位机长故事、罕见任务、驾驶舱创新）→ 额外+1分\n"
-        "打分标准：7-10=值得发布，4-6=可发可不发，1-3=不值得发布\n"
-        "注意：即使原文较短，只要涉及飞行技术或安全事件的具体事实，也应给高分。\n\n"
+        "  飞行技术类（新技术、新系统、飞行操作、驾驶舱相关、发动机、结构）→ 额外+2分\n"
+        "  事故/事件类（安全事件、事故调查、紧急情况、备降返航、空中接近、跑道事件）→ 额外+2分\n"
+        "  适航指令/安全通报类（AD / SAFO / InFO / 机队检查）→ 额外+2分\n"
+        "  航空趣闻类（首飞 / 试飞里程碑、纪念飞行、退役 / 首位机长故事、罕见任务、新机型衍生）→ 额外+1分\n"
+        "  行业监管 / ATC / 监管动态 → 额外+1分\n"
+        "打分标准：6-10=值得发布，3-5=可发可不发，1-2=不值得发布\n"
+        "注意：即使原文较短，只要涉及飞行技术、安全事件、适航或趣闻里程碑的具体事实，也应给高分。\n"
+        "「未体现监管动作」「未体现跨国影响」「无运行影响」都不是降分理由——\n"
+        "只要原文是事实清晰的航空稿，就按上面的维度给分，不要因为「不直接影响今天的运行」就一刀压低。\n\n"
         "【趣闻类评分专属指引 — 重要】\n"
         "对航空趣闻类（首飞、纪念飞行、退役/首位机长、罕见任务、驾驶舱新装）评分时，\n"
         "判断标准应该是「飞行员在群里看到这条会不会停下来读一眼或转发」，\n"
@@ -1678,8 +1698,12 @@ def _build_composition_prompt(
 
 
 # Minimum score threshold for articles to be published
-_MIN_PUBLISH_SCORE = 7
-_MIN_BACKFILL_SCORE = 3
+# 6/10：兼顾"飞行爱好者口味的技术 / 新奇 / 试飞 / 适航"内容，避免LLM偏严苛评分误杀。
+# 历史阈值=7：当时只考虑严肃运行稿，把首单/试飞/双座新机型这类爱好者向硬货误删。
+_MIN_PUBLISH_SCORE = 6
+# Backfill 门槛抬高到 5：当文章不够 MIN_PUBLISH_COUNT 时，
+# 优先把 5/10 的边缘合格稿补上，而不是 3/10 的灌水稿。
+_MIN_BACKFILL_SCORE = 5
 # 趣闻/新奇类（首飞、纪念飞行、人物故事）本质是行业资讯+调味剂，
 # LLM 用严肃运行价值标准评分通常偏低（5-6/10），用稍低阈值放行。
 _MIN_PUBLISH_SCORE_NOVELTY = 5
@@ -1896,19 +1920,23 @@ def _llm_compose_entries(
                 continue
             entries.append(entry)
 
-    # Limited backfill only applies when a positive article-count target is configured.
-    # In unlimited mode, low-score articles stay filtered; the issue publishes fewer items.
+    # Backfill 策略：
+    # - article_limit > 0（限量模式）：补到 article_limit 条上限，门槛 _MIN_BACKFILL_SCORE
+    # - article_limit == 0（无限模式）：用 settings.min_publish_count 兜底，
+    #   保证至少有 N 条进入 verify，避免 verify 又删几条之后简报为空。
     article_limit = max(0, int(getattr(settings, "target_article_count", 0) or 0))
-    if article_limit > 0 and len(entries) < article_limit and filtered_entries:
+    min_count = max(0, int(getattr(settings, "min_publish_count", 0) or 0))
+    backfill_target = article_limit if article_limit > 0 else min_count
+    if backfill_target > 0 and len(entries) < backfill_target and filtered_entries:
         filtered_entries.sort(key=lambda x: x[0], reverse=True)
         for score, entry in filtered_entries:
-            if len(entries) >= article_limit:
+            if len(entries) >= backfill_target:
                 break
             if score < _MIN_BACKFILL_SCORE:
                 continue
             entries.append(entry)
             n_filtered -= 1
-            logger.info("Phase 2 backfill (score %d): %s", score, entry.title[:40])
+            logger.info("Phase 2 backfill (score %d, target=%d): %s", score, backfill_target, entry.title[:40])
     if n_filtered:
         logger.info("Phase 2: dropped %d low-score articles", n_filtered)
 

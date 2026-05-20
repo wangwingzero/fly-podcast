@@ -1372,65 +1372,93 @@ def run(target_date: str | None = None) -> Path:
         result["url"] = f"dry-run://flying-podcast/{day}"
     else:
         client = WeChatClient()
-        try:
+        # Early access-token probe — if our public IP is not in the WeChat
+        # whitelist (common when running locally), every subsequent WeChat call
+        # would fail with the same error. Short-circuit to a "skipped" status
+        # so logs stay readable and the static web page still gets generated.
+        # Fake clients in tests may not implement _access_token; skip probe.
+        token_skip_reason = ""
+        token_probe = getattr(client, "_access_token", None)
+        if callable(token_probe):
             try:
-                copyright_notice_url = _ensure_wechat_copyright_notice_url(client)
-            except WeChatPublishError as exc:
-                logger.warning("Use fallback copyright notice URL: %s", exc)
-                copyright_notice_url = _copyright_web_fallback_url()
-            digest["copyright_notice_url"] = copyright_notice_url
-            result["copyright_notice_url"] = copyright_notice_url
-            # Fill missing images with AI-generated ones
-            digest = _fill_missing_images(digest, client)
-            # Re-render HTML with new images
-            html = _render_html(digest)
-            html = client.replace_external_images(html)
-            # Re-render web HTML with AI images + LLM content
-            web_digest = _enhance_web_entries(digest)
-            web_html = _render_web_html(
-                web_digest,
-                summary=summary,
-                intro=intro,
-                copyright_notice_url=copyright_notice_url,
-            )
-            # Upload cover image, fallback to default thumb
-            cover_thumb_id = ""
-            if cover_image_data:
-                cover_thumb_id = _upload_cover_image(
-                    cover_image_data, client,
-                    file_name=f"飞行播客日报_{day}.jpg",
-                )
-            media_id = client.create_draft(
-                title=f"飞行播客日报 | {day}",
-                author=settings.wechat_author,
-                content_html=html,
-                digest=summary,
-                source_url=web_url or "https://mp.weixin.qq.com",
-                thumb_media_id=cover_thumb_id,
-            )
-            result["status"] = "draft_created"
-            result["publish_id"] = media_id
-            result["url"] = f"https://mp.weixin.qq.com"
-            # Clean up old drafts, keep only the one just created
-            _cleanup_old_drafts(client, keep_media_id=media_id)
-            if getattr(settings, "wechat_auto_publish", False):
-                try:
-                    publish = client.publish_draft(media_id)
-                    result["status"] = "published"
-                    result["publish_id"] = publish.publish_id
-                    result["url"] = f"wechat://publish/{publish.publish_id}"
-                except WeChatPublishError as exc:
-                    result["status"] = "publish_failed_draft_created"
-                    result["reasons"].append(str(exc))
+                token_probe()
+            except WeChatPublishError as token_exc:
+                err_text = str(token_exc).lower()
+                if "invalid ip" in err_text or "not in whitelist" in err_text:
                     logger.warning(
-                        "Auto-publish failed; draft saved to WeChat backend: %s",
-                        exc,
+                        "WeChat access token rejected (IP not in whitelist): %s — "
+                        "skipping draft / publish steps and emitting web HTML only.",
+                        token_exc,
                     )
-            else:
-                logger.info("Draft created; auto-publish disabled")
-        except WeChatPublishError as exc:
-            result["status"] = "failed"
-            result["reasons"].append(str(exc))
+                    result["status"] = "skipped_ip_not_whitelisted"
+                    result["reasons"].append(str(token_exc))
+                    token_skip_reason = "ip_not_whitelisted"
+                else:
+                    logger.warning("WeChat access token failed: %s", token_exc)
+                    result["status"] = "failed"
+                    result["reasons"].append(str(token_exc))
+                    token_skip_reason = "token_failed"
+
+        if not token_skip_reason:
+            try:
+                try:
+                    copyright_notice_url = _ensure_wechat_copyright_notice_url(client)
+                except WeChatPublishError as exc:
+                    logger.warning("Use fallback copyright notice URL: %s", exc)
+                    copyright_notice_url = _copyright_web_fallback_url()
+                digest["copyright_notice_url"] = copyright_notice_url
+                result["copyright_notice_url"] = copyright_notice_url
+                # Fill missing images with AI-generated ones
+                digest = _fill_missing_images(digest, client)
+                # Re-render HTML with new images
+                html = _render_html(digest)
+                html = client.replace_external_images(html)
+                # Re-render web HTML with AI images + LLM content
+                web_digest = _enhance_web_entries(digest)
+                web_html = _render_web_html(
+                    web_digest,
+                    summary=summary,
+                    intro=intro,
+                    copyright_notice_url=copyright_notice_url,
+                )
+                # Upload cover image, fallback to default thumb
+                cover_thumb_id = ""
+                if cover_image_data:
+                    cover_thumb_id = _upload_cover_image(
+                        cover_image_data, client,
+                        file_name=f"飞行播客日报_{day}.jpg",
+                    )
+                media_id = client.create_draft(
+                    title=f"飞行播客日报 | {day}",
+                    author=settings.wechat_author,
+                    content_html=html,
+                    digest=summary,
+                    source_url=web_url or "https://mp.weixin.qq.com",
+                    thumb_media_id=cover_thumb_id,
+                )
+                result["status"] = "draft_created"
+                result["publish_id"] = media_id
+                result["url"] = f"https://mp.weixin.qq.com"
+                # Clean up old drafts, keep only the one just created
+                _cleanup_old_drafts(client, keep_media_id=media_id)
+                if getattr(settings, "wechat_auto_publish", False):
+                    try:
+                        publish = client.publish_draft(media_id)
+                        result["status"] = "published"
+                        result["publish_id"] = publish.publish_id
+                        result["url"] = f"wechat://publish/{publish.publish_id}"
+                    except WeChatPublishError as exc:
+                        result["status"] = "publish_failed_draft_created"
+                        result["reasons"].append(str(exc))
+                        logger.warning(
+                            "Auto-publish failed; draft saved to WeChat backend: %s",
+                            exc,
+                        )
+                else:
+                    logger.info("Draft created; auto-publish disabled")
+            except WeChatPublishError as exc:
+                result["status"] = "failed"
+                result["reasons"].append(str(exc))
 
     # Save standalone web page for "阅读原文"
     web_path = settings.output_dir / web_filename

@@ -762,6 +762,7 @@ pilot_novelty_reject_keywords:
 pilot_priority_sources:
   - flightglobal_air_transport_cli
   - aviation_week_air_transport_cli
+  - ainonline_rss
   - ain_online_web
   - simple_flying_cli
   - ch_aviation_cli
@@ -775,11 +776,22 @@ pilot_priority_sources:
   - ntsb_press_web
   - flightglobal_safety
   - flightglobal_engines
+  - leeham_rss
+  - avweb_rss
+  - airdatanews_rss
+  - verticalmag_rss
 
 pilot_allowed_source_ids:
   - flightglobal_air_transport_cli
   - aviation_week_air_transport_cli
+  - theaircurrent_rss
+  - ainonline_rss
   - ain_online_web
+  - runway_girl_rss
+  - airline_geeks_rss
+  - airport_technology_rss
+  - aviation_business_news_rss
+  - airinsight_rss
   - simple_flying_cli
   - ch_aviation_cli
   - flightglobal_news_web
@@ -794,6 +806,10 @@ pilot_allowed_source_ids:
   - ntsb_press_web
   - flightglobal_safety
   - flightglobal_engines
+  - leeham_rss
+  - avweb_rss
+  - airdatanews_rss
+  - verticalmag_rss
   # 趣闻 / 产业背景源（首飞、纪念飞行、特殊任务等）
   - aerotime
   - aviation_source
@@ -809,8 +825,14 @@ pilot_allowed_domains:
   - ntsb.gov
   - asrs.arc.nasa.gov
   - flightglobal.com
+  - theaircurrent.com
   - aviationweek.com
   - ainonline.com
+  - runwaygirlnetwork.com
+  - airlinegeeks.com
+  - airport-technology.com
+  - aviationbusinessnews.com
+  - airinsight.com
   - simpleflying.com
   - ch-aviation.com
   - reuters.com
@@ -818,6 +840,10 @@ pilot_allowed_domains:
   - aerotime.aero
   - aviationsourcenews.com
   - flightradar24.com
+  - leehamnews.com
+  - avweb.com
+  - airdatanews.com
+  - verticalmag.com
 
 industry_news_keywords:
   - air transport

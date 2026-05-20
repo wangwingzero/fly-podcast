@@ -48,3 +48,38 @@ def test_healthcheck_json_output_and_exit_code(monkeypatch, capsys) -> None:
     assert payload[-1]["name"] == "backup_image_gen"
     assert payload[-1]["required"] is False
     assert payload[-1]["ok"] is False
+
+
+def test_healthcheck_allows_main_llm_failure_when_backup_llm_is_healthy(monkeypatch, capsys) -> None:
+    def fake_llm_check(name, *args, **kwargs):
+        return healthcheck.CheckResult(
+            name=name,
+            ok=name != "main_llm",
+            required=kwargs["required"],
+            detail="ok" if name != "main_llm" else "timeout",
+            latency_s=1.0,
+            meta={"model": name},
+        )
+
+    monkeypatch.setattr(healthcheck, "_llm_check", fake_llm_check)
+    monkeypatch.setattr(
+        healthcheck,
+        "_image_check",
+        lambda *args, **kwargs: healthcheck.CheckResult(
+            name=args[0],
+            ok=True,
+            required=kwargs["required"],
+            detail="bytes=10",
+            latency_s=1.0,
+            meta={"model": "img"},
+        ),
+    )
+
+    code = healthcheck.run("2026-03-10", json_output=True)
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload[0]["name"] == "main_llm"
+    assert payload[0]["ok"] is False
+    assert payload[1]["name"] == "backup_llm"
+    assert payload[1]["ok"] is True

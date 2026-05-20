@@ -121,6 +121,17 @@ def _image_check(name: str, *, required: bool, provider: str) -> CheckResult:
         )
 
 
+def _required_checks_ok(checks: list[CheckResult]) -> bool:
+    llm_checks = [item for item in checks if item.name.endswith("_llm")]
+    non_llm_required = [item for item in checks if item.required and not item.name.endswith("_llm")]
+
+    llm_pool_ok = True
+    if llm_checks:
+        llm_pool_ok = any(item.ok for item in llm_checks)
+
+    return llm_pool_ok and all(item.ok for item in non_llm_required)
+
+
 def run(_: str, *, json_output: bool = False) -> int:
     checks = [
         _llm_check("main_llm", settings.llm_api_key, settings.llm_base_url, settings.llm_model, required=True),
@@ -164,4 +175,4 @@ def run(_: str, *, json_output: bool = False) -> int:
             level = "PASS" if item.ok else ("FAIL" if item.required else "WARN")
             print(f"[{level}] {item.name} ({item.latency_s:.2f}s) {item.detail}")
 
-    return 0 if all(item.ok or not item.required for item in checks) else 1
+    return 0 if _required_checks_ok(checks) else 1

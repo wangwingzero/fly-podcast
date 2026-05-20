@@ -27,7 +27,7 @@ sources:
     max_items: 18
     playwright_timeout: 25
     fetch_article_text: false
-    enabled: true
+    enabled: false
 
   - id: aviation_week_air_transport_cli
     name: Aviation Week Air Transport
@@ -50,7 +50,7 @@ sources:
     max_items: 18
     playwright_timeout: 25
     fetch_article_text: false
-    enabled: true
+    enabled: false
 
   - id: simple_flying_cli
     name: Simple Flying Aviation News
@@ -77,6 +77,7 @@ sources:
     max_items: 20
     playwright_timeout: 25
     fetch_article_text: false
+    enabled: false
   # disabled 2026-05-17 because playwright-cli can't capture the rendered list.
   - id: ch_aviation_cli
     name: ch-aviation News
@@ -143,6 +144,8 @@ sources:
     region: international
     enabled: true
 
+  # disabled 2026-05-20: ainonline.com migrated to Next.js SPA, /rss.xml 404s,
+  # no replacement RSS endpoint. AIN coverage now flows in via aerotime/flightglobal.
   - id: ainonline_rss
     name: AIN Online
     url: https://www.ainonline.com/rss.xml
@@ -187,11 +190,54 @@ sources:
     source_role: primary_industry
     source_tier: B
     region: international
-    enabled: false
+    enabled: true
 
   - id: airinsight_rss
     name: AirInsight
     url: https://airinsight.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    enabled: true
+
+  # ============================================================
+  # Pilot-enthusiast / technical feeds added 2026-05-20.
+  # Mix: NTSB/FAA bulletins (AVweb), structural & airframe deep-dives
+  # (Leeham), neutral global aviation panorama (AirData News),
+  # rotor / eVTOL engineering (Vertical Mag).
+  # All four verified live with fresh items at activation time.
+  # ============================================================
+  - id: avweb_rss
+    name: AVweb
+    url: https://www.avweb.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    enabled: true
+
+  - id: leeham_rss
+    name: Leeham News
+    url: https://leehamnews.com/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: A
+    region: international
+    enabled: true
+
+  - id: airdatanews_rss
+    name: AirData News
+    url: https://www.airdatanews.com/en/feed/
+    type: rss
+    source_role: primary_industry
+    source_tier: B
+    region: international
+    enabled: true
+
+  - id: verticalmag_rss
+    name: Vertical Magazine
+    url: https://verticalmag.com/news/rss/
     type: rss
     source_role: primary_industry
     source_tier: B
@@ -370,7 +416,7 @@ sources:
       - "#"
     article_include_keywords: []
     max_items: 40
-    enabled: true
+    enabled: false
 
   # ============================================================
   # Industry / novelty sources for pilot-friendly variety
@@ -405,6 +451,9 @@ sources:
     region: international
     enabled: true
 
+  # disabled 2026-05-20: feed returns 403 to all curl/feedparser requests
+  # (Cloudflare bot challenge). FR24 blog content now reaches us via aerotime
+  # and airline_geeks_rss when relevant.
   - id: flightradar24_blog
     name: Flightradar24 Blog
     url: https://www.flightradar24.com/blog/feed/
@@ -412,7 +461,7 @@ sources:
     source_role: primary_industry
     source_tier: C
     region: international
-    enabled: true
+    enabled: false
 
   - id: iata_press_web
     name: IATA Pressroom Web

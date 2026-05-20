@@ -57,9 +57,9 @@ def test_llm_editor_review_prompt_allows_humorous_highlight():
     assert "划重点" in client.system_prompt
     assert "严禁仅因为口语化" in client.system_prompt
     assert "技术增量" in client.system_prompt
-    assert "风险增量" in client.system_prompt
+    assert "运行增量" in client.system_prompt
     assert "第一句事实" in client.user_prompt
-    assert "目标读者是飞行员" in client.system_prompt
+    assert "目标读者：一线民航飞行员" in client.system_prompt
     assert "签派" not in client.system_prompt
 
 
@@ -115,7 +115,16 @@ def test_llm_editor_review_still_blocks_high_value_ops_story_for_hard_quality_fa
     assert blocked == ["a1"]
 
 
-def test_llm_editor_review_does_not_override_accident_exception_rejection():
+def test_llm_editor_review_overrides_accident_exception_rejection_when_high_value():
+    """2026-05-20 update: accident_exception entries are no longer auto-blocked
+    from override. As long as the entry hits a high-value ops keyword
+    (go-around, divert, engine, pylon, airprox 等), the editor's vague
+    rejection (e.g. "事故未触发更大范围影响") should be overridden.
+
+    Reason: structural failures, midair separation losses, and airprox events
+    are exactly the hard-core content the target audience expects, even when
+    they don't trigger a fleet-wide grounding.
+    """
     client = _FakeClient(
         payload={
             "reviews": [
@@ -139,17 +148,22 @@ def test_llm_editor_review_does_not_override_accident_exception_rejection():
         client,
     )
 
-    assert blocked == ["a1"]
+    # go-around / 备降 / 发动机 等高价值运行关键词命中 → 改判保留
+    assert blocked == []
 
 
 def test_llm_editor_review_treats_known_accident_source_id_as_exception():
+    """When the editor reason hits a HARD reject hint (机翻, 软文, 重复, etc.),
+    even high-value ops entries get blocked. accident_exception sources are no
+    longer auto-skipped from override — they go through the same gate.
+    """
     client = _FakeClient(
         payload={
             "reviews": [
                 {
                     "id": "a1",
                     "keep": False,
-                    "reason": "事故调查缺少停飞、监管或更大范围运行影响，不适合作为日报主体。",
+                    "reason": "正文机翻严重，无法读懂，前后矛盾。",
                 }
             ]
         }
@@ -166,6 +180,7 @@ def test_llm_editor_review_treats_known_accident_source_id_as_exception():
         client,
     )
 
+    # 机翻 / 读不通 命中 _HARD_REJECT_REASON_HINTS → 不改判，保持 blocked
     assert blocked == ["a1"]
 
 
