@@ -147,6 +147,10 @@ def _is_static_image_url(url: str) -> bool:
         return False
 
 
+def _normalize_wechat_image_url(url: str) -> str:
+    return str(url).replace("http://mmbiz.qpic.cn", "https://mmbiz.qpic.cn")
+
+
 def _mirror_entry_images_to_static(entries: list[dict], *, static_prefix: str) -> int:
     if not settings.static_root or not settings.static_public_base_url:
         return 0
@@ -953,17 +957,39 @@ def _render_web_html(
 
 
 def _fill_missing_images(digest: dict, client: WeChatClient) -> dict:
-    """Generate AI images for entries that have no image_url, upload to WeChat CDN."""
-    if not settings.image_gen_api_key:
-        return digest
-
+    """Ensure WeChat draft entries have per-article images whenever possible."""
     token = client._access_token()
     entries = digest.get("entries", [])
 
     for entry in entries:
-        if entry.get("image_url"):
+        title = str(entry.get("title", "")).strip()
+        current_url = str(entry.get("image_url", "")).strip()
+
+        if current_url and _is_blocked_wechat_image(current_url):
+            entry["image_url"] = _normalize_wechat_image_url(current_url)
             continue
-        title = entry.get("title", "")
+
+        if current_url:
+            wx_url = client.upload_content_image(current_url, token=token)
+            if wx_url:
+                entry["image_url"] = _normalize_wechat_image_url(wx_url)
+                logger.info("Article image uploaded for: %s", title[:40])
+                continue
+            logger.info("Article image upload failed for: %s", title[:40])
+
+        if title:
+            public_url = search_public_image_url(title, timeout=settings.public_image_search_timeout_seconds)
+            if public_url:
+                wx_url = client.upload_content_image(public_url, token=token)
+                if wx_url:
+                    entry["image_url"] = _normalize_wechat_image_url(wx_url)
+                    logger.info("Public image set for: %s", title[:40])
+                    continue
+                logger.info("Public image upload failed for: %s", title[:40])
+
+        if not settings.image_gen_api_key:
+            continue
+
         body = entry.get("body", "") or ""
         if not body:
             facts = entry.get("facts", [])
@@ -976,9 +1002,7 @@ def _fill_missing_images(digest: dict, client: WeChatClient) -> dict:
 
         wx_url = client.upload_content_image_bytes(image_data, token=token)
         if wx_url:
-            # Ensure https
-            wx_url = wx_url.replace("http://mmbiz.qpic.cn", "https://mmbiz.qpic.cn")
-            entry["image_url"] = wx_url
+            entry["image_url"] = _normalize_wechat_image_url(wx_url)
             logger.info("AI image set for: %s", title[:40])
         else:
             logger.info("AI image upload failed for: %s", title[:40])

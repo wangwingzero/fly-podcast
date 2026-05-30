@@ -63,6 +63,8 @@ def main() -> None:
                         help="Work directory (for podcast-audio)")
     parser.add_argument("--output-dir", dest="output_dir", default=None,
                         help="Output base directory (for podcast-script)")
+    parser.add_argument("--briefing-file", dest="briefing_file", default=None,
+                        help="Text file with producer LLM briefing (for podcast / podcast-script)")
     parser.add_argument("--json", dest="json_output", action="store_true",
                         help="Emit JSON output (for healthcheck)")
     args = parser.parse_args()
@@ -79,11 +81,20 @@ def main() -> None:
         raise SystemExit(healthcheck(args.date, json_output=args.json_output))
 
     if args.stage == "podcast":
-        podcast(args.date, pdf_path=args.pdf)
+        podcast(
+            args.date,
+            pdf_path=args.pdf,
+            briefing_file=args.briefing_file,
+        )
         return
 
     if args.stage == "podcast-script":
-        podcast_script(args.date, pdf_path=args.pdf, output_dir=args.output_dir)
+        podcast_script(
+            args.date,
+            pdf_path=args.pdf,
+            output_dir=args.output_dir,
+            briefing_file=args.briefing_file,
+        )
         return
 
     if args.stage == "podcast-audio":

@@ -50,6 +50,18 @@ def test_replace_external_images_unescapes_query_params():
     assert "https://mmbiz.qpic.cn/fake.jpg" in out
 
 
+def test_replace_external_images_keeps_tag_when_upload_fails():
+    client = WeChatClient.__new__(WeChatClient)
+    client._access_token = lambda: "token"
+    client.upload_content_image = lambda url, token="": ""
+    html = '<p>before</p><img src="https://example.com/a.webp" /><p>after</p>'
+
+    out = client.replace_external_images(html)
+
+    assert 'src="https://example.com/a.webp"' in out
+    assert "before" in out and "after" in out
+
+
 def test_enhance_web_entries_can_disable_public_image_search(monkeypatch):
     fake_settings = SimpleNamespace(
         web_image_search_budget_seconds=0,
@@ -72,6 +84,131 @@ def test_enhance_web_entries_can_disable_public_image_search(monkeypatch):
 
     assert searched == []
     assert all("image_url" not in entry for entry in out["entries"])
+
+
+def test_fill_missing_images_replaces_failed_article_upload_with_public_image(monkeypatch):
+    digest = {
+        "entries": [
+            {
+                "title": "FAA restructuring plan",
+                "body": "body",
+                "image_url": "https://origin.example.com/a.jpg",
+            }
+        ]
+    }
+
+    class FakeWeChatClient:
+        def _access_token(self):
+            return "token"
+
+        def upload_content_image(self, image_url, token=None):
+            if image_url == "https://origin.example.com/a.jpg":
+                return ""
+            if image_url == "https://public.example.com/b.jpg":
+                return "https://mmbiz.qpic.cn/public.jpg"
+            raise AssertionError(image_url)
+
+        def upload_content_image_bytes(self, image_data, token=None):
+            raise AssertionError("AI fallback should not run")
+
+    fake_settings = SimpleNamespace(
+        public_image_search_timeout_seconds=5,
+        image_gen_api_key="",
+    )
+    monkeypatch.setattr(publish, "settings", fake_settings)
+    monkeypatch.setattr(publish, "search_public_image_url", lambda title, timeout=None: "https://public.example.com/b.jpg")
+
+    out = publish._fill_missing_images(digest, FakeWeChatClient())
+
+    assert out["entries"][0]["image_url"] == "https://mmbiz.qpic.cn/public.jpg"
+
+
+def test_upload_content_image_reencodes_unsupported_format(monkeypatch):
+    client = WeChatClient.__new__(WeChatClient)
+    client._proxy = ""
+    client.base = "https://api.weixin.qq.com/cgi-bin"
+    client._access_token = lambda: "token"
+
+    class FakeResponse:
+        headers = {"Content-Type": "image/webp"}
+        content = b"webp-bytes"
+
+        def raise_for_status(self):
+            return None
+
+    uploaded = {}
+
+    monkeypatch.setattr("flying_podcast.core.wechat.requests.get", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr("flying_podcast.core.wechat._reencode_image_as_jpeg", lambda data: b"jpeg-bytes")
+
+    def _fake_upload_bytes(image_data, token=None):
+        uploaded["image_data"] = image_data
+        uploaded["token"] = token
+        return "https://mmbiz.qpic.cn/reencoded.jpg"
+
+    client.upload_content_image_bytes = _fake_upload_bytes
+
+    out = client.upload_content_image("https://example.com/a.webp")
+
+    assert out == "https://mmbiz.qpic.cn/reencoded.jpg"
+    assert uploaded == {"image_data": b"jpeg-bytes", "token": "token"}
+
+
+def test_upload_content_image_retries_supported_format_only_for_invalid_image(monkeypatch):
+    client = WeChatClient.__new__(WeChatClient)
+    client._proxy = ""
+    client.base = "https://api.weixin.qq.com/cgi-bin"
+    client._access_token = lambda: "token"
+
+    class FakeResponse:
+        headers = {"Content-Type": "image/png"}
+        content = b"png-bytes"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr("flying_podcast.core.wechat.requests.get", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr(client, "_upload_image", lambda *args, **kwargs: {"errcode": 45009, "errmsg": "reach max api daily quota limit"})
+    monkeypatch.setattr("flying_podcast.core.wechat._reencode_image_as_jpeg", lambda data: (_ for _ in ()).throw(AssertionError("should not re-encode")))
+    client.upload_content_image_bytes = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not upload fallback"))
+
+    out = client.upload_content_image("https://example.com/a.png")
+
+    assert out == ""
+
+
+
+def test_fill_missing_images_keeps_existing_wechat_cdn_image(monkeypatch):
+    digest = {
+        "entries": [
+            {
+                "title": "Already hosted",
+                "body": "body",
+                "image_url": "http://mmbiz.qpic.cn/existing.jpg",
+            }
+        ]
+    }
+
+    class FakeWeChatClient:
+        def _access_token(self):
+            return "token"
+
+        def upload_content_image(self, image_url, token=None):
+            raise AssertionError("Existing WeChat image should not be re-uploaded")
+
+        def upload_content_image_bytes(self, image_data, token=None):
+            raise AssertionError("AI fallback should not run")
+
+    fake_settings = SimpleNamespace(
+        public_image_search_timeout_seconds=5,
+        image_gen_api_key="",
+    )
+    monkeypatch.setattr(publish, "settings", fake_settings)
+
+    out = publish._fill_missing_images(digest, FakeWeChatClient())
+
+    assert out["entries"][0]["image_url"] == "https://mmbiz.qpic.cn/existing.jpg"
+
 
 
 def test_publish_skips_wechat_when_digest_is_empty(monkeypatch, tmp_path):

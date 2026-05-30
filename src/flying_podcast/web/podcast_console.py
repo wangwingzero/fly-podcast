@@ -42,6 +42,7 @@ UPLOAD_DIR = WEB_DIR / "uploads"
 UPLOAD_SESSION_DIR = WEB_DIR / "upload_sessions"
 JOB_DIR = WEB_DIR / "jobs"
 MAX_UPLOAD_MB = int(os.getenv("PODCAST_WEB_MAX_UPLOAD_MB", "1024"))
+MAX_LLM_BRIEFING_CHARS = 4000
 URL_PREFIX = os.getenv("PODCAST_WEB_PREFIX", "").rstrip("/")
 
 app = Flask(__name__)
@@ -186,10 +187,33 @@ def _list_jobs() -> list[dict[str, Any]]:
     return jobs
 
 
-def _create_job_from_pdf(upload_path: Path, original_name: str, day: str, publish_requested: bool) -> dict[str, Any]:
+def _normalize_llm_briefing(text: str) -> str:
+    return (text or "").strip()[:MAX_LLM_BRIEFING_CHARS]
+
+
+def _persist_job_briefing(job_id: str, briefing: str) -> str:
+    briefing = _normalize_llm_briefing(briefing)
+    if not briefing:
+        return ""
+    path = JOB_DIR / job_id / "llm_briefing.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(briefing, encoding="utf-8")
+    return str(path)
+
+
+def _create_job_from_pdf(
+    upload_path: Path,
+    original_name: str,
+    day: str,
+    publish_requested: bool,
+    *,
+    llm_briefing: str = "",
+) -> dict[str, Any]:
     job_id = datetime.now().strftime("%Y%m%d%H%M%S") + "-" + secrets.token_hex(3)
     upload_size = upload_path.stat().st_size
     work_dir = settings.output_dir / "podcast" / f"{day}_{upload_path.stem}"
+    briefing_clean = _normalize_llm_briefing(llm_briefing)
+    briefing_path = _persist_job_briefing(job_id, briefing_clean)
     job = {
         "id": job_id,
         "status": "queued",
@@ -202,6 +226,8 @@ def _create_job_from_pdf(upload_path: Path, original_name: str, day: str, publis
         "upload_path": str(upload_path),
         "work_dir": str(work_dir),
         "publish_requested": publish_requested,
+        "llm_briefing": briefing_clean,
+        "llm_briefing_path": briefing_path,
         "title": "",
         "mp3_path": "",
         "mp3_cdn_url": "",
@@ -210,6 +236,8 @@ def _create_job_from_pdf(upload_path: Path, original_name: str, day: str, publis
     _save_job(job)
     _append_log(job_id, f"Job created at {_now()}")
     _append_log(job_id, f"PDF: {original_name} ({upload_size} bytes)")
+    if briefing_clean:
+        _append_log(job_id, f"LLM briefing: {len(briefing_clean)} chars")
 
     thread = threading.Thread(target=_run_generation, args=(job_id,), daemon=True)
     thread.start()
@@ -279,6 +307,9 @@ def _run_generation(job_id: str) -> None:
             "--pdf",
             job["upload_path"],
         ]
+        briefing_path = job.get("llm_briefing_path") or ""
+        if briefing_path and Path(briefing_path).exists():
+            cmd.extend(["--briefing-file", briefing_path])
         code = _run_command(job, cmd, "generate podcast")
         if code != 0:
             raise RuntimeError(f"podcast generation failed with exit code {code}")
@@ -401,6 +432,7 @@ def create_job():
         original_name=original_name,
         day=day,
         publish_requested=request.form.get("publish") == "1",
+        llm_briefing=request.form.get("briefing", ""),
     )
     return jsonify({"job": _refresh_job(job)})
 
@@ -431,6 +463,7 @@ def start_chunked_upload():
         "size": size,
         "date": str(payload.get("date") or beijing_today_str()),
         "publish_requested": bool(payload.get("publish")),
+        "llm_briefing": _normalize_llm_briefing(str(payload.get("briefing") or "")),
         "created_at": _now(),
         "updated_at": _now(),
         "received": [],
@@ -509,6 +542,7 @@ def finish_chunked_upload(upload_id: str):
         original_name=original_name,
         day=str(meta.get("date") or beijing_today_str()),
         publish_requested=bool(meta.get("publish_requested")),
+        llm_briefing=str(meta.get("llm_briefing") or ""),
     )
     shutil.rmtree(session_dir, ignore_errors=True)
     return jsonify({"job": _refresh_job(job)})
@@ -643,6 +677,8 @@ DASHBOARD_TEMPLATE = """
     .upload { padding:22px; }
     .upload h2,.jobs h2,.detail h2 { margin:0 0 16px; font-size:16px; letter-spacing:0; }
     .field { margin-bottom:14px; }
+    .field textarea { width:100%; min-height:108px; resize:vertical; border:1px solid var(--line); background:#fff; padding:10px 12px; font:inherit; line-height:1.5; }
+    .field .hint { margin-top:6px; color:var(--muted); font-size:12px; line-height:1.45; }
     label { display:block; color:var(--muted); font-size:12px; margin-bottom:7px; }
     input[type="date"], input[type="file"] { width:100%; min-height:42px; border:1px solid var(--line); background:#fff; padding:9px 10px; color:var(--ink); }
     .file-summary { display:none; margin-top:8px; border:1px solid rgba(23,33,29,.12); background:#f8f5ed; padding:10px; }
@@ -716,6 +752,11 @@ DASHBOARD_TEMPLATE = """
           <div class="field">
             <label>日期</label>
             <input name="date" type="date" value="{{ today }}">
+          </div>
+          <div class="field">
+            <label>制作说明（给 LLM，可选）</label>
+            <textarea name="briefing" maxlength="4000" placeholder="例如：本期重点讲 spoofing 与 jamming 的区别；多举中东/东欧干扰案例；少讲法律条文，多讲机组处置……"></textarea>
+            <div class="hint">上传前填写。会单独交给 LLM 理解，用于强调本期要讲的侧重点（不写入 PDF）。最多 4000 字。</div>
           </div>
           <label class="check"><input name="publish" type="checkbox" value="1"> 完成后创建公众号草稿</label>
           <div class="upload-progress" id="uploadProgress">
@@ -802,7 +843,7 @@ DASHBOARD_TEMPLATE = """
         <div class="detail-head">
           <div class="detail-title">
             <h2>${escapeHtml(title)}</h2>
-            <div class="meta">${escapeHtml(job.id)} · ${escapeHtml(job.date || "")}<br>${escapeHtml(job.original_filename || "")}${job.upload_size ? " · " + formatBytes(job.upload_size) : ""}</div>
+            <div class="meta">${escapeHtml(job.id)} · ${escapeHtml(job.date || "")}<br>${escapeHtml(job.original_filename || "")}${job.upload_size ? " · " + formatBytes(job.upload_size) : ""}${job.llm_briefing ? `<br><strong>制作说明</strong>：${escapeHtml(job.llm_briefing.slice(0, 240))}${job.llm_briefing.length > 240 ? "…" : ""}` : ""}</div>
           </div>
           <div class="actions">
             <span class="pill ${job.status}">${statusLabel[job.status] || job.status}</span>
@@ -940,6 +981,7 @@ DASHBOARD_TEMPLATE = """
           size: file.size,
           date: form.querySelector('input[name="date"]').value || "{{ today }}",
           publish: form.querySelector('input[name="publish"]').checked,
+          briefing: (form.querySelector('textarea[name="briefing"]')?.value || "").trim(),
         }),
       });
 
@@ -982,9 +1024,9 @@ DASHBOARD_TEMPLATE = """
     function uploadChunkRequest(uploadId, index, blob, filename, loadedBefore, totalBytes, label, attempt, button) {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        const formData = new FormData();
-        formData.append("index", String(index));
-        formData.append("chunk", blob, `${filename}.part${index}`);
+      const formData = new FormData();
+      formData.append("index", String(index));
+      formData.append("chunk", blob, `${filename}.part${index}`);
         xhr.open("POST", `${BASE}/api/uploads/${uploadId}/chunk`, true);
         xhr.timeout = 0;
         xhr.upload.onprogress = (event) => {

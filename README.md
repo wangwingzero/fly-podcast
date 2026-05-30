@@ -123,8 +123,11 @@ python run.py publish-podcast [--date YYYY-MM-DD]
 | `DASHSCOPE_API_KEY` | DashScope API 密钥（TTS 付费 fallback） | 空 |
 | `TTS_ENABLE_DASHSCOPE` | 是否启用 DashScope TTS fallback | `false` |
 | `TTS_ENABLE_EDGE` | 是否启用 Edge TTS fallback | `false` |
+| `QWEN_TTS_PRIMARY_URL` | 播客 TTS 主站（默认 `https://tts.hudawang.cn`） | 见 `.env.example` |
+| `QWEN_TTS_FALLBACK_URL` | 播客 TTS 备用（默认美国 `qwen-tts2api`） | 见 `.env.example` |
 | `MINERU` | MinerU PDF 解析和全文朗读，可选 | 空 |
-| `PODCAST_GREETING` | 播客对话额外提示词（如节日祝福） | 空 |
+| `PODCAST_GREETING` | 播客对话额外提示词（如节日祝福，全局） | 空 |
+| Web 控制台「制作说明」 | 每期上传前单独填写，交给 LLM 强调侧重点（优先于 PDF 选题） | 可选，最多 4000 字 |
 | `PODCAST_WEB_PASSWORD` | 播客 Web 控制台登录密码 | 空 |
 | `PODCAST_WEB_SECRET` | 播客 Web 控制台会话密钥 | 空 |
 | `PODCAST_WEB_PORT` | 播客 Web 控制台端口 | `8091` |

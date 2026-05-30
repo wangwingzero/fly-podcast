@@ -26,10 +26,6 @@ class TTSError(RuntimeError):
 
 # ── Voice presets ──────────────────────────────────────────────
 
-# DashScope voices
-VOICE_FEMALE = "Cherry"
-VOICE_MALE = "Ethan"
-
 INSTRUCTIONS_FEMALE = (
     "语速适中，语调亲切自然，像一位专业的播客女主持人在和朋友聊天。"
 )
@@ -37,20 +33,29 @@ INSTRUCTIONS_MALE = (
     "语速沉稳，语调专业可靠，像一位资深机长在分享经验。"
 )
 
-VOICE_MAP = {
-    "千羽": {"voice": VOICE_FEMALE, "instructions": INSTRUCTIONS_FEMALE},
-    "虎机长": {"voice": VOICE_MALE, "instructions": INSTRUCTIONS_MALE},
-    "女": {"voice": VOICE_FEMALE, "instructions": INSTRUCTIONS_FEMALE},
-    "男": {"voice": VOICE_MALE, "instructions": INSTRUCTIONS_MALE},
-}
 
-# qwen-tts2api voice mapping (self-hosted OpenAI-compatible endpoint)
-QWEN_API_VOICE_MAP = {
-    "女": "cherry",
-    "男": "ethan",
-    "千羽": "cherry",
-    "虎机长": "ethan",
-}
+def _dashscope_voice_map() -> dict[str, dict[str, str]]:
+    return {
+        "千羽": {"voice": settings.tts_voice_female, "instructions": INSTRUCTIONS_FEMALE},
+        "虎机长": {"voice": settings.tts_voice_male, "instructions": INSTRUCTIONS_MALE},
+        "女": {"voice": settings.tts_voice_female, "instructions": INSTRUCTIONS_FEMALE},
+        "男": {"voice": settings.tts_voice_male, "instructions": INSTRUCTIONS_MALE},
+    }
+
+
+def _qwen_role_voice_map(*, local: bool) -> dict[str, str]:
+    if local:
+        female = settings.tts_qwen_local_voice_female
+        male = settings.tts_qwen_local_voice_male
+    else:
+        female = settings.tts_qwen_cloud_voice_female
+        male = settings.tts_qwen_cloud_voice_male
+    return {
+        "女": female,
+        "男": male,
+        "千羽": female,
+        "虎机长": male,
+    }
 
 # Edge TTS voice mapping
 EDGE_VOICE_MAP = {
@@ -91,35 +96,141 @@ def _wav_to_mp3(wav_bytes: bytes, *, trim_start_seconds: float = 0.0) -> bytes:
     return result.stdout
 
 
-# ── Tier 1: qwen-tts2api (self-hosted, OpenAI-compatible, free) ─
+# ── Tier 1: Qwen TTS (primary local → fallback tts2api) ────────
 
-def _synthesize_via_qwen_api(text: str, role: str) -> bytes:
-    """Synthesize via self-hosted qwen-tts2api (OpenAI-compatible endpoint).
+def _looks_like_mp3(data: bytes) -> bool:
+    if len(data) < 4:
+        return False
+    if data[:3] == b"ID3":
+        return True
+    return data[0] == 0xFF and (data[1] & 0xE0) == 0xE0
 
-    Uses the QWEN_TTS_URL env var (default http://72.249.203.10:8825).
-    Returns MP3 bytes converted from the WAV response.
-    """
-    voice = QWEN_API_VOICE_MAP.get(role, "cherry")
-    api_url = f"{settings.qwen_tts_url.rstrip('/')}/v1/audio/speech"
 
+def _response_bytes_to_mp3(data: bytes, *, from_wav_trim: bool) -> bytes:
+    if _looks_like_mp3(data):
+        return data
+    trim = QWEN_LEADING_ARTIFACT_TRIM_SECONDS if from_wav_trim else 0.0
+    return _wav_to_mp3(data, trim_start_seconds=trim)
+
+
+def _post_qwen_speech(
+    base_url: str,
+    *,
+    label: str,
+    payload: dict[str, str],
+    timeout: int,
+) -> bytes:
+    api_url = f"{base_url.rstrip('/')}/v1/audio/speech"
     headers = {"Content-Type": "application/json"}
     if settings.qwen_tts_api_key:
         headers["Authorization"] = f"Bearer {settings.qwen_tts_api_key}"
 
-    resp = requests.post(
-        api_url,
-        headers=headers,
-        json={"voice": voice, "input": text[:MAX_CHARS_PER_REQUEST]},
-        timeout=300,
-    )
+    resp = requests.post(api_url, headers=headers, json=payload, timeout=timeout)
     if resp.status_code != 200:
         detail = resp.text[:300]
-        raise TTSError(f"qwen-tts2api returned {resp.status_code}: {detail}")
+        raise TTSError(f"{label} returned {resp.status_code}: {detail}")
 
     if len(resp.content) < 100:
-        raise TTSError(f"qwen-tts2api returned too little audio ({len(resp.content)} bytes)")
+        raise TTSError(f"{label} returned too little audio ({len(resp.content)} bytes)")
 
-    return _wav_to_mp3(resp.content, trim_start_seconds=QWEN_LEADING_ARTIFACT_TRIM_SECONDS)
+    return resp.content
+
+
+def _synthesize_qwen_at_url(
+    text: str,
+    role: str,
+    base_url: str,
+    *,
+    label: str,
+    voice_map: dict[str, str],
+    use_local_model: bool,
+    timeout: int,
+) -> bytes:
+    voice = voice_map.get(role, next(iter(voice_map.values())))
+    payload: dict[str, str] = {
+        "voice": voice,
+        "input": text[:MAX_CHARS_PER_REQUEST],
+    }
+    if use_local_model:
+        payload["model"] = "qwen3-tts"
+
+    raw = _post_qwen_speech(base_url, label=label, payload=payload, timeout=timeout)
+    return _response_bytes_to_mp3(raw, from_wav_trim=not use_local_model)
+
+
+def _qwen_speech_endpoints() -> tuple[tuple[str, str, dict[str, str], bool, int], ...]:
+    """Ordered Qwen /v1/audio/speech endpoints (local 0.6B vs cloud speakers)."""
+    local = (
+        "qwen-local",
+        settings.qwen_tts_primary_url,
+        _qwen_role_voice_map(local=True),
+        True,
+        600,
+    )
+    cloud = (
+        "qwen-cloud",
+        settings.qwen_tts_fallback_url,
+        _qwen_role_voice_map(local=False),
+        False,
+        300,
+    )
+    if settings.qwen_tts_prefer_cloud_voices:
+        return (cloud, local)
+    return (local, cloud)
+
+
+def _synthesize_via_qwen_local(text: str, role: str) -> bytes:
+    """HK primary URL only (0.6B CustomVoice speakers)."""
+    return _synthesize_qwen_at_url(
+        text,
+        role,
+        settings.qwen_tts_primary_url,
+        label="qwen-local",
+        voice_map=_qwen_role_voice_map(local=True),
+        use_local_model=True,
+        timeout=600,
+    )
+
+
+def _synthesize_via_qwen_cloud(text: str, role: str) -> bytes:
+    """US fallback URL only (cloud/demo speaker names)."""
+    if not settings.qwen_tts_fallback_url.strip():
+        raise TTSError("QWEN_TTS_FALLBACK_URL is not set")
+    return _synthesize_qwen_at_url(
+        text,
+        role,
+        settings.qwen_tts_fallback_url,
+        label="qwen-cloud",
+        voice_map=_qwen_role_voice_map(local=False),
+        use_local_model=False,
+        timeout=300,
+    )
+
+
+def _synthesize_via_qwen_api(text: str, role: str) -> bytes:
+    """Qwen TTS: HK 0.6B and US tts2api, ordered by QWEN_TTS_PREFER_CLOUD_VOICES."""
+    endpoints = _qwen_speech_endpoints()
+    errors: list[str] = []
+    for label, base_url, voice_map, use_local, timeout in endpoints:
+        if not base_url.strip():
+            continue
+        try:
+            mp3 = _synthesize_qwen_at_url(
+                text,
+                role,
+                base_url,
+                label=label,
+                voice_map=voice_map,
+                use_local_model=use_local,
+                timeout=timeout,
+            )
+            logger.info("[TTS] segment OK via %s (%s)", label, base_url)
+            return mp3
+        except TTSError as exc:
+            errors.append(f"{label}: {exc}")
+            logger.warning("[TTS] %s failed (%s): %s", label, base_url, exc)
+
+    raise TTSError("Qwen TTS failed on all endpoints; " + "; ".join(errors))
 
 
 # ── Tier 2: Edge TTS (free, Microsoft Edge API) ──────────────
@@ -202,6 +313,10 @@ def _synthesize_one(
         try:
             if backend == "qwen_api":
                 return _synthesize_via_qwen_api(text, role)
+            elif backend == "qwen_local":
+                return _synthesize_via_qwen_local(text, role)
+            elif backend == "qwen_cloud":
+                return _synthesize_via_qwen_cloud(text, role)
             elif backend == "edge":
                 return _synthesize_via_edge_tts(text, role)
             elif backend == "dashscope":
@@ -229,7 +344,7 @@ def synthesize_segment(
     """
     Synthesize a single text segment to MP3 bytes.
 
-    Tries each backend in order: qwen-tts2api → Edge → DashScope.
+    Tries each backend in order: Qwen (primary→fallback) → Edge → DashScope.
     NOTE: For dialogue, use synthesize_dialogue() which locks the entire
     conversation to one backend to avoid mixing different voices.
     """
@@ -275,10 +390,10 @@ def _try_all_segments(
     for i, line in enumerate(dialogue):
         role = line["role"]
         text = line["text"]
-        preset = VOICE_MAP.get(role)
+        preset = _dashscope_voice_map().get(role)
         if not preset:
             logger.warning("Unknown role '%s' at line %d, defaulting to female", role, i)
-            preset = VOICE_MAP["女"]
+            preset = _dashscope_voice_map()["女"]
 
         chunks = _split_text(text, MAX_CHARS_PER_REQUEST)
 
@@ -361,15 +476,15 @@ def synthesize_dialogue(
     Synthesize dialogue with smart voice-consistent fallback.
 
     Backend availability controlled by settings:
-    - qwen-tts2api (self-hosted, free): always enabled
+    - Qwen TTS (tts.hudawang.cn → qwen-tts2api fallback): always enabled
     - DashScope (paid): only if TTS_ENABLE_DASHSCOPE=true
     - Edge (free, different voice): only if TTS_ENABLE_EDGE=true
 
-    qwen-tts2api + DashScope share Cherry/Ethan voices → partial patching OK.
+    Qwen fallback + DashScope share Cherry/Ethan voices → partial patching OK.
     Edge uses different voices → requires clean slate, all-or-nothing.
 
     Fallback chain:
-      1. qwen-tts2api all → if partial fail and DashScope enabled → patches gaps
+      1. Qwen TTS all → if partial fail and DashScope enabled → patches gaps
       2. Edge all  (if enabled, clean slate, different voice)
       3. DashScope all (if enabled, clean slate, paid)
     """
@@ -377,25 +492,34 @@ def synthesize_dialogue(
 
     use_dashscope = settings.tts_enable_dashscope and settings.dashscope_api_key
     use_edge = settings.tts_enable_edge
+    force = settings.tts_force_backend
 
-    # ── Phase 1: qwen-tts2api (self-hosted, free, Cherry/Ethan) ──
-    logger.info("[TTS] Phase 1: qwen-tts2api for all %d lines", len(dialogue))
+    if force:
+        forced = _synthesize_dialogue_forced(
+            dialogue, output_dir, force,
+            use_dashscope=use_dashscope, use_edge=use_edge,
+        )
+        if forced is not None:
+            return forced
+
+    # ── Phase 1: Qwen TTS (HK local primary, US tts2api fallback) ──
+    logger.info("[TTS] Phase 1: Qwen TTS (primary→fallback) for all %d lines", len(dialogue))
     files, failed = _try_all_segments(dialogue, output_dir, "qwen_api")
 
     if not failed:
-        logger.info("[TTS] All %d segments done via qwen-tts2api", len(files))
+        logger.info("[TTS] All %d segments done via Qwen TTS", len(files))
         return [f for f in files if f is not None]
 
     qwen_ok = sum(1 for f in files if f is not None)
-    logger.warning("[TTS] qwen-tts2api: %d succeeded, %d failed", qwen_ok, len(failed))
+    logger.warning("[TTS] Qwen TTS: %d succeeded, %d failed", qwen_ok, len(failed))
 
     if qwen_ok > 0 and use_dashscope:
-        # ── Phase 1b: DashScope patches qwen-tts2api gaps (same voice) ──
+        # ── Phase 1b: DashScope patches Qwen gaps (same voice on fallback path) ──
         logger.info("[TTS] Phase 1b: Patching %d gaps with DashScope", len(failed))
         files = _patch_failed_segments(files, failed, "dashscope")
         still_missing = sum(1 for f in files if f is None)
         if not still_missing:
-            logger.info("[TTS] All segments complete (qwen-tts2api + DashScope patch)")
+            logger.info("[TTS] All segments complete (Qwen + DashScope patch)")
             return [f for f in files if f is not None]
         logger.warning("[TTS] Still %d segments missing after DashScope patch", still_missing)
 
@@ -420,6 +544,39 @@ def synthesize_dialogue(
             return [f for f in files if f is not None]
 
     raise TTSError(f"All TTS backends failed. {len(failed)} segments ungenerated.")
+
+
+def _synthesize_dialogue_forced(
+    dialogue: list[dict[str, str]],
+    output_dir: Path,
+    force: str,
+    *,
+    use_dashscope: bool,
+    use_edge: bool,
+) -> list[Path] | None:
+    """Single-backend run when TTS_FORCE_BACKEND is set. Returns None if force value unknown."""
+    allowed = {
+        "qwen_local": "qwen_local",
+        "qwen_cloud": "qwen_cloud",
+        "edge": "edge",
+        "dashscope": "dashscope",
+    }
+    backend = allowed.get(force)
+    if not backend:
+        logger.warning("[TTS] Unknown TTS_FORCE_BACKEND=%r, using default chain", force)
+        return None
+    if backend == "edge" and not use_edge:
+        raise TTSError("TTS_FORCE_BACKEND=edge but TTS_ENABLE_EDGE is false")
+    if backend == "dashscope" and not use_dashscope:
+        raise TTSError("TTS_FORCE_BACKEND=dashscope but DashScope is not enabled/configured")
+
+    logger.info("[TTS] Forced backend: %s for %d lines", backend, len(dialogue))
+    files, failed = _try_all_segments(dialogue, output_dir, backend)
+    if failed:
+        raise TTSError(
+            f"TTS_FORCE_BACKEND={force} failed on {len(failed)} segment(s)"
+        )
+    return files
 
 
 # ── Audio helpers for music + chapter support ─────────────────

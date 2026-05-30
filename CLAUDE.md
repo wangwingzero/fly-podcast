@@ -95,7 +95,7 @@ Rust desktop application (egui/eframe) providing a 5-step timeline interface for
 - **config.py**: `@dataclass(frozen=True)` Settings singleton populated from env vars. Access via `from flying_podcast.core.config import settings`.
 - **models.py**: Dataclasses — `NewsItem`, `DigestEntry`, `DailyDigest`, `QualityReport`. All implement `to_dict()`.
 - **llm_client.py**: OpenAI-compatible HTTP client (no SDK). Auto-detects Anthropic native API by key prefix (`sk-ant-`), URL pattern, or model name (`claude`). Retries with exponential backoff. Extracts JSON from markdown code blocks as fallback.
-- **tts_client.py**: Three-tier TTS fallback: qwen-tts2api (self-hosted, OpenAI-compatible via `QWEN_TTS_URL`) → Edge TTS (free, Microsoft) → DashScope (paid, Alibaba Cloud). 2000-char limit per request; auto-segments longer text.
+- **tts_client.py**: Three-tier TTS fallback: Qwen (`QWEN_TTS_PRIMARY_URL` → `QWEN_TTS_FALLBACK_URL`) → Edge TTS → DashScope. Primary is HK `tts.hudawang.cn` (local 0.6B); fallback is US `qwen-tts2api`. 2000-char limit per request; auto-segments longer text.
 - **pilot_filter.py**: Two-layer Part 121 relevance filter — rule-based (doc prefix + keyword) → LLM judgment for borderline cases.
 - **scoring.py**: Weighted quality scoring — 30% factual + 35% relevance + 15% authority + 10% timeliness + 10% readability.
 - **image_gen.py**: Cover image sourcing with fallback chain: Unsplash → Pixabay → Gemini → Grok.

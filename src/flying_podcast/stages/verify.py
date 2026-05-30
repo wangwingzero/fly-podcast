@@ -12,6 +12,7 @@ from flying_podcast.core.logging_utils import get_logger
 from flying_podcast.core.models import QualityReport
 from flying_podcast.core.scoring import has_source_conflict
 from flying_podcast.core.time_utils import beijing_today_str
+from flying_podcast.stages.rank import _looks_like_mainland_china_aviation_subject
 
 logger = get_logger("verify")
 
@@ -149,6 +150,7 @@ _DEFAULT_VERIFY_MAJOR_ACCIDENT_TERMS = (
 )
 
 _PRIMARY_HEALTH_ROLES = {"primary_industry", "macro_supplement"}
+_ENGAGEMENT_GOSSIP_SECTION = "industry_gossip"
 _ACCIDENT_EXCEPTION_SOURCE_IDS = {
     "avherald_web",
     "asn_2026_web",
@@ -175,6 +177,15 @@ def _source_role_for_entry(entry: dict) -> str:
     if source_id in _ACCIDENT_EXCEPTION_SOURCE_IDS:
         return "accident_exception"
     return ""
+
+
+def _entry_section(entry: dict) -> str:
+    return str(entry.get("section") or "").strip().lower()
+
+
+def _is_gossip_entry(entry: dict) -> bool:
+    """吃瓜类已在 rank/compose 加权选入；verify 不应再用事故例外规则误杀。"""
+    return _entry_section(entry) == _ENGAGEMENT_GOSSIP_SECTION
 
 
 def _load_source_health(day: str) -> list[dict]:
@@ -245,6 +256,11 @@ def _is_high_value_ops_entry(entry: dict) -> bool:
 
 
 def _should_override_editor_rejection(entry: dict, reason: str) -> bool:
+    # 吃瓜类：读者最爱看，编辑 LLM 用「无停飞/无监管影响」等教条理由删除时应改判保留。
+    if _is_gossip_entry(entry):
+        lowered_reason = str(reason or "").lower()
+        if not any(term in lowered_reason for term in _HARD_REJECT_REASON_HINTS):
+            return True
     # 高价值运行/技术稿件即使来自 accident_exception 源也允许改判保留：
     # 这些条目早已通过 verify 主流程的 _DEFAULT_VERIFY_MAJOR_ACCIDENT_TERMS 关，
     # 编辑 LLM 用"未体现监管动作 / 跨国影响"砍掉它们属于过度教条，需要兜底。
@@ -289,7 +305,9 @@ def _llm_editor_review(
         "技术增量：机型、系统、发动机、航电、维修、MRO、供应链、适航或制造交付方面的新事实。\n"
         "运行增量：监管、机场、空域、航班、运行限制、停飞、机队检查或跨国运营影响方面的新事实。\n"
         "里程碑增量：首飞、试飞、新机型衍生（如双座型、加油机版本）、本土组装首架、\n"
-        "退役机长告别、首位女机长、罕见任务、纪念飞行、世界纪录、新涂装首航。\n\n"
+        "退役机长告别、首位女机长、罕见任务、纪念飞行、世界纪录、新涂装首航。\n"
+        "吃瓜增量：航司/机组/旅客争议、 viral 视频、公开道歉、调查档案风波等——\n"
+        "读者最爱看，只要与航空相关且有具体人物/航司/事件细节，就应保留。\n\n"
         "【重要 — 关于事故 / 安全事件类稿件】\n"
         "结构性故障调查（如发动机分离、吊架轴承故障、风扇叶片脱落）、空中接近 / TCAS RA、\n"
         "重大空中相撞调查听证会等，是飞行员和爱好者最关心的硬核内容。\n"
@@ -322,7 +340,8 @@ def _llm_editor_review(
         "【明确不构成删除理由】\n"
         "- 「未体现监管动作 / 未触发停飞 / 未提及机队检查」——只要有事件本身的具体事实，就应保留。\n"
         "- 「未体现跨国运营影响」——一国监管 / 一架试飞 / 一次空中接近也是合格稿件。\n"
-        "- 「缺少更大范围影响」——结构性故障调查、试飞里程碑、首单不需要更大影响才能上稿。\n\n"
+        "- 「缺少更大范围影响」——结构性故障调查、试飞里程碑、首单不需要更大影响才能上稿。\n"
+        "- section 为 industry_gossip 的吃瓜稿——不要因「无停飞/无监管动作/无跨国影响」删除。\n\n"
         "符合 1-4 条且没有上面的「明确不构成删除理由」的，全部保留；不符合的删除。\n\n"
         "对每条新闻输出：{id, keep: true/false, reason: 一句话理由}\n"
         "输出JSON：{\"reviews\": [{\"id\": \"...\", \"keep\": true, \"reason\": \"...\"}]}"
@@ -425,7 +444,13 @@ def run(target_date: str | None = None) -> Path:
             blocked.append(eid)
 
         if role == "accident_exception" and not _contains_any(visible_text, accident_terms):
-            reasons.append("accident_without_major_impact")
+            # 吃瓜稿常来自事故源但新闻点是争议/ viral，不是「重大事故影响」。
+            if not _is_gossip_entry(entry):
+                reasons.append("accident_without_major_impact")
+                blocked.append(eid)
+
+        if _looks_like_mainland_china_aviation_subject(entry):
+            reasons.append("mainland_china_subject")
             blocked.append(eid)
 
         if not _has_chinese(visible_text):

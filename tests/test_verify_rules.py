@@ -40,6 +40,58 @@ class _FakeClient:
         )()
 
 
+def test_gossip_entry_skips_accident_without_major_impact_gate():
+    entry = {
+        "id": "gossip1",
+        "section": "industry_gossip",
+        "source_role": "accident_exception",
+        "source_tier": "B",
+        "title": "美调查人员恢复档案访问 此前因驾驶舱语音重构担忧暂停",
+        "conclusion": "调查人员因担忧频谱分析可重建驾驶舱录音而临时限制档案访问。",
+        "facts": ["美国调查人员已基本恢复档案系统访问权限。"],
+        "body": "此次限制源于对频谱分析技术可重构机组语音的顾虑。\n划重点：老美这波操作，怕不是CSI看多了。",
+        "citations": ["https://www.flightglobal.com/example"],
+        "score_breakdown": {"factual": 90, "relevance": 90, "authority": 80, "timeliness": 90, "readability": 100},
+    }
+    role = verify_module._source_role_for_entry(entry)
+    accident_terms = list(verify_module._DEFAULT_VERIFY_MAJOR_ACCIDENT_TERMS)
+    visible = entry["title"] + entry["body"]
+    assert role == "accident_exception"
+    assert not verify_module._contains_any(visible, accident_terms)
+    assert verify_module._is_gossip_entry(entry)
+    should_block_accident = (
+        role == "accident_exception"
+        and not verify_module._contains_any(visible, accident_terms)
+        and not verify_module._is_gossip_entry(entry)
+    )
+    assert should_block_accident is False
+
+
+def test_llm_editor_overrides_rejection_for_gossip_entry():
+    client = _FakeClient(
+        payload={
+            "reviews": [
+                {
+                    "id": "g1",
+                    "keep": False,
+                    "reason": "事故调查缺少停飞、监管或更大范围运行影响，不适合作为日报主体。",
+                }
+            ]
+        }
+    )
+    entry = {
+        "id": "g1",
+        "section": "industry_gossip",
+        "source_role": "accident_exception",
+        "title": "美调查人员恢复档案访问",
+        "conclusion": "调查人员因担忧可重建驾驶舱录音而临时限制档案访问。",
+        "facts": ["41份档案仍在审查中。"],
+        "body": "美国调查人员已基本恢复此前暂停的档案系统访问权限。",
+    }
+    blocked = _llm_editor_review([entry], client)
+    assert blocked == []
+
+
 def test_llm_editor_review_prompt_allows_humorous_highlight():
     client = _FakeClient()
     blocked = _llm_editor_review(
@@ -441,3 +493,63 @@ def test_verify_skips_publish_when_primary_sources_unhealthy_and_accident_only(m
     assert report["decision"] == "skip_publish"
     assert "primary_source_health_below_threshold" in report["reasons"]
     assert "accident_only_fallback_digest" in report["reasons"]
+
+
+def test_verify_blocks_mainland_subject_entry_with_distinct_reason(monkeypatch, tmp_path):
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    keywords_path = tmp_path / "keywords.yaml"
+    keywords_path.write_text(
+        "sensitive_keywords: []\nsensational_words: []\n",
+        encoding="utf-8",
+    )
+    (processed_dir / "composed_2026-05-22.json").write_text(
+        json.dumps(
+            {
+                "date": "2026-05-22",
+                "article_count": 1,
+                "entries": [
+                    {
+                        "id": "a1",
+                        "title": "CAAC orders review of airline safety reporting",
+                        "conclusion": "CAAC orders airlines to review safety reporting procedures.",
+                        "facts": ["CAAC launched the review.", "Mainland airlines must respond this month."],
+                        "body": "CAAC ordered mainland carriers to review safety reporting procedures.",
+                        "citations": ["https://www.reuters.com/world/china/caac-review"],
+                        "source_tier": "A",
+                        "source_id": "reuters_aviation",
+                        "event_fingerprint": "fp-a1",
+                        "score_breakdown": {
+                            "factual": 90,
+                            "relevance": 90,
+                            "timeliness": 90,
+                            "readability": 100,
+                        },
+                    }
+                ],
+                "meta": {"compose_mode": "llm_two_phase"},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    fake_settings = SimpleNamespace(
+        processed_dir=processed_dir,
+        keywords_config=keywords_path,
+        target_article_count=0,
+        min_tier_a_ratio=0.0,
+        max_entries_per_source=0,
+        allow_google_redirect_citation=False,
+        quality_threshold=80,
+        require_llm_for_publish=False,
+    )
+    monkeypatch.setattr(verify_module, "settings", fake_settings)
+    monkeypatch.setattr(verify_module.OpenAICompatibleClient, "is_configured", staticmethod(lambda: False))
+
+    out = verify_module.run("2026-05-22")
+    report = json.loads(out.read_text(encoding="utf-8"))
+
+    assert report["decision"] == "skip_publish"
+    assert "mainland_china_subject" in report["reasons"]
+    assert "all_entries_blocked" in report["reasons"]
+    assert report["blocked_entry_ids"] == ["a1"]

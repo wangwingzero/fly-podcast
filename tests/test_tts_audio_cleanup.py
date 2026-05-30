@@ -1,8 +1,20 @@
 import shutil
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 from flying_podcast.core import tts_client
+
+
+def test_looks_like_mp3_detects_id3_and_frame_sync() -> None:
+    assert tts_client._looks_like_mp3(b"ID3" + b"\x00" * 8)
+    assert tts_client._looks_like_mp3(b"\xff\xf3" + b"\x00" * 8)
+    assert not tts_client._looks_like_mp3(b"RIFF" + b"\x00" * 8)
+
+
+def test_response_bytes_to_mp3_passes_through_mp3() -> None:
+    mp3 = b"ID3" + b"\x00" * 120
+    assert tts_client._response_bytes_to_mp3(mp3, from_wav_trim=True) == mp3
 
 
 def test_qwen_wav_to_mp3_can_trim_leading_artifact(monkeypatch) -> None:
@@ -63,3 +75,36 @@ def test_concatenate_simple_applies_boundary_fades(monkeypatch) -> None:
         assert "concat=n=2:v=0:a=1[raw]" in filter_str
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def _fake_tts_settings(**overrides: object) -> SimpleNamespace:
+    base = dict(
+        qwen_tts_primary_url="https://tts.hudawang.cn",
+        qwen_tts_fallback_url="http://186.244.244.142:8825",
+        qwen_tts_prefer_cloud_voices=False,
+        tts_qwen_local_voice_female="serena",
+        tts_qwen_local_voice_male="aiden",
+        tts_qwen_cloud_voice_female="cherry",
+        tts_qwen_cloud_voice_male="ethan",
+    )
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def test_qwen_speech_endpoints_prefers_cloud_when_configured(monkeypatch) -> None:
+    fake_settings = _fake_tts_settings(qwen_tts_prefer_cloud_voices=True)
+    monkeypatch.setattr(tts_client, "settings", fake_settings)
+
+    labels = [row[0] for row in tts_client._qwen_speech_endpoints()]
+    voices = [row[2]["千羽"] for row in tts_client._qwen_speech_endpoints()]
+
+    assert labels == ["qwen-cloud", "qwen-local"]
+    assert voices == ["cherry", "serena"]
+
+
+def test_qwen_speech_endpoints_defaults_to_local_first(monkeypatch) -> None:
+    fake_settings = _fake_tts_settings()
+    monkeypatch.setattr(tts_client, "settings", fake_settings)
+
+    labels = [row[0] for row in tts_client._qwen_speech_endpoints()]
+    assert labels == ["qwen-local", "qwen-cloud"]

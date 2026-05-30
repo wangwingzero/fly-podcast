@@ -299,8 +299,42 @@ GREETING_ADDENDUM = """
 ## 特别指令
 {greeting}"""
 
+BRIEFING_ADDENDUM = """
 
-def generate_dialogue(pdf_text: str) -> dict[str, Any]:
+## 播客制作要求（制作人单独强调，务必理解并贯穿全篇）
+以下内容不来自 PDF 正文，而是制作人对本期节目的侧重点。请优先满足这些要求来选题、展开和收束，可与 PDF 内容结合，但不要忽略。
+
+{briefing}"""
+
+MAX_LLM_BRIEFING_CHARS = 4000
+
+
+def _resolve_llm_briefing(
+    *,
+    briefing: str = "",
+    briefing_file: str | Path | None = None,
+) -> str:
+    text = (briefing or "").strip()
+    if briefing_file:
+        path = Path(briefing_file)
+        if path.exists():
+            text = path.read_text(encoding="utf-8").strip()
+    if len(text) > MAX_LLM_BRIEFING_CHARS:
+        logger.warning(
+            "LLM briefing truncated from %d to %d chars",
+            len(text),
+            MAX_LLM_BRIEFING_CHARS,
+        )
+        text = text[:MAX_LLM_BRIEFING_CHARS]
+    return text
+
+
+def generate_dialogue(
+    pdf_text: str,
+    *,
+    llm_briefing: str = "",
+    briefing_file: str | Path | None = None,
+) -> dict[str, Any]:
     """Use LLM to generate podcast dialogue from PDF text."""
     if not OpenAICompatibleClient.is_configured():
         raise RuntimeError("LLM is not configured (check LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)")
@@ -312,6 +346,10 @@ def generate_dialogue(pdf_text: str) -> dict[str, Any]:
     )
 
     user_prompt = USER_PROMPT_TEMPLATE.format(pdf_text=pdf_text)
+    briefing = _resolve_llm_briefing(briefing=llm_briefing, briefing_file=briefing_file)
+    if briefing:
+        user_prompt += BRIEFING_ADDENDUM.format(briefing=briefing)
+        logger.info("Added LLM briefing: %s", briefing[:80])
     if settings.podcast_greeting:
         user_prompt += GREETING_ADDENDUM.format(greeting=settings.podcast_greeting)
         logger.info("Added greeting: %s", settings.podcast_greeting[:50])
@@ -632,8 +670,15 @@ def _resolve_pdf(pdf_path: str | None) -> Path:
     return pdf_file
 
 
-def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
-               download_url: str = "", output_dir: str | None = None) -> Path:
+def run_script(
+    target_date: str | None = None,
+    *,
+    pdf_path: str | None = None,
+    download_url: str = "",
+    output_dir: str | None = None,
+    llm_briefing: str = "",
+    briefing_file: str | Path | None = None,
+) -> Path:
     """Generate podcast script from PDF (steps 1-3).
 
     PDF → text extraction → LLM dialogue → script.json + dialogue.html + cover.jpg
@@ -643,6 +688,8 @@ def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
         pdf_path: Path to the input PDF file. Falls back to PODCAST_PDF_PATH env var.
         download_url: Optional URL to the original document for the dialogue HTML footer.
         output_dir: Custom output base directory. Defaults to settings.output_dir.
+        llm_briefing: Producer notes for the LLM (emphasis, angles, must-cover points).
+        briefing_file: Path to a text file with the same content (overrides llm_briefing).
 
     Returns:
         Path to the work directory containing script.json, dialogue.html, cover.jpg.
@@ -672,7 +719,11 @@ def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
 
     # Step 2: Generate dialogue via LLM
     logger.info("Step 2/3: Generating dialogue script...")
-    dialogue_data = generate_dialogue(pdf_text)
+    dialogue_data = generate_dialogue(
+        pdf_text,
+        llm_briefing=llm_briefing,
+        briefing_file=briefing_file,
+    )
 
     # Save dialogue script for reference
     script_path = work_dir / "script.json"
@@ -698,6 +749,10 @@ def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
     generate_cover_image(pdf_file, title, cover_path)
 
     # Save partial metadata (no audio yet)
+    resolved_briefing = _resolve_llm_briefing(
+        briefing=llm_briefing,
+        briefing_file=briefing_file,
+    )
     meta = {
         "date": day,
         "pdf_source": str(pdf_file),
@@ -707,6 +762,7 @@ def run_script(target_date: str | None = None, *, pdf_path: str | None = None,
         "dialogue_html_path": str(html_path),
         "dialogue_lines": len(flat_lines),
         "total_chars": sum(len(l["text"]) for l in flat_lines),
+        "llm_briefing": resolved_briefing,
     }
     dump_json(work_dir / "metadata.json", meta)
 
@@ -806,8 +862,14 @@ def run_audio(*, work_dir: str | Path) -> Path:
     return mp3_path
 
 
-def run(target_date: str | None = None, *, pdf_path: str | None = None,
-        download_url: str = "") -> Path:
+def run(
+    target_date: str | None = None,
+    *,
+    pdf_path: str | None = None,
+    download_url: str = "",
+    llm_briefing: str = "",
+    briefing_file: str | Path | None = None,
+) -> Path:
     """Full podcast generation pipeline (script + audio + PDF narration).
 
     Used by GitHub Actions and CLI ``python run.py podcast``.
@@ -816,11 +878,19 @@ def run(target_date: str | None = None, *, pdf_path: str | None = None,
         target_date: Date string (YYYY-MM-DD) for output naming.
         pdf_path: Path to the input PDF file. Falls back to PODCAST_PDF_PATH env var.
         download_url: Optional URL to the original document for the dialogue HTML footer.
+        llm_briefing: Producer notes passed to the script LLM.
+        briefing_file: Optional file path with producer notes.
 
     Returns:
         Path to the generated MP3 file.
     """
-    work_dir = run_script(target_date, pdf_path=pdf_path, download_url=download_url)
+    work_dir = run_script(
+        target_date,
+        pdf_path=pdf_path,
+        download_url=download_url,
+        llm_briefing=llm_briefing,
+        briefing_file=briefing_file,
+    )
     mp3_path = run_audio(work_dir=work_dir)
 
     # Generate PDF full-text narration (optional, non-blocking)

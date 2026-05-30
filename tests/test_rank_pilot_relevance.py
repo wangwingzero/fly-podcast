@@ -145,6 +145,38 @@ def test_accepts_retro_livery_anniversary_flight_as_novelty():
     assert reason in {"ok", "ok_novelty"}
 
 
+def test_accepts_airline_scandal_as_gossip():
+    item = {
+        "source_id": "simple_flying_cli",
+        "canonical_url": "https://example.com/news/united-captain-suspended",
+        "url": "https://example.com/news/united-captain-suspended",
+    }
+    text = (
+        "United Airlines captain suspended pending investigation after viral social media video "
+        "shows inappropriate behavior before a Boeing 737 flight from Denver."
+    )
+    ok, reason = _is_pilot_relevant(item, text, kw_cfg={})
+    assert ok is True
+    assert reason in {"ok", "ok_gossip", "ok_novelty"}
+
+
+def test_gossip_profile_scores_high():
+    from flying_podcast.stages.rank import _pilot_value_profile
+
+    item = {
+        "source_id": "simple_flying_cli",
+        "title": "Delta pilot fired after passenger altercation goes viral on TikTok",
+        "raw_text": (
+            "Delta Air Lines terminated a first officer after a disruptive passenger fight "
+            "on an Airbus A320 sparked backlash on social media."
+        ),
+    }
+    profile = _pilot_value_profile(item, f"{item['title']} {item['raw_text']}", kw_cfg={})
+    assert profile["category"] == "industry_gossip"
+    assert profile["gossip_hits"] >= 2
+    assert profile["pilot_value_score"] >= 75.0
+
+
 # ── Novelty 路径明确拒绝的话题（用户不想要的范围） ─────────────────
 
 

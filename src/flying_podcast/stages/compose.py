@@ -1289,7 +1289,9 @@ def _build_selection_prompt(
         "2. 监管与运行环境：FAA/EASA/IATA/ICAO、适航、机场、空域、ATC、slot、航班大范围调整和跨国运行限制。\n"
         "3. 制造与供应链：OEM、发动机、MRO、产能、交付延误、供应链问题、SAF 和排放规则。\n"
         "4. 重大国际宏观事件：只有明确影响航司、航班、机场、空域、机队或供应链时才可入选。\n"
-        "5. 事故、严重事故、空难调查默认不作为日报主体；只有造成停飞、监管动作、机队检查、跨国航班/机场/空域影响或主要国际航司受影响时才保留。\n\n"
+        "5. 航空吃瓜/争议/ viral 事件（机组停职、旅客冲突、航司丑闻、 viral 视频）——读者最爱看，"
+        "只要有具体航司/航班/人物/事件细节，应优先入选并排在较前位置。\n"
+        "6. 事故、严重事故、空难调查默认不作为日报主体；只有造成停飞、监管动作、机队检查、跨国航班/机场/空域影响或主要国际航司受影响时才保留。\n\n"
         "【版面平衡】如果候选足够，必须形成国际航空行业简报，而不是事故简报：\n"
         "- 行业媒体来源优先，Reuters/Bloomberg 只补重大国际事件。\n"
         "- 同一来源不要连续堆太多；避免被事故源、数据库记录或单一媒体刷屏。\n"
@@ -1332,6 +1334,7 @@ def _build_selection_prompt(
                 "机队、订单、交付、租赁、发动机、MRO、OEM和供应链",
                 "监管、适航、机场、空域、slot、ATC和跨国运行限制",
                 "Reuters/Bloomberg中的重大国际航空影响事件",
+                "航空吃瓜/争议/ viral（机组停职、旅客冲突、航司道歉、 scandal）",
                 "事故/调查仅在有停飞、监管、机队检查、跨国运行影响时保留",
             ],
             "balance": {
@@ -1340,6 +1343,7 @@ def _build_selection_prompt(
                 "max_macro_supplement_if_available": 2,
                 "max_pure_airworthiness_directives_if_available": 2,
                 "max_industry_novelty_if_available": 2,
+                "max_industry_gossip_if_available": 3,
                 "reject_accident_flow_as_digest_backbone": True,
             },
         },
@@ -1442,19 +1446,20 @@ def _pick_novelty_anchors(
     selected_ids: list[str],
     min_count: int,
 ) -> list[str]:
-    """选择强制保底的趣闻锚点：ranked 池中分数最高的 industry_novelty。
+    """选择强制保底的趣闻/吃瓜锚点：ranked 池中分数最高的 engagement 稿。
 
-    LLM 选稿是非确定性的，KC-46/777-9 这类趣闻容易被忽略。
-    本函数确保至少 min_count 条 industry_novelty 进入选稿池。
+    LLM 选稿是非确定性的，首飞/吃瓜这类读者最爱看的内容容易被忽略。
+    本函数确保至少 min_count 条 industry_novelty / industry_gossip 进入选稿池。
     """
     if min_count <= 0:
         return []
     selected_set = set(selected_ids)
+    engagement_categories = {"industry_novelty", "industry_gossip"}
     novelty_candidates: list[tuple[float, str]] = []
     for row in candidates_pool:
         pv = row.get("pilot_value") if isinstance(row.get("pilot_value"), dict) else {}
         cat = str(pv.get("category") or row.get("section") or "")
-        if cat != "industry_novelty":
+        if cat not in engagement_categories:
             continue
         rid = str(row.get("id") or "")
         if not rid:
@@ -1630,6 +1635,7 @@ def _build_composition_prompt(
         "  事故/事件类（安全事件、事故调查、紧急情况、备降返航、空中接近、跑道事件）→ 额外+2分\n"
         "  适航指令/安全通报类（AD / SAFO / InFO / 机队检查）→ 额外+2分\n"
         "  航空趣闻类（首飞 / 试飞里程碑、纪念飞行、退役 / 首位机长故事、罕见任务、新机型衍生）→ 额外+1分\n"
+        "  航空吃瓜类（航司丑闻、机组停职、旅客冲突、 viral 视频、公开道歉、争议决策）→ 额外+2分\n"
         "  行业监管 / ATC / 监管动态 → 额外+1分\n"
         "打分标准：6-10=值得发布，3-5=可发可不发，1-2=不值得发布\n"
         "注意：即使原文较短，只要涉及飞行技术、安全事件、适航或趣闻里程碑的具体事实，也应给高分。\n"
@@ -1645,6 +1651,15 @@ def _build_composition_prompt(
         "- 涉及驾驶舱可见的新装备或操作变化（HUD、合成视景、AI 副驾、单飞行员等）\n"
         "- 涉及具体人物 + 飞行经历（首位女机长、传奇老机长退役）\n"
         "趣闻类只在内容是空泛宣传或纯财经/订单时给 1-3 分。\n\n"
+        "【吃瓜类评分专属指引 — 重要】\n"
+        "对航空吃瓜类（航司丑闻、机组停职/解雇、旅客冲突、 viral 视频、公开道歉、争议政策）评分时，\n"
+        "判断标准应该是「飞行员在群里会不会转发并配一句吐槽」，这是读者最爱看的内容。\n"
+        "吃瓜类的合格分是 7-9 分（不是 5 以下），只要满足以下任一条件即可给 7 分及以上：\n"
+        "- 具体航司 + 具体人物/事件（如「United 机长因 XX 被停职」）\n"
+        "- 具体航班/机场 + 冲突或争议细节（如「JFK 延误旅客与地勤冲突视频疯传」）\n"
+        "- 航司公开道歉/改政策，且有可复述的具体起因\n"
+        "- social media / viral 传播本身就是新闻点，且与航空运行相关\n"
+        "吃瓜类只在与航空完全无关（纯娱乐明星、非航空社会新闻）时给 1-3 分。\n\n"
         "【输出要求】\n"
         "- title: 中文标题，简洁准确，忠实于原文\n"
         "- conclusion: 一句话中文结论概括\n"
@@ -1704,9 +1719,10 @@ _MIN_PUBLISH_SCORE = 6
 # Backfill 门槛抬高到 5：当文章不够 MIN_PUBLISH_COUNT 时，
 # 优先把 5/10 的边缘合格稿补上，而不是 3/10 的灌水稿。
 _MIN_BACKFILL_SCORE = 5
-# 趣闻/新奇类（首飞、纪念飞行、人物故事）本质是行业资讯+调味剂，
+# 趣闻/吃瓜类（首飞、纪念飞行、争议 viral）本质是读者最爱看的调味剂，
 # LLM 用严肃运行价值标准评分通常偏低（5-6/10），用稍低阈值放行。
 _MIN_PUBLISH_SCORE_NOVELTY = 5
+_ENGAGEMENT_CATEGORIES = frozenset({"industry_novelty", "industry_gossip"})
 
 
 _TRANSLATE_BODY_PROMPT = (
@@ -1901,12 +1917,12 @@ def _llm_compose_entries(
                 score = 1
 
         # Unified score gate — applies to ALL paths (LLM, translate, rules)
-        # 趣闻类（industry_novelty）用更宽松的阈值，其他类保持严格。
+        # 趣闻/吃瓜类用更宽松的阈值，其他类保持严格。
         cand_pv = cand.get("pilot_value") if isinstance(cand.get("pilot_value"), dict) else {}
         cand_category = str(cand_pv.get("category") or cand.get("section") or "")
         publish_threshold = (
             _MIN_PUBLISH_SCORE_NOVELTY
-            if cand_category == "industry_novelty"
+            if cand_category in _ENGAGEMENT_CATEGORIES
             else _MIN_PUBLISH_SCORE
         )
         if entry and entry.citations:

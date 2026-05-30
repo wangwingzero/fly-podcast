@@ -67,6 +67,144 @@ _TITLE_TOKEN_SYNONYMS = {
     "colliding": "collision",
 }
 
+_MAINLAND_CHINA_SUBJECT_KEYWORDS = (
+    "caac",
+    "civil aviation administration of china",
+    "中国民航",
+    "中国民用航空局",
+    "民航局",
+    "mainland china",
+    "mainland chinese",
+    "中国大陆",
+    "内地",
+    "china confirms order",
+)
+
+_MAINLAND_CHINA_CARRIER_KEYWORDS = (
+    "air china",
+    "china southern",
+    "china eastern",
+    "hainan airlines",
+    "shenzhen airlines",
+    "xiamen airlines",
+    "sichuan airlines",
+    "juneyao airlines",
+    "spring airlines",
+    "9 air",
+    "9air",
+    "okay air",
+    "okay airways",
+    "lucky air",
+    "capital airlines",
+    "tianjin airlines",
+    "qingdao airlines",
+    "chengdu airlines",
+    "loong air",
+    "suparna airlines",
+    "grand china air",
+    "中国国际航空",
+    "国航",
+    "中国南方航空",
+    "南航",
+    "中国东方航空",
+    "东航",
+    "海南航空",
+    "海航",
+    "深圳航空",
+    "厦门航空",
+    "四川航空",
+    "吉祥航空",
+    "春秋航空",
+    "九元航空",
+    "奥凯航空",
+    "祥鹏航空",
+    "首都航空",
+    "天津航空",
+    "青岛航空",
+    "成都航空",
+    "长龙航空",
+    "金鹏航空",
+)
+
+_MAINLAND_CHINA_AIRPORT_KEYWORDS = (
+    "beijing daxing",
+    "beijing capital airport",
+    "shanghai pudong",
+    "shanghai hongqiao",
+    "guangzhou baiyun",
+    "shenzhen bao'an",
+    "chengdu tianfu",
+    "chengdu shuangliu",
+    "xiamen gaoqi",
+    "hangzhou xiaoshan",
+    "中国大陆机场",
+    "北京大兴",
+    "北京首都机场",
+    "上海浦东",
+    "上海虹桥",
+    "广州白云",
+    "深圳宝安",
+    "成都天府",
+    "成都双流",
+    "厦门高崎",
+    "杭州萧山",
+)
+
+_MAINLAND_CHINA_SUBJECT_ACTION_KEYWORDS = (
+    "orders review",
+    "review of",
+    "regulator",
+    "regulatory",
+    "safety reporting",
+    "domestic network",
+    "domestic route",
+    "network",
+    "capacity",
+    "fleet plan",
+    "fleet expansion",
+    "delivery",
+    "deliveries",
+    "airport operations",
+    "slot",
+    "slots",
+    "航线",
+    "航班",
+    "国内航线",
+    "国内网络",
+    "运力",
+    "机队",
+    "交付",
+    "航权",
+    "时刻",
+    "机场运行",
+    "监管",
+    "安全通报",
+)
+
+_MAINLAND_CHINA_EXEMPT_TITLE_PATTERNS = (
+    "china airlines",
+    "taiwan",
+    "eva air",
+    "starlux",
+    "mandarin airlines",
+    "中华航空",
+    "长荣航空",
+    "星宇航空",
+    "华信航空",
+)
+
+_SOFT_CONTENT_TITLE_PATTERNS = (
+    "video interview",
+    "press release",
+)
+
+_LOW_VALUE_INFRASTRUCTURE_TITLE_PATTERNS = (
+    "airport construction plan",
+    "breaks ground on",
+    "engineering complex",
+    "operations base",
+)
+
 _DEFAULT_PILOT_SIGNAL_KEYWORDS = [
     "aviation",
     "airline",
@@ -126,6 +264,27 @@ _DEFAULT_HARD_REJECT_KEYWORDS = [
     "frequent flyer",
     "meal service",
     "celebrity",
+]
+
+_DEFAULT_STRICT_HARD_REJECT_KEYWORDS = [
+    "military aircraft",
+    "fighter jet",
+    "eurofighter",
+    "navy",
+    "army",
+    "aircraft acquisition",
+    "acquiring",
+    "immigration enforcement",
+    "ice vehicles",
+    "press release announces partnership",
+    "announces strategic partnership",
+    "signs memorandum of understanding",
+    "announces order for",
+    "signs purchase agreement",
+    "usaf",
+    "raf spy plane",
+    "trainer jet",
+    "mrtt",
 ]
 
 _DEFAULT_PILOT_DIRECT_OPERATION_KEYWORDS = [
@@ -460,6 +619,25 @@ _DEFAULT_PILOT_NOVELTY_KEYWORDS = [
     "特别涂装",
 ]
 
+# 吃瓜类：航司/机组/旅客争议、 viral 事件——读者最爱，排序时应给高分。
+_DEFAULT_PILOT_GOSSIP_KEYWORDS = [
+    "scandal", "controversy", "controversial", "viral", "went viral", "trending",
+    "backlash", "outrage", "slammed", "criticised", "criticized",
+    "fired", "sacked", "suspended", "resignation", "resign", "terminated",
+    "disciplinary action", "under investigation",
+    "unruly passenger", "disruptive passenger", "passenger altercation", "passenger fight",
+    "kicked off", "removed from flight", "banned from", "deplaned",
+    "intoxicated", "drunk pilot", "alcohol test", "caught on camera", "video shows",
+    "social media", "tiktok", "instagram", "reddit",
+    "drama", "feud", "embarrassing", "mishap", "blunder", "gaffe",
+    "pilot error", "captain suspended", "first officer suspended",
+    "inappropriate", "sexual harassment", "whistleblower",
+    "public apology", "airline apologizes", "airline apologises",
+    "争议", "丑闻", "辞退", "解聘", "停职", "网曝", "曝光", "热搜",
+    "引热议", "引争议", "遭吐槽", "遭质疑", "翻车", "闹事", "冲突", "吵架", "殴打", "醉酒",
+    "闹事旅客", "被赶下飞机", "公开道歉", "机组被停飞", "机长被停职",
+]
+
 # 即使在 novelty 路径下也要拒绝的话题（用户明确不感兴趣的前沿空中出行类）。
 _DEFAULT_PILOT_NOVELTY_REJECT_KEYWORDS = [
     "evtol",
@@ -715,6 +893,18 @@ _PILOT_CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "世界纪录", "极地航班", "超长航班", "告别飞行", "纪念飞行",
         "复古涂装", "纪念涂装", "首架交付", "投入运营", "首航", "总装下线", "下线",
     ],
+    "industry_gossip": [
+        "scandal", "controversy", "viral", "went viral", "trending", "backlash", "outrage",
+        "fired", "sacked", "suspended", "resignation", "terminated", "disciplinary",
+        "unruly passenger", "disruptive passenger", "passenger fight", "altercation",
+        "kicked off", "removed from flight", "deplaned", "intoxicated", "drunk pilot",
+        "caught on camera", "video shows", "social media", "tiktok", "drama", "feud",
+        "embarrassing", "mishap", "blunder", "pilot error", "captain suspended",
+        "inappropriate", "whistleblower", "public apology", "airline apologizes",
+        "争议", "丑闻", "辞退", "解聘", "停职", "网曝", "曝光", "热搜", "引热议",
+        "引争议", "遭吐槽", "翻车", "闹事", "冲突", "醉酒", "被赶下飞机", "公开道歉",
+        "机组被停飞", "机长被停职",
+    ],
     "industry_news": _DEFAULT_INDUSTRY_NEWS_KEYWORDS,
 }
 
@@ -726,6 +916,8 @@ _CATEGORY_BONUS = {
     # 趣闻类——给到与人因训练相近的加分，让首飞/纪念飞行/特殊任务等能稳定
     # 进入 ranked 池，但仍低于事故和适航，避免新闻日替代严肃内容。
     "industry_novelty": 14.0,
+    # 吃瓜类——读者最爱看，给到接近事故级的加分，确保争议/ viral 稿能进前排。
+    "industry_gossip": 22.0,
     "industry_news": 16.0,
 }
 
@@ -771,6 +963,7 @@ def _is_relevant(
     keyword_hits: int,
     all_keywords: list[str],
     novelty_keywords: list[str] | None = None,
+    gossip_keywords: list[str] | None = None,
 ) -> bool:
     if keyword_hits > 0:
         return True
@@ -783,6 +976,10 @@ def _is_relevant(
     # 后续会由 _is_pilot_relevant 的 novelty_hits 路径再次校验。
     if novelty_keywords:
         if any(k.lower() in text for k in novelty_keywords):
+            return True
+    # 吃瓜旁路：争议/ viral / 机组丑闻类标题常不带标准运行 signal。
+    if gossip_keywords:
+        if any(k.lower() in text for k in gossip_keywords):
             return True
     return False
 
@@ -832,6 +1029,26 @@ def _has_primary_industry_signal(text: str, kw_cfg: dict) -> bool:
     return _count_hits(text, words) >= 2
 
 
+def _looks_like_mainland_china_aviation_subject(item: dict) -> bool:
+    title = str(item.get("title") or "").strip().lower()
+    if not title:
+        return False
+    if any(term in title for term in _MAINLAND_CHINA_EXEMPT_TITLE_PATTERNS):
+        return False
+
+    if any(term in title for term in _MAINLAND_CHINA_SUBJECT_KEYWORDS):
+        return True
+    if any(term in title for term in _MAINLAND_CHINA_AIRPORT_KEYWORDS):
+        return True
+    if any(term in title for term in _MAINLAND_CHINA_CARRIER_KEYWORDS):
+        if any(term in title for term in _MAINLAND_CHINA_SUBJECT_ACTION_KEYWORDS):
+            return True
+        return "domestic" in title or "国内" in title
+    if any(term in title for term in ("china airport", "chinese airport", "mainland airport")):
+        return True
+    return False
+
+
 def _title_tokens_for_event(title: str) -> frozenset[str]:
     text = str(title or "").lower().replace("la guardia", "laguardia")
     tokens: set[str] = set()
@@ -859,7 +1076,9 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     signal_words = _keyword_list(kw_cfg.get("pilot_signal_keywords"), _DEFAULT_PILOT_SIGNAL_KEYWORDS)
     entity_words = _keyword_list(kw_cfg.get("pilot_entity_keywords"), _DEFAULT_PILOT_ENTITY_KEYWORDS)
     reject_words = _keyword_list(kw_cfg.get("hard_reject_keywords"), _DEFAULT_HARD_REJECT_KEYWORDS)
-    strict_reject_words = _keyword_list(kw_cfg.get("strict_hard_reject_keywords"), [])
+    strict_reject_words = _keyword_list(
+        kw_cfg.get("strict_hard_reject_keywords"), _DEFAULT_STRICT_HARD_REJECT_KEYWORDS,
+    )
     direct_operation_words = _keyword_list(
         kw_cfg.get("pilot_direct_operation_keywords"),
         _DEFAULT_PILOT_DIRECT_OPERATION_KEYWORDS,
@@ -879,6 +1098,10 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     novelty_words = _keyword_list(
         kw_cfg.get("pilot_novelty_keywords"),
         _DEFAULT_PILOT_NOVELTY_KEYWORDS,
+    )
+    gossip_words = _keyword_list(
+        kw_cfg.get("pilot_gossip_keywords"),
+        _DEFAULT_PILOT_GOSSIP_KEYWORDS,
     )
     novelty_reject_words = _keyword_list(
         kw_cfg.get("pilot_novelty_reject_keywords"),
@@ -920,6 +1143,7 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
     schedule_advisory_hits = _count_hits(title_l, schedule_advisory_words) + _count_hits(text_l, schedule_advisory_words)
     specific_ops_hits = _count_hits(title_l, specific_ops_words) + _count_hits(text_l, specific_ops_words)
     novelty_hits = _count_hits(title_l, novelty_words) + _count_hits(text_l, novelty_words)
+    gossip_hits = _count_hits(title_l, gossip_words) + _count_hits(text_l, gossip_words)
     novelty_reject_hits = _count_hits(text_l, novelty_reject_words)
 
     # Hard-reject known non-aviation entities (e.g. "Minnesota United" soccer)
@@ -927,6 +1151,10 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
         return False, "non_aviation_entity"
     if strict_reject_words and _count_hits(text_l, strict_reject_words) > 0:
         return False, "strict_hard_reject_keywords"
+    if any(term in title_l for term in _SOFT_CONTENT_TITLE_PATTERNS):
+        return False, "hard_reject_keywords"
+    if any(term in title_l for term in _LOW_VALUE_INFRASTRUCTURE_TITLE_PATTERNS):
+        return False, "hard_reject_keywords"
 
     # 用户明确不想要的前沿空中出行类（eVTOL、电动、氢能、超音速等）——
     # 即使在 novelty 路径下也直接拒绝。
@@ -951,6 +1179,13 @@ def _is_pilot_relevant(item: dict, text: str, kw_cfg: dict) -> tuple[bool, str]:
             )
             if entity_hits >= 1 or aviation_context_hits >= 2:
                 return True, "ok_novelty"
+        # 吃瓜旁路：争议/ viral / 机组丑闻——标题里常有 airline/pilot/passenger 等 aviation 词。
+        if gossip_hits >= 1:
+            aviation_context_hits = _count_hits(text_l, _AVIATION_CONTEXT_HINTS) + _count_hits(
+                title_l, _AVIATION_CONTEXT_HINTS,
+            )
+            if entity_hits >= 1 or aviation_context_hits >= 1:
+                return True, "ok_gossip"
         return False, "missing_pilot_signal"
 
     # Trusted sources still need either an aviation entity OR strong signal (2+)
@@ -1052,9 +1287,20 @@ def _pilot_value_profile(item: dict, text: str, kw_cfg: dict) -> dict[str, Any]:
         kw_cfg.get("pilot_novelty_keywords"),
         _DEFAULT_PILOT_NOVELTY_KEYWORDS,
     )
+    gossip_words = _keyword_list(
+        kw_cfg.get("pilot_gossip_keywords"),
+        _DEFAULT_PILOT_GOSSIP_KEYWORDS,
+    )
     direct_hits = _count_hits(combined, direct_words)
     background_hits = _count_hits(combined, background_words)
     novelty_hits = _count_hits(combined, novelty_words)
+    gossip_hits = _count_hits(combined, gossip_words)
+    # 吃瓜信号强时优先归类为 industry_gossip，便于后续 quota / compose 加权。
+    gossip_category_hits = category_hits.get("industry_gossip", 0)
+    if gossip_hits >= 1 and gossip_category_hits >= 1:
+        if gossip_category_hits >= category_hit_count or category == "other":
+            category = "industry_gossip"
+            category_hit_count = gossip_category_hits
     priority_source = source_id in priority_sources
     raw_len = len(str(item.get("raw_text", "") or ""))
 
@@ -1062,17 +1308,20 @@ def _pilot_value_profile(item: dict, text: str, kw_cfg: dict) -> dict[str, Any]:
     value += min(direct_hits * 8.0, 40.0)
     # 新奇/趣闻信号——温和加分让其能进 ranked 池，仍低于直接运行类的 40 上限。
     value += min(novelty_hits * 4.0, 24.0)
+    # 吃瓜信号——读者最爱，单独加分且上限更高。
+    value += min(gossip_hits * 6.0, 30.0)
     value += _CATEGORY_BONUS.get(category, 0.0)
     value += 12.0 if priority_source else 0.0
     value += 18.0 if role == "primary_industry" and category == "industry_news" else 0.0
     value += 8.0 if raw_len >= 300 else 0.0
-    # background_only 罚分仅在没有 novelty 抵消时生效——避免误伤首飞/纪念飞行。
+    # background_only 罚分仅在没有 novelty/gossip 抵消时生效——避免误伤首飞/吃瓜稿。
+    engagement_hits = novelty_hits + gossip_hits
     if role == "primary_industry":
         value -= min(max(background_hits - 2, 0) * 3.0, 12.0)
-    elif novelty_hits <= 0:
+    elif engagement_hits <= 0:
         value -= min(background_hits * 8.0, 28.0)
     else:
-        value -= min(max(background_hits - novelty_hits, 0) * 4.0, 16.0)
+        value -= min(max(background_hits - engagement_hits, 0) * 4.0, 16.0)
     value = max(0.0, min(100.0, 35.0 + value))
     return {
         "category": category,
@@ -1080,6 +1329,7 @@ def _pilot_value_profile(item: dict, text: str, kw_cfg: dict) -> dict[str, Any]:
         "direct_hits": direct_hits,
         "background_hits": background_hits,
         "novelty_hits": novelty_hits,
+        "gossip_hits": gossip_hits,
         "priority_source": priority_source,
         "pilot_value_score": round(value, 2),
     }
@@ -1131,14 +1381,14 @@ def _ensure_novelty_quota(
     novelty_min_score: float = 60.0,
     protected_top_count: int = 5,
 ) -> tuple[list[dict], bool]:
-    """Make sure at least *min_novelty* industry_novelty stories are kept.
+    """Make sure at least *min_novelty* industry_novelty / industry_gossip stories are kept.
 
-    替换策略：从 backfill_pool 里挑分数最高的 novelty 候选（通常用 deduped
-    而非 compose_candidates，让 novelty 不被 min_rank_score 门槛卡住），
-    替换 candidates 中分数最低的非 novelty 项；同时保留分数最高的
+    替换策略：从 backfill_pool 里挑分数最高的趣闻/吃瓜候选（通常用 deduped
+    而非 compose_candidates，让 engagement 稿不被 min_rank_score 门槛卡住），
+    替换 candidates 中分数最低的非 engagement 项；同时保留分数最高的
     *protected_top_count* 条不被替换（保证严肃骨架不丢）。
 
-    若候选池中没有达到 novelty_min_score 的 novelty 类，原样返回，不强行凑数。
+    若候选池中没有达到 novelty_min_score 的 engagement 类，原样返回，不强行凑数。
     """
     if min_novelty <= 0:
         return list(candidates), False
@@ -1146,20 +1396,21 @@ def _ensure_novelty_quota(
     out = list(candidates)
     used_ids = {x.get("id") for x in out}
 
-    def _is_novelty(row: dict) -> bool:
+    def _is_engagement(row: dict) -> bool:
         pv = row.get("pilot_value") or {}
-        return str(pv.get("category", "")) == "industry_novelty"
+        cat = str(pv.get("category", ""))
+        return cat in {"industry_novelty", "industry_gossip"}
 
     def _source_key(row: dict) -> str:
         return str(row.get("source_id") or row.get("source_name") or "")
 
-    novelty_count = sum(1 for r in out if _is_novelty(r))
+    novelty_count = sum(1 for r in out if _is_engagement(r))
     if novelty_count >= min_novelty:
         return out, False
 
     novelty_pool = [
         r for r in backfill_pool
-        if _is_novelty(r)
+        if _is_engagement(r)
         and r.get("id") not in used_ids
         and float(r.get("rank_score") or 0.0) >= novelty_min_score
     ]
@@ -1180,11 +1431,11 @@ def _ensure_novelty_quota(
         if novelty_count >= min_novelty:
             break
 
-        # 找一个最低分的"可被替换"项：非 novelty、不在受保护 top-N 内。
+        # 找一个最低分的"可被替换"项：非 engagement、不在受保护 top-N 内。
         victim_idx = None
         for i in range(len(out) - 1, -1, -1):
             row = out[i]
-            if _is_novelty(row):
+            if _is_engagement(row):
                 continue
             if i in protected_idx:
                 continue
@@ -1325,6 +1576,9 @@ def run(target_date: str | None = None) -> Path:
     novelty_keywords_for_relevance = _keyword_list(
         kw.get("pilot_novelty_keywords"), _DEFAULT_PILOT_NOVELTY_KEYWORDS,
     )
+    gossip_keywords_for_relevance = _keyword_list(
+        kw.get("pilot_gossip_keywords"), _DEFAULT_PILOT_GOSSIP_KEYWORDS,
+    )
 
     ranked: list[dict] = []
     dropped_non_relevant = 0
@@ -1334,6 +1588,7 @@ def run(target_date: str | None = None) -> Path:
     dropped_no_original_link = 0
     dropped_no_published_at = 0
     dropped_too_old = 0
+    dropped_mainland_china_subject = 0
     for item in rows:
         canonical_url = (item.get("canonical_url") or item.get("url") or "").strip()
         if not canonical_url.startswith(("http://", "https://")):
@@ -1355,8 +1610,15 @@ def run(target_date: str | None = None) -> Path:
 
         text = f"{item['title']} {item['raw_text']}"
         hits = _keyword_hits(text, all_keywords)
-        if not _is_relevant(item, hits, all_keywords, novelty_keywords_for_relevance):
+        if not _is_relevant(
+            item, hits, all_keywords,
+            novelty_keywords_for_relevance,
+            gossip_keywords_for_relevance,
+        ):
             dropped_non_relevant += 1
+            continue
+        if _looks_like_mainland_china_aviation_subject(item):
+            dropped_mainland_china_subject += 1
             continue
         pilot_ok, pilot_reason = _is_pilot_relevant(item, text, kw)
         if not pilot_ok:
@@ -1387,8 +1649,9 @@ def run(target_date: str | None = None) -> Path:
             "ops_environment": 4.0,
             "human_factors_training": 2.0,
             # 趣闻类：与 ops_environment 持平，确保有趣的稿件能与严肃稿同场竞争。
-            # compose 阶段仍硬性限制每期最多 2 条，不会喧宾夺主。
             "industry_novelty": 4.0,
+            # 吃瓜类：读者最爱，给最高 category 加分。
+            "industry_gossip": 10.0,
             "industry_news": 6.0,
         }.get(str(pilot_profile["category"]), 0.0)
         rank_score = round(
@@ -1498,6 +1761,7 @@ def run(target_date: str | None = None) -> Path:
             "dropped_no_original_link": dropped_no_original_link,
             "dropped_no_published_at": dropped_no_published_at,
             "dropped_too_old": dropped_too_old,
+            "dropped_mainland_china_subject": dropped_mainland_china_subject,
             "max_article_age_hours": settings.max_article_age_hours,
             "max_tier_a_article_age_hours": settings.max_tier_a_article_age_hours,
             "min_rank_score_for_compose": min_rank_score,
@@ -1509,7 +1773,8 @@ def run(target_date: str | None = None) -> Path:
             "novelty_quota_applied": novelty_quota_applied,
             "novelty_in_top": sum(
                 1 for x in top_candidates
-                if str((x.get("pilot_value") or {}).get("category", "")) == "industry_novelty"
+                if str((x.get("pilot_value") or {}).get("category", ""))
+                in {"industry_novelty", "industry_gossip"}
             ),
             "source_distribution": dict(source_distribution.most_common(10)),
             "source_health_summary": dict(source_health_summary),

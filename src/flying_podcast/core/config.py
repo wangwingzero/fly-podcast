@@ -44,8 +44,8 @@ class Settings:
     source_health_gate_enabled: bool = _env_bool("SOURCE_HEALTH_GATE_ENABLED", True)
     min_primary_industry_sources_ok: int = _env_int("MIN_PRIMARY_INDUSTRY_SOURCES_OK", 2)
     min_primary_industry_items: int = _env_int("MIN_PRIMARY_INDUSTRY_ITEMS", 3)
-    # 每期 ranked 池中至少保留的 industry_novelty（趣闻类）数量，用于让飞行员
-    # 看到首飞、纪念飞行、特殊任务等"非事故"内容；候选池没有时不强行凑数。
+    # 每期 ranked 池中至少保留的 industry_novelty / industry_gossip（趣闻+吃瓜）数量；
+    # 候选池没有时不强行凑数。
     min_novelty_articles: int = _env_int("MIN_NOVELTY_ARTICLES", 1)
     max_article_age_hours: int = _env_int("MAX_ARTICLE_AGE_HOURS", 48)
     max_tier_a_article_age_hours: int = _env_int(
@@ -53,8 +53,8 @@ class Settings:
         _env_int("MAX_ARTICLE_AGE_HOURS", 48),
     )
     recent_published_days: int = _env_int("RECENT_PUBLISHED_DAYS", 14)
-    # Publish 阶段最低发文条数，少于此值则 hold 不发，避免出现只有 1~2 条的尴尬日报
-    min_publish_count: int = _env_int("MIN_PUBLISH_COUNT", 3)
+    # Publish 阶段最低发文条数；有 1 条即可发微信草稿
+    min_publish_count: int = _env_int("MIN_PUBLISH_COUNT", 1)
 
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_base_url: str = os.getenv("LLM_BASE_URL", "")
@@ -91,9 +91,26 @@ class Settings:
     tts_enable_dashscope: bool = _env_bool("TTS_ENABLE_DASHSCOPE", False)
     tts_enable_edge: bool = _env_bool("TTS_ENABLE_EDGE", False)
 
-    # qwen-tts2api (self-hosted, OpenAI-compatible endpoint)
-    qwen_tts_url: str = os.getenv("QWEN_TTS_URL", "http://72.249.203.10:8825")
+    # Qwen TTS: primary = HK local 0.6B; fallback = US qwen-tts2api (remote demo proxy)
+    qwen_tts_primary_url: str = os.getenv(
+        "QWEN_TTS_PRIMARY_URL", "https://tts.hudawang.cn"
+    )
+    qwen_tts_fallback_url: str = os.getenv(
+        "QWEN_TTS_FALLBACK_URL",
+        os.getenv("QWEN_TTS_URL", "http://186.244.244.142:8825"),
+    )
     qwen_tts_api_key: str = os.getenv("QWEN_TTS_API_KEY", "")
+    # Prefer cherry/ethan (US tts2api / DashScope family) before HK 0.6B serena/aiden
+    qwen_tts_prefer_cloud_voices: bool = _env_bool("QWEN_TTS_PREFER_CLOUD_VOICES", False)
+    # Voice IDs per backend (see HK GET /v1/voices; cloud: cherry/ethan or tts2api aliases)
+    tts_voice_female: str = os.getenv("TTS_VOICE_FEMALE", "Cherry")
+    tts_voice_male: str = os.getenv("TTS_VOICE_MALE", "Ethan")
+    tts_qwen_local_voice_female: str = os.getenv("TTS_QWEN_LOCAL_VOICE_FEMALE", "serena")
+    tts_qwen_local_voice_male: str = os.getenv("TTS_QWEN_LOCAL_VOICE_MALE", "aiden")
+    tts_qwen_cloud_voice_female: str = os.getenv("TTS_QWEN_CLOUD_VOICE_FEMALE", "cherry")
+    tts_qwen_cloud_voice_male: str = os.getenv("TTS_QWEN_CLOUD_VOICE_MALE", "ethan")
+    # Optional: qwen_local | qwen_cloud | edge | dashscope — skip fallback chain
+    tts_force_backend: str = os.getenv("TTS_FORCE_BACKEND", "").strip().lower()
 
     # Podcast extra prompt (e.g. holiday greetings)
     podcast_greeting: str = os.getenv("PODCAST_GREETING", "")

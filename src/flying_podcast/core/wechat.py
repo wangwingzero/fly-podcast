@@ -172,6 +172,38 @@ def _squeeze_jpeg_for_thumb(data: bytes, *, max_bytes: int = _THUMB_MAX_BYTES) -
     return encoded
 
 
+def _reencode_image_as_jpeg(data: bytes) -> bytes:
+    """Convert arbitrary image bytes to baseline JPEG for WeChat upload."""
+    if not data:
+        return b""
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+    except ImportError:
+        logger.warning("Pillow not installed; cannot re-encode article image for WeChat")
+        return b""
+
+    try:
+        img = Image.open(BytesIO(data))
+        if img.mode not in {"RGB", "L"}:
+            img = img.convert("RGB")
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=92)
+        return buf.getvalue()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Cannot re-encode article image for WeChat: %s", exc)
+        return b""
+
+
+def _should_retry_image_as_jpeg(upload_result: dict[str, Any]) -> bool:
+    err_text = str(upload_result.get("errmsg", "")).lower()
+    return bool(upload_result.get("errcode")) and (
+        "invalid image format" in err_text
+        or "image format" in err_text
+    )
+
+
 class WeChatClient:
     def __init__(self) -> None:
         self.base = "https://api.weixin.qq.com/cgi-bin"
@@ -284,21 +316,24 @@ class WeChatClient:
         return token
 
     def _upload_image(self, endpoint: str, image_data: bytes,
-                      file_name: str, token: str) -> dict:
+                      file_name: str, token: str, *, content_type: str = "image/jpeg") -> dict:
         """Upload image bytes via curl using a temp file."""
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-            f.write(image_data)
-            tmp_path = f.name
+        suffix = Path(file_name).suffix or ".jpg"
+        tmp_path = ""
         try:
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+                f.write(image_data)
+                tmp_path = f.name
             return _curl_post_file(
                 f"{self.base}/{endpoint}",
                 params={"access_token": token},
                 file_field="media", file_path=tmp_path,
-                file_name=file_name, content_type="image/jpeg",
+                file_name=file_name, content_type=content_type,
                 proxy=self._proxy, timeout=60,
             )
         finally:
-            os.unlink(tmp_path)
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     def upload_content_image_bytes(self, image_data: bytes, token: str | None = None) -> str:
         """Upload raw image bytes to WeChat CDN for article content."""
@@ -369,50 +404,68 @@ class WeChatClient:
         return ""
 
     def upload_content_image(self, image_url: str, token: str | None = None) -> str:
-        """Download an external image and upload it to WeChat's CDN."""
+        """Download an external image and try to replace it with a WeChat CDN URL."""
         if not token:
             token = self._access_token()
+
+        parsed = urlparse(image_url)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        if parsed.scheme and parsed.netloc:
+            headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
+
         try:
-            resp = requests.get(image_url, timeout=15,
-                                headers={"User-Agent": "Mozilla/5.0"})
+            resp = requests.get(image_url, timeout=15, headers=headers)
             resp.raise_for_status()
         except Exception:
             logger.warning("Failed to download image: %s", image_url)
             return ""
 
-        content_type = resp.headers.get("Content-Type", "image/jpeg")
-        ext = "jpg"
-        if "png" in content_type:
-            ext = "png"
-        elif "gif" in content_type:
-            ext = "gif"
+        content_type = str(resp.headers.get("Content-Type", "image/jpeg")).split(";", 1)[0].strip().lower()
+        direct_upload_supported = content_type in {"image/jpeg", "image/jpg", "image/png", "image/gif"}
 
-        try:
-            with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as f:
-                f.write(resp.content)
-                tmp_path = f.name
+        if direct_upload_supported:
+            ext = "jpg"
+            if "png" in content_type:
+                ext = "png"
+            elif "gif" in content_type:
+                ext = "gif"
+
             try:
-                data = _curl_post_file(
-                    f"{self.base}/media/uploadimg",
-                    params={"access_token": token},
-                    file_field="media", file_path=tmp_path,
-                    file_name=f"image.{ext}", content_type=content_type,
-                    proxy=self._proxy, timeout=60,
+                data = self._upload_image(
+                    "media/uploadimg",
+                    resp.content,
+                    f"image.{ext}",
+                    token,
+                    content_type=content_type,
                 )
-            finally:
-                os.unlink(tmp_path)
-            wx_url = data.get("url", "")
-            if wx_url:
-                logger.info("Uploaded image to WeChat CDN: %s -> %s",
-                            image_url[:60], wx_url[:60])
-                return wx_url
-            logger.warning("Upload image failed: %s", data)
-        except Exception:
-            logger.warning("Upload image exception for: %s", image_url)
+                wx_url = data.get("url", "")
+                if wx_url:
+                    logger.info("Uploaded image to WeChat CDN: %s -> %s",
+                                image_url[:60], wx_url[:60])
+                    return wx_url
+                if not _should_retry_image_as_jpeg(data):
+                    logger.warning("Upload image failed: %s", data)
+                    return ""
+                logger.warning("Upload image failed, retry as JPEG: %s", data)
+            except Exception:
+                logger.warning("Upload image exception for: %s", image_url)
+                return ""
+        else:
+            logger.info("Re-encode unsupported image type for WeChat: %s (%s)", image_url[:60], content_type)
+
+        jpeg_data = _reencode_image_as_jpeg(resp.content)
+        if not jpeg_data:
+            return ""
+
+        wx_url = self.upload_content_image_bytes(jpeg_data, token=token)
+        if wx_url:
+            logger.info("Uploaded JPEG fallback to WeChat CDN: %s -> %s",
+                        image_url[:60], wx_url[:60])
+            return wx_url
         return ""
 
     def replace_external_images(self, html: str) -> str:
-        """Find all external <img src="..."> in HTML and replace with WeChat CDN URLs."""
+        """Best-effort replace external <img src="..."> with WeChat CDN URLs."""
         html = html.replace("http://mmbiz.qpic.cn", "https://mmbiz.qpic.cn")
 
         img_pattern = re.compile(r'(<img\s[^>]*?src=")([^"]+)(")')
@@ -439,11 +492,7 @@ class WeChatClient:
                 html = html.replace(ext_url, wx_url)
                 html = html.replace(ext_url.replace("&", "&amp;"), wx_url)
             else:
-                html = re.sub(
-                    rf'<img\s[^>]*?src="{re.escape(ext_url)}"[^>]*/?>',
-                    "",
-                    html,
-                )
+                logger.warning("Keep external image after WeChat upload failed: %s", ext_url[:80])
 
         return html
 

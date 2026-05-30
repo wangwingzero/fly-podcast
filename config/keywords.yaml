@@ -266,6 +266,12 @@ hard_reject_keywords:
   - dispatch staffing
   - dispatcher hiring
   - dispatch system procurement
+  - china confirms order
+  - china confirms boeing order
+  - airport construction plan
+  - breaks ground on
+  - engineering complex
+  - operations base
   # 软文 / 营销 / 推广 / 会员积分类（避免厂商和门户软文混入）
   - sponsored content
   - sponsorship deal
@@ -331,6 +337,11 @@ strict_hard_reject_keywords:
   - acquiring
   - immigration enforcement
   - ice vehicles
+  - usaf
+  - trainer jet
+  - raf spy plane
+  - mrtt
+  - combat drone
   # 厂商 / 门户软文常见模板词（强力屏蔽）
   - press release announces partnership
   - announces strategic partnership
@@ -758,6 +769,83 @@ pilot_novelty_reject_keywords:
   - 超音速客机
   - 城市空中出行
   - 空中出租车
+
+# 吃瓜类：航司/机组/旅客争议、丑闻、 viral 事件——读者最爱看，应高分入选
+pilot_gossip_keywords:
+  - scandal
+  - controversy
+  - controversial
+  - viral
+  - went viral
+  - trending
+  - backlash
+  - outrage
+  - slammed
+  - criticised
+  - criticized
+  - fired
+  - sacked
+  - suspended
+  - resignation
+  - resign
+  - terminated
+  - disciplinary action
+  - under investigation
+  - unruly passenger
+  - disruptive passenger
+  - passenger altercation
+  - passenger fight
+  - kicked off
+  - removed from flight
+  - banned from
+  - deplaned
+  - intoxicated
+  - drunk pilot
+  - alcohol test
+  - caught on camera
+  - video shows
+  - social media
+  - tiktok
+  - instagram
+  - reddit
+  - drama
+  - feud
+  - embarrassing
+  - mishap
+  - blunder
+  - gaffe
+  - pilot error
+  - captain suspended
+  - first officer suspended
+  - inappropriate
+  - sexual harassment
+  - whistleblower
+  - public apology
+  - airline apologizes
+  - airline apologises
+  - 争议
+  - 丑闻
+  - 辞退
+  - 解聘
+  - 停职
+  - 网曝
+  - 曝光
+  - 热搜
+  - 引热议
+  - 引争议
+  - 遭吐槽
+  - 遭质疑
+  - 翻车
+  - 闹事
+  - 冲突
+  - 吵架
+  - 殴打
+  - 醉酒
+  - 闹事旅客
+  - 被赶下飞机
+  - 公开道歉
+  - 机组被停飞
+  - 机长被停职
 
 pilot_priority_sources:
   - flightglobal_air_transport_cli
